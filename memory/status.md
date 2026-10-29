@@ -83,4 +83,15 @@ acceptance gates. Implemented authoritative Rust domain layer in `apps/api`
 - 7/7 Rust unit and integration tests passed, formatting verified with rustfmt, clippy passed with zero warnings under `-D warnings`.
 - Next.js TypeScript typecheck (`tsc --noEmit`) passed with 0 errors, and Next.js production build completed with 30 static and dynamic routes.
 
-Next: Phase 2 (P2a: Verification & Consent file uploads, P2b: Financial Payments & Invoicing Ledger, P2c: Audio/Music file validation & processing).
+2026-10-30: Completed Phase 2 (P2a: Verification & Consent, P2b: Financial Payments & Invoicing Ledger, P2c: Audio/Music Compliance & Changes).
+- Verified 100% route coverage for all 17 Phase 2 pages specified in `docs/website-plan/pages.json`:
+  * Portal Verification & Consent: `/app/verification`, `/app/consents`, `/app/dependents`.
+  * Invoicing, Checkout & Payments: `/app/entries/[entryId]/checkout`, `/app/payments`, `/app/payments/[paymentId]`, `/app/payment-return`.
+  * Performance Music & Changes: `/app/entries/[entryId]/music`, `/app/entries/[entryId]/changes`, `/app/notifications`.
+  * Chapter Admin Finance & Verification Queue: `/admin/[chapterId]/events/[eventId]/fees`, `/admin/[chapterId]/verification`, `/admin/[chapterId]/finance`, `/admin/[chapterId]/finance/transactions`, `/admin/[chapterId]/finance/refunds`, `/admin/[chapterId]/events/[eventId]/communications`.
+  * Public Spectator Tickets: `/events/[eventSlug]/tickets`.
+- Extended Rust Axum API with authoritative financial ledger in minor currency units, payment quote generation, idempotent payment settlement, refund processing, and identity/guardian verification case review.
+- 8/8 Rust unit and integration tests passed, formatting clean, zero clippy warnings under `-D warnings`.
+- Next.js TypeScript typecheck (`tsc --noEmit`) passed with 0 errors, and Next.js production build completed with 36 static and dynamic routes.
+
+Next: Phase 3 (P3a: Venue passes & QR check-in scanner, P3b: Judging console & deductions, P3c: Finalization & published scorecards, P3d: BG.ONE street battle brackets & voting, Arena HUD).

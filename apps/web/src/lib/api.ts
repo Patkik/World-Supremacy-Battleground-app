@@ -363,3 +363,159 @@ export async function fetchEvents(
     { id: "hk-championship-2027", chapter_id: "hk", name: "Hong Kong World Championship 2027", status: "active", rules_version: "2027.1" },
   ];
 }
+
+export interface PaymentQuote {
+  entry_id: string;
+  division_name: string;
+  dancer_count: number;
+  rate_per_dancer_minor: number;
+  total_amount_minor: number;
+  currency: string;
+}
+
+export interface PaymentRecord {
+  payment_id: string;
+  chapter_id: string;
+  entry_id: string;
+  payer_uid: string;
+  amount_minor: number;
+  currency: string;
+  status: "pending" | "settled" | "failed" | "refunded";
+  provider_reference: string;
+  created_at: number;
+  settled_at?: number;
+}
+
+export interface FinanceSummary {
+  chapter_id: string;
+  total_settled_minor: number;
+  total_pending_minor: number;
+  total_refunded_minor: number;
+  currency: string;
+  transaction_count: number;
+}
+
+export interface VerificationCase {
+  case_id: string;
+  chapter_id: string;
+  dancer_uid: string;
+  dancer_name: string;
+  is_minor: boolean;
+  status: "pending" | "approved" | "rejected";
+  document_type: string;
+  submitted_at: number;
+  reviewed_at?: number;
+  reviewer_note?: string;
+}
+
+export async function fetchPaymentQuote(
+  chapterId: string,
+  token: string,
+  eventId: string,
+  entryId: string
+): Promise<PaymentQuote> {
+  const res = await fetch(`${API_BASE}/v1/chapters/${chapterId}/events/${eventId}/entries/${entryId}/quote`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to get payment quote: ${res.statusText}`);
+  }
+  return await res.json();
+}
+
+export async function submitPayment(
+  chapterId: string,
+  token: string,
+  eventId: string,
+  entryId: string,
+  providerReference: string
+): Promise<PaymentRecord> {
+  const res = await fetch(`${API_BASE}/v1/chapters/${chapterId}/events/${eventId}/entries/${entryId}/pay`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ provider_reference: providerReference }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to process payment: ${res.statusText}`);
+  }
+  return await res.json();
+}
+
+export async function fetchFinanceSummary(chapterId: string, token: string): Promise<FinanceSummary> {
+  const res = await fetch(`${API_BASE}/v1/chapters/${chapterId}/finance/summary`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch finance summary: ${res.statusText}`);
+  }
+  return await res.json();
+}
+
+export async function fetchPayments(chapterId: string, token: string): Promise<PaymentRecord[]> {
+  const res = await fetch(`${API_BASE}/v1/chapters/${chapterId}/finance/payments`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to list payments: ${res.statusText}`);
+  }
+  return await res.json();
+}
+
+export async function fetchVerificationCases(chapterId: string, token: string): Promise<VerificationCase[]> {
+  const res = await fetch(`${API_BASE}/v1/chapters/${chapterId}/verification`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch verification cases: ${res.statusText}`);
+  }
+  return await res.json();
+}
+
+export async function submitVerificationCase(
+  chapterId: string,
+  token: string,
+  dancerName: string,
+  isMinor: boolean,
+  documentType: string
+): Promise<VerificationCase> {
+  const res = await fetch(`${API_BASE}/v1/chapters/${chapterId}/verification`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      dancer_name: dancerName,
+      is_minor: isMinor,
+      document_type: documentType,
+    }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to submit verification: ${res.statusText}`);
+  }
+  return await res.json();
+}
+
+export async function reviewVerificationCase(
+  chapterId: string,
+  token: string,
+  caseId: string,
+  status: "approved" | "rejected",
+  note?: string
+): Promise<VerificationCase> {
+  const res = await fetch(`${API_BASE}/v1/chapters/${chapterId}/verification/${caseId}/review`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ status, note }),
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to review verification case: ${res.statusText}`);
+  }
+  return await res.json();
+}

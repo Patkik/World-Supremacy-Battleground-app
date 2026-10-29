@@ -3,8 +3,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::domain::{
     Chapter, Crew, CrewInvitation, CrewMember, CrewResult, Deduction, Division, Entry,
-    EntryReadiness, EntryStatus, Event, MemberRole, ScoreCriteria, ScoreReceipt,
-    SubmitScoreCommand,
+    EntryReadiness, EntryStatus, Event, FinanceSummary, MemberRole, PaymentQuote, PaymentRecord,
+    PaymentStatus, ScoreCriteria, ScoreReceipt, SubmitScoreCommand, VerificationCase,
+    VerificationStatus,
 };
 
 fn now_secs() -> u64 {
@@ -27,6 +28,8 @@ pub struct RegistrationStore {
     pub scores: HashMap<String, Vec<RecordedScore>>, // division_id -> [(judge_id, revision, criteria, deductions)]
     pub receipts: HashMap<String, ScoreReceipt>,     // operation_id -> ScoreReceipt
     pub division_revisions: HashMap<String, u64>,
+    pub payments: HashMap<String, PaymentRecord>,
+    pub verification_cases: HashMap<String, VerificationCase>,
 }
 
 impl Default for RegistrationStore {
@@ -48,6 +51,8 @@ impl RegistrationStore {
             scores: HashMap::new(),
             receipts: HashMap::new(),
             division_revisions: HashMap::new(),
+            payments: HashMap::new(),
+            verification_cases: HashMap::new(),
         };
         store.seed_defaults();
         store
@@ -220,6 +225,36 @@ impl RegistrationStore {
             updated_at: 1700000000,
         };
         self.entries.insert(sample_entry.id.clone(), sample_entry);
+
+        let sample_payment = PaymentRecord {
+            payment_id: "pay-1001".into(),
+            chapter_id: "ph".into(),
+            entry_id: "entry-manila-open-1".into(),
+            payer_uid: "dev-manager-1".into(),
+            amount_minor: 120_000 * 6,
+            currency: "PHP".into(),
+            status: PaymentStatus::Settled,
+            provider_reference: "ref-pay-afterhours-1".into(),
+            created_at: 1700000000,
+            settled_at: Some(1700000000),
+        };
+        self.payments
+            .insert(sample_payment.payment_id.clone(), sample_payment);
+
+        let sample_verification = VerificationCase {
+            case_id: "case-2001".into(),
+            chapter_id: "ph".into(),
+            dancer_uid: "dancer-5".into(),
+            dancer_name: "Carlo Lim".into(),
+            is_minor: true,
+            status: VerificationStatus::Approved,
+            document_type: "Guardian Release & Government ID".into(),
+            submitted_at: 1700000000,
+            reviewed_at: Some(1700000000),
+            reviewer_note: Some("Verified parent signature matches passport ID".into()),
+        };
+        self.verification_cases
+            .insert(sample_verification.case_id.clone(), sample_verification);
     }
 
     pub fn get_divisions(
@@ -685,5 +720,200 @@ impl RegistrationStore {
         }
 
         Ok(results)
+    }
+
+    // Phase 2: Financial Ledger & Payment Reconciliation
+    pub fn get_payment_quote(
+        &self,
+        chapter_id: &str,
+        event_id: &str,
+        entry_id: &str,
+    ) -> Result<PaymentQuote, &'static str> {
+        let entry = self.entries.get(entry_id).ok_or("Entry not found")?;
+        if entry.chapter_id != chapter_id || entry.event_id != event_id {
+            return Err("Cross-chapter entry quote access denied");
+        }
+        let divisions = self
+            .divisions
+            .get(event_id)
+            .ok_or("Divisions not configured")?;
+        let division = divisions
+            .iter()
+            .find(|d| d.id == entry.division_id)
+            .ok_or("Division not found")?;
+        let chapter = self.chapters.get(chapter_id).ok_or("Chapter not found")?;
+
+        let dancer_count = entry.roster.len();
+        let total_amount_minor = division.fee_minor * (dancer_count as u64);
+
+        Ok(PaymentQuote {
+            entry_id: entry_id.into(),
+            division_name: division.name.clone(),
+            dancer_count,
+            rate_per_dancer_minor: division.fee_minor,
+            total_amount_minor,
+            currency: chapter.currency.clone(),
+        })
+    }
+
+    pub fn process_payment(
+        &mut self,
+        chapter_id: &str,
+        entry_id: &str,
+        payer_uid: &str,
+        provider_ref: &str,
+    ) -> Result<PaymentRecord, &'static str> {
+        let entry = self.entries.get(entry_id).ok_or("Entry not found")?.clone();
+        if entry.chapter_id != chapter_id {
+            return Err("Cross-chapter payment denied");
+        }
+        let quote = self.get_payment_quote(chapter_id, &entry.event_id, entry_id)?;
+        let payment_id = format!("pay-{}", now_secs());
+
+        let payment = PaymentRecord {
+            payment_id: payment_id.clone(),
+            chapter_id: chapter_id.into(),
+            entry_id: entry_id.into(),
+            payer_uid: payer_uid.into(),
+            amount_minor: quote.total_amount_minor,
+            currency: quote.currency,
+            status: PaymentStatus::Settled,
+            provider_reference: provider_ref.into(),
+            created_at: now_secs(),
+            settled_at: Some(now_secs()),
+        };
+
+        // Reconcile entry paid amount in ledger
+        if let Some(entry_mut) = self.entries.get_mut(entry_id) {
+            entry_mut.paid_minor += quote.total_amount_minor;
+            entry_mut.updated_at = now_secs();
+        }
+
+        self.payments.insert(payment_id, payment.clone());
+        Ok(payment)
+    }
+
+    pub fn refund_payment(
+        &mut self,
+        chapter_id: &str,
+        payment_id: &str,
+    ) -> Result<PaymentRecord, &'static str> {
+        let payment = self
+            .payments
+            .get_mut(payment_id)
+            .ok_or("Payment not found")?;
+        if payment.chapter_id != chapter_id {
+            return Err("Cross-chapter refund denied");
+        }
+        if payment.status != PaymentStatus::Settled {
+            return Err("Only settled payments can be refunded");
+        }
+        payment.status = PaymentStatus::Refunded;
+        let entry_id = payment.entry_id.clone();
+        let amount = payment.amount_minor;
+
+        if let Some(entry) = self.entries.get_mut(&entry_id) {
+            entry.paid_minor = entry.paid_minor.saturating_sub(amount);
+            entry.updated_at = now_secs();
+        }
+
+        Ok(payment.clone())
+    }
+
+    pub fn list_payments(&self, chapter_id: &str) -> Vec<PaymentRecord> {
+        self.payments
+            .values()
+            .filter(|p| p.chapter_id == chapter_id)
+            .cloned()
+            .collect()
+    }
+
+    pub fn get_finance_summary(&self, chapter_id: &str) -> FinanceSummary {
+        let chapter_payments: Vec<_> = self
+            .payments
+            .values()
+            .filter(|p| p.chapter_id == chapter_id)
+            .collect();
+        let currency = self
+            .chapters
+            .get(chapter_id)
+            .map(|c| c.currency.clone())
+            .unwrap_or_else(|| "PHP".into());
+
+        let mut total_settled_minor = 0;
+        let mut total_pending_minor = 0;
+        let mut total_refunded_minor = 0;
+
+        for p in &chapter_payments {
+            match p.status {
+                PaymentStatus::Settled => total_settled_minor += p.amount_minor,
+                PaymentStatus::Pending => total_pending_minor += p.amount_minor,
+                PaymentStatus::Refunded => total_refunded_minor += p.amount_minor,
+                PaymentStatus::Failed => {}
+            }
+        }
+
+        FinanceSummary {
+            chapter_id: chapter_id.into(),
+            total_settled_minor,
+            total_pending_minor,
+            total_refunded_minor,
+            currency,
+            transaction_count: chapter_payments.len(),
+        }
+    }
+
+    // Phase 2: Identity & Guardian Verification Cases
+    pub fn list_verification_cases(&self, chapter_id: &str) -> Vec<VerificationCase> {
+        self.verification_cases
+            .values()
+            .filter(|c| c.chapter_id == chapter_id)
+            .cloned()
+            .collect()
+    }
+
+    pub fn review_verification_case(
+        &mut self,
+        chapter_id: &str,
+        case_id: &str,
+        status: VerificationStatus,
+        note: Option<String>,
+    ) -> Result<VerificationCase, &'static str> {
+        let case = self
+            .verification_cases
+            .get_mut(case_id)
+            .ok_or("Verification case not found")?;
+        if case.chapter_id != chapter_id {
+            return Err("Cross-chapter verification review denied");
+        }
+        case.status = status;
+        case.reviewed_at = Some(now_secs());
+        case.reviewer_note = note;
+        Ok(case.clone())
+    }
+
+    pub fn submit_verification_case(
+        &mut self,
+        chapter_id: &str,
+        dancer_uid: &str,
+        dancer_name: &str,
+        is_minor: bool,
+        doc_type: &str,
+    ) -> VerificationCase {
+        let case_id = format!("case-{}", now_secs());
+        let case = VerificationCase {
+            case_id: case_id.clone(),
+            chapter_id: chapter_id.into(),
+            dancer_uid: dancer_uid.into(),
+            dancer_name: dancer_name.into(),
+            is_minor,
+            status: VerificationStatus::Pending,
+            document_type: doc_type.into(),
+            submitted_at: now_secs(),
+            reviewed_at: None,
+            reviewer_note: None,
+        };
+        self.verification_cases.insert(case_id, case.clone());
+        case
     }
 }

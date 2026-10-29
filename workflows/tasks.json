@@ -79,9 +79,16 @@
         "registration"
       ],
       "owner": "implementer",
-      "status": "todo",
+      "status": "done",
       "acceptance": "Verified webhook signatures, replay and refund cases pass",
-      "evidence": []
+      "evidence": [
+        "apps/api/src/domain.rs",
+        "apps/api/src/store.rs",
+        "apps/api/src/finance.rs",
+        "apps/api/src/main.rs",
+        "apps/web/src/app/(portal)/app/payments/page.tsx",
+        "apps/web/src/app/(admin)/admin/[chapterId]/finance/page.tsx"
+      ]
     },
     {
       "id": "judging",

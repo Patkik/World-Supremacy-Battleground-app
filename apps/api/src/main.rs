@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod domain;
+pub mod finance;
 pub mod judging;
 pub mod registration;
 pub mod store;
@@ -86,6 +87,34 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/results",
             get(judging::get_division_results),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/quote",
+            get(finance::get_payment_quote),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/pay",
+            post(finance::process_payment),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/finance/payments",
+            get(finance::list_payments),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/finance/payments/{payment_id}/refund",
+            post(finance::refund_payment),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/finance/summary",
+            get(finance::get_finance_summary),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/verification",
+            get(finance::list_verification_cases).post(finance::submit_verification_case),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/verification/{case_id}/review",
+            post(finance::review_verification_case),
         )
         .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(
@@ -401,5 +430,57 @@ mod tests {
         // 6. Cannot update roster once approved
         let err_update = store.update_entry_roster("ph", entry_id, vec![]);
         assert!(err_update.is_err());
+    }
+
+    #[tokio::test]
+    async fn financial_ledger_quotes_and_verification_cases() {
+        let mut store = RegistrationStore::new();
+
+        // 1. Quote calculation based on division fee * dancer count
+        let quote = store
+            .get_payment_quote("ph", "manila-session-2027", "entry-manila-open-1")
+            .expect("payment quote");
+        assert_eq!(quote.dancer_count, 6);
+        assert_eq!(quote.rate_per_dancer_minor, 120_000);
+        assert_eq!(quote.total_amount_minor, 720_000);
+        assert_eq!(quote.currency, "PHP");
+
+        // 2. Process payment settles and reconciles entry paid_minor
+        let payment = store
+            .process_payment("ph", "entry-manila-open-1", "manager-1", "ref-tx-9901")
+            .expect("process payment");
+        assert_eq!(payment.status, domain::PaymentStatus::Settled);
+        assert_eq!(payment.amount_minor, 720_000);
+
+        // 3. Finance summary tracks settled totals
+        let summary = store.get_finance_summary("ph");
+        assert!(summary.total_settled_minor >= 720_000);
+        assert_eq!(summary.currency, "PHP");
+
+        // 4. Refund payment transitions status to Refunded and deduces entry paid_minor
+        let refunded = store
+            .refund_payment("ph", &payment.payment_id)
+            .expect("refund payment");
+        assert_eq!(refunded.status, domain::PaymentStatus::Refunded);
+
+        // 5. Verification case submission & registrar review
+        let case = store.submit_verification_case(
+            "ph",
+            "dancer-new",
+            "New Dancer",
+            true,
+            "Passport & Parent Form",
+        );
+        assert_eq!(case.status, domain::VerificationStatus::Pending);
+
+        let reviewed = store
+            .review_verification_case(
+                "ph",
+                &case.case_id,
+                domain::VerificationStatus::Approved,
+                Some("Pass".into()),
+            )
+            .expect("review verification");
+        assert_eq!(reviewed.status, domain::VerificationStatus::Approved);
     }
 }

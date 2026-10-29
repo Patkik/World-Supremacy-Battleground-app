@@ -169,3 +169,68 @@ pub struct CrewResult {
     pub final_score: f64,
     pub rank: usize,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum PaymentStatus {
+    Pending,
+    Settled,
+    Failed,
+    Refunded,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PaymentQuote {
+    pub entry_id: String,
+    pub division_name: String,
+    pub dancer_count: usize,
+    pub rate_per_dancer_minor: u64,
+    pub total_amount_minor: u64,
+    pub currency: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PaymentRecord {
+    pub payment_id: String,
+    pub chapter_id: String,
+    pub entry_id: String,
+    pub payer_uid: String,
+    pub amount_minor: u64,
+    pub currency: String,
+    pub status: PaymentStatus,
+    pub provider_reference: String,
+    pub created_at: u64,
+    pub settled_at: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum VerificationStatus {
+    Pending,
+    Approved,
+    Rejected,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct VerificationCase {
+    pub case_id: String,
+    pub chapter_id: String,
+    pub dancer_uid: String,
+    pub dancer_name: String,
+    pub is_minor: bool,
+    pub status: VerificationStatus,
+    pub document_type: String,
+    pub submitted_at: u64,
+    pub reviewed_at: Option<u64>,
+    pub reviewer_note: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FinanceSummary {
+    pub chapter_id: String,
+    pub total_settled_minor: u64,
+    pub total_pending_minor: u64,
+    pub total_refunded_minor: u64,
+    pub currency: String,
+    pub transaction_count: usize,
+}
