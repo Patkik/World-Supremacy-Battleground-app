@@ -2,10 +2,10 @@ use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::domain::{
-    Chapter, Crew, CrewInvitation, CrewMember, CrewResult, Deduction, Division, Entry,
-    EntryReadiness, EntryStatus, Event, FinanceSummary, MemberRole, PaymentQuote, PaymentRecord,
-    PaymentStatus, ScoreCriteria, ScoreReceipt, SubmitScoreCommand, VerificationCase,
-    VerificationStatus,
+    BattleMatch, Chapter, CheckInRecord, Crew, CrewInvitation, CrewMember, CrewResult, Deduction,
+    Division, Entry, EntryReadiness, EntryStatus, Event, FinanceSummary, MemberRole, PaymentQuote,
+    PaymentRecord, PaymentStatus, PublishedResultSnapshot, ScoreCriteria, ScoreReceipt,
+    SubmitScoreCommand, VerificationCase, VerificationStatus,
 };
 
 fn now_secs() -> u64 {
@@ -30,6 +30,9 @@ pub struct RegistrationStore {
     pub division_revisions: HashMap<String, u64>,
     pub payments: HashMap<String, PaymentRecord>,
     pub verification_cases: HashMap<String, VerificationCase>,
+    pub check_ins: HashMap<String, CheckInRecord>,
+    pub battle_matches: HashMap<String, BattleMatch>,
+    pub published_results: HashMap<String, PublishedResultSnapshot>,
 }
 
 impl Default for RegistrationStore {
@@ -53,6 +56,9 @@ impl RegistrationStore {
             division_revisions: HashMap::new(),
             payments: HashMap::new(),
             verification_cases: HashMap::new(),
+            check_ins: HashMap::new(),
+            battle_matches: HashMap::new(),
+            published_results: HashMap::new(),
         };
         store.seed_defaults();
         store
@@ -255,6 +261,21 @@ impl RegistrationStore {
         };
         self.verification_cases
             .insert(sample_verification.case_id.clone(), sample_verification);
+
+        let sample_battle = BattleMatch {
+            match_id: "match-101".into(),
+            event_id: "manila-session-2027".into(),
+            category: "1v1 B-Boy Battle".into(),
+            round: "Final".into(),
+            red_corner_name: "B-Boy Sonic".into(),
+            blue_corner_name: "B-Boy Kidlock".into(),
+            votes_red: 0,
+            votes_blue: 0,
+            winner_corner: None,
+            status: "live".into(),
+        };
+        self.battle_matches
+            .insert(sample_battle.match_id.clone(), sample_battle);
     }
 
     pub fn get_divisions(
@@ -915,5 +936,106 @@ impl RegistrationStore {
         };
         self.verification_cases.insert(case_id, case.clone());
         case
+    }
+
+    // Phase 3: Venue Operations, Battles & Public Publication
+    pub fn check_in_dancer(
+        &mut self,
+        chapter_id: &str,
+        event_id: &str,
+        dancer_uid: &str,
+        scanner_uid: &str,
+    ) -> CheckInRecord {
+        let pass_id = format!("pass-{}-{}", dancer_uid, now_secs());
+        let record = CheckInRecord {
+            pass_id: pass_id.clone(),
+            chapter_id: chapter_id.into(),
+            event_id: event_id.into(),
+            dancer_uid: dancer_uid.into(),
+            checked_in_at: now_secs(),
+            scanner_uid: scanner_uid.into(),
+        };
+        self.check_ins.insert(pass_id, record.clone());
+        record
+    }
+
+    pub fn list_check_ins(&self, chapter_id: &str, event_id: &str) -> Vec<CheckInRecord> {
+        self.check_ins
+            .values()
+            .filter(|c| c.chapter_id == chapter_id && c.event_id == event_id)
+            .cloned()
+            .collect()
+    }
+
+    pub fn list_battle_matches(&self, event_id: &str) -> Vec<BattleMatch> {
+        self.battle_matches
+            .values()
+            .filter(|m| m.event_id == event_id)
+            .cloned()
+            .collect()
+    }
+
+    pub fn vote_battle(
+        &mut self,
+        event_id: &str,
+        match_id: &str,
+        winner_corner: &str,
+    ) -> Result<BattleMatch, &'static str> {
+        let match_record = self
+            .battle_matches
+            .get_mut(match_id)
+            .ok_or("Match not found")?;
+        if match_record.event_id != event_id {
+            return Err("Match does not belong to event");
+        }
+        if winner_corner == "red" {
+            match_record.votes_red += 1;
+        } else if winner_corner == "blue" {
+            match_record.votes_blue += 1;
+        } else {
+            return Err("Invalid corner for vote (must be 'red' or 'blue')");
+        }
+
+        if match_record.votes_red >= 3 {
+            match_record.winner_corner = Some("Red Corner (B-Boy Sonic)".into());
+            match_record.status = "completed".into();
+        } else if match_record.votes_blue >= 3 {
+            match_record.winner_corner = Some("Blue Corner (B-Boy Kidlock)".into());
+            match_record.status = "completed".into();
+        }
+
+        Ok(match_record.clone())
+    }
+
+    pub fn publish_division_results(
+        &mut self,
+        chapter_id: &str,
+        event_id: &str,
+        division_id: &str,
+    ) -> Result<PublishedResultSnapshot, &'static str> {
+        let results = self.get_division_results(chapter_id, event_id, division_id)?;
+        let pub_id = format!("pub-{}-{}-{}", event_id, division_id, now_secs());
+        let snapshot = PublishedResultSnapshot {
+            publication_id: pub_id.clone(),
+            chapter_id: chapter_id.into(),
+            event_id: event_id.into(),
+            division_id: division_id.into(),
+            results,
+            published_at: now_secs(),
+        };
+        self.published_results.insert(pub_id, snapshot.clone());
+        Ok(snapshot)
+    }
+
+    pub fn get_published_snapshot(
+        &self,
+        event_id: &str,
+        division_id: &str,
+    ) -> Option<PublishedResultSnapshot> {
+        self.published_results
+            .values()
+            .filter(|p| p.event_id == event_id && p.division_id == division_id)
+            .max_by_key(|p| p.published_at)
+            .cloned()
     }
 }

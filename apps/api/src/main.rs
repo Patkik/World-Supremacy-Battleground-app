@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod domain;
+pub mod event_ops;
 pub mod finance;
 pub mod judging;
 pub mod registration;
@@ -115,6 +116,30 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
         .route(
             "/v1/chapters/{chapter_id}/verification/{case_id}/review",
             post(finance::review_verification_case),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/check-in",
+            post(event_ops::check_in_dancer),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/check-ins",
+            get(event_ops::list_check_ins),
+        )
+        .route(
+            "/v1/events/{event_id}/battles",
+            get(event_ops::list_battles),
+        )
+        .route(
+            "/v1/events/{event_id}/battles/{match_id}/vote",
+            post(event_ops::vote_battle),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/publish",
+            post(event_ops::publish_results),
+        )
+        .route(
+            "/v1/events/{event_id}/divisions/{division_id}/published",
+            get(event_ops::get_published_snapshot),
         )
         .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(
@@ -482,5 +507,64 @@ mod tests {
             )
             .expect("review verification");
         assert_eq!(reviewed.status, domain::VerificationStatus::Approved);
+    }
+
+    #[tokio::test]
+    async fn venue_check_ins_battles_and_publication() {
+        let mut store = RegistrationStore::new();
+
+        // 1. Venue check-in creates pass
+        let check_in =
+            store.check_in_dancer("ph", "manila-session-2027", "dancer-1", "marshal-scanner");
+        assert_eq!(check_in.dancer_uid, "dancer-1");
+
+        let list = store.list_check_ins("ph", "manila-session-2027");
+        assert!(!list.is_empty());
+
+        // 2. Battle match voting
+        let battles = store.list_battle_matches("manila-session-2027");
+        assert!(!battles.is_empty());
+        let match_id = battles[0].match_id.clone();
+
+        // Cast 3 votes for red corner to achieve majority
+        store
+            .vote_battle("manila-session-2027", &match_id, "red")
+            .unwrap();
+        store
+            .vote_battle("manila-session-2027", &match_id, "red")
+            .unwrap();
+        let voted = store
+            .vote_battle("manila-session-2027", &match_id, "red")
+            .unwrap();
+        assert_eq!(voted.status, "completed");
+        assert!(voted.winner_corner.unwrap().contains("Red Corner"));
+
+        // 3. Score entry and publish division results
+        let cmd = domain::SubmitScoreCommand {
+            operation_id: "op-pub-1".into(),
+            division_id: "open-crew".into(),
+            crew_id: "crew-afterhours".into(),
+            expected_revision: 0,
+            criteria: domain::ScoreCriteria {
+                choreography: 19.0,
+                musicality: 19.0,
+                execution: 19.0,
+                stage_presence: 19.0,
+                entertainment: 19.0,
+            },
+            deductions: vec![],
+        };
+        store
+            .submit_score("ph", "manila-session-2027", "judge-1", cmd)
+            .unwrap();
+
+        let pub_snapshot = store
+            .publish_division_results("ph", "manila-session-2027", "open-crew")
+            .expect("publish results");
+        assert!(!pub_snapshot.results.is_empty());
+        assert_eq!(pub_snapshot.results[0].final_score, 95.0);
+
+        let retrieved = store.get_published_snapshot("manila-session-2027", "open-crew");
+        assert!(retrieved.is_some());
     }
 }

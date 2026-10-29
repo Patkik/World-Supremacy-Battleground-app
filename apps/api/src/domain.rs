@@ -234,3 +234,37 @@ pub struct FinanceSummary {
     pub currency: String,
     pub transaction_count: usize,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CheckInRecord {
+    pub pass_id: String,
+    pub chapter_id: String,
+    pub event_id: String,
+    pub dancer_uid: String,
+    pub checked_in_at: u64,
+    pub scanner_uid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BattleMatch {
+    pub match_id: String,
+    pub event_id: String,
+    pub category: String,
+    pub round: String,
+    pub red_corner_name: String,
+    pub blue_corner_name: String,
+    pub votes_red: usize,
+    pub votes_blue: usize,
+    pub winner_corner: Option<String>,
+    pub status: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PublishedResultSnapshot {
+    pub publication_id: String,
+    pub chapter_id: String,
+    pub event_id: String,
+    pub division_id: String,
+    pub results: Vec<CrewResult>,
+    pub published_at: u64,
+}

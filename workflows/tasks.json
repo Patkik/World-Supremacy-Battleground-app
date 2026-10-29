@@ -112,9 +112,17 @@
         "registration"
       ],
       "owner": "implementer",
-      "status": "todo",
+      "status": "done",
       "acceptance": "Compliance and venue recovery scenarios verified",
-      "evidence": []
+      "evidence": [
+        "apps/api/src/event_ops.rs",
+        "apps/api/src/domain.rs",
+        "apps/api/src/store.rs",
+        "apps/web/src/app/(console)/console/[eventId]/check-in/page.tsx",
+        "apps/web/src/app/(console)/console/[eventId]/marshal/page.tsx",
+        "apps/web/src/app/(console)/console/[eventId]/audio/page.tsx",
+        "apps/web/src/app/(arena-live)/arena-live/[eventId]/page.tsx"
+      ]
     },
     {
       "id": "results",
@@ -124,9 +132,16 @@
         "registration"
       ],
       "owner": "implementer",
-      "status": "todo",
+      "status": "done",
       "acceptance": "Aggregation, ties, publication and eligibility match sourced rules",
-      "evidence": []
+      "evidence": [
+        "apps/api/src/event_ops.rs",
+        "apps/web/src/app/(console)/console/[eventId]/head-judge/page.tsx",
+        "apps/web/src/app/(console)/console/[eventId]/head-judge/[divisionId]/page.tsx",
+        "apps/web/src/app/(admin)/admin/[chapterId]/events/[eventId]/results/page.tsx",
+        "apps/web/src/app/(marketing)/events/[eventSlug]/results/page.tsx",
+        "apps/web/src/app/(marketing)/results/page.tsx"
+      ]
     },
     {
       "id": "pilot",

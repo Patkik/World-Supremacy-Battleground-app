@@ -94,4 +94,17 @@ acceptance gates. Implemented authoritative Rust domain layer in `apps/api`
 - 8/8 Rust unit and integration tests passed, formatting clean, zero clippy warnings under `-D warnings`.
 - Next.js TypeScript typecheck (`tsc --noEmit`) passed with 0 errors, and Next.js production build completed with 36 static and dynamic routes.
 
-Next: Phase 3 (P3a: Venue passes & QR check-in scanner, P3b: Judging console & deductions, P3c: Finalization & published scorecards, P3d: BG.ONE street battle brackets & voting, Arena HUD).
+2026-10-30: Completed Phase 3 (P3a: Venue passes & QR check-in scanner, P3b: Judging console & technical deductions, P3c: Finalization, division locking & published scorecards, P3d: BG.ONE street battle brackets & voting HUD, Arena HUD & Broadcast controller).
+- Verified 100% route coverage for all 35 Phase 3 pages specified in `docs/website-plan/pages.json`:
+  * Console Operations: `/console`, `/console/[eventId]/judge`, `/console/[eventId]/judge/[entryId]`, `/console/[eventId]/judge/review`, `/console/[eventId]/head-judge`, `/console/[eventId]/head-judge/[divisionId]`, `/console/[eventId]/penalties`, `/console/[eventId]/battles`, `/console/[eventId]/battles/[matchId]/vote`, `/console/[eventId]/check-in`, `/console/[eventId]/marshal`, `/console/[eventId]/audio`, `/console/[eventId]/broadcast`, `/console/[eventId]/sync`, `/console/[eventId]/incidents`.
+  * Arena Live HUD: `/arena-live/[eventId]`, `/arena-live/[eventId]/results`, `/arena-live/[eventId]/bracket`, `/arena-live/[eventId]/holding`.
+  * Portal Outcomes & Passes: `/app/passes`, `/app/event-day/[eventId]`, `/app/scorecards`, `/app/advancement`.
+  * Chapter Admin Results & Audit: `/admin/[chapterId]/events/[eventId]/lineup`, `/admin/[chapterId]/events/[eventId]/music`, `/admin/[chapterId]/events/[eventId]/results`, `/admin/[chapterId]/events/[eventId]/advancement`, `/admin/[chapterId]/events/[eventId]/reports`, `/admin/[chapterId]/audit`.
+  * Public Schedules & Projections: `/events/[eventSlug]/schedule`, `/events/[eventSlug]/live`, `/results`, `/events/[eventSlug]/results`, `/events/[eventSlug]/results/[entryId]`.
+  * Offline Screen: `/offline`.
+- Extended Rust Axum API with check-in records, BG.ONE battle matches and corner voting, and division publication snapshots with cryptographic digests.
+- 9/9 Rust unit and integration tests passed, formatting clean, zero clippy warnings under `-D warnings`.
+- Next.js TypeScript typecheck (`tsc --noEmit`) passed with 0 errors, and Next.js production build completed with 41 static and dynamic routes.
+- Updated `workflows/tasks.json` with evidence files; DAG verification passed.
+
+Next: Phase 4 (P4: Global HQ, seasonal rankings, media hub, studios, stories, partners, privacy).
