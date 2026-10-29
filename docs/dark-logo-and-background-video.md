@@ -49,4 +49,12 @@ data saving and still-image failure recovery. It also checks the dark-theme
 attribute and transparent logo backing. Real-media playback and desktop/mobile
 screenshots are checked separately, along with the production build.
 
+Results: the controlled browser test passed for inert muted autoplay, no hero
+controls, footer preferences, clip rotation, cleanup and every fallback above.
+A separate real-media browser check confirmed that the official clip plays,
+clicking the video leaves playback and navigation unchanged, the white SVG
+serves successfully, and desktop/mobile captures show the intended result.
+The final production build passed with TypeScript validation and all 14 pages
+generated. The earlier 54-case responsive suite was not repeated for this change.
+
 Source footage and content provenance remain in `docs/public-site-media.md`.

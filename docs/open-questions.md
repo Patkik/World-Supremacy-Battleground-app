@@ -1,16 +1,23 @@
 # Decisions requiring evidence
 
-- Obtain official rulebook version and chapter overrides. Verify age cutoff,
-  division names, roster retention, score aggregation, ties, deductions, music
-  grace period, submission deadline, and advancement rules.
-- Choose pilot chapter, MVP scope, event size, concurrent judges, expected
-  network outages, and recovery targets.
-- Decide frontend framework, Firebase project/environment separation, hosting
-  region, data retention/deletion, consent and identity verification process.
-- Confirm payment provider accounts, supported currencies/methods, refunds,
-  split-payment accounting, cash reconciliation, and webhook verification.
-- Specify who may unlock scores, resolve conflicts, publish or retract results,
-  issue wildcard invitations, and override eligibility, with audit trails.
-- Define offline QR replay prevention and revoked-pass behavior at venues.
+## Resolved / Classified in Pilot Scope (2026-10-30)
+- **Divisions & Chapters**: Official WSB divisions (Monster Crew, Mega Crew, Open Crew,
+  Monster Varsity 18&U, Varsity Ignite 14&U, Junior, BG.ONE) and multi-chapter tenancy
+  are verified from the official WSB website and Hong Kong 2027 event specifications.
+- **Pilot Scope**: Scoped to WSB Philippines (Manila Session) and WSB Hong Kong
+  (2027 World Championship) with focus on Identity, Crew Registration, Multi-Factor
+  Readiness, Offline Judging Protocol, and Published Results Projections.
+  See `docs/pilot-scope.md`.
+- **Proposed Policies vs Verified Rules**: 50% roster retention, January 1 cutoff,
+  5 scoring pillars (20% each), and 5-second audio grace are isolated as parameterized
+  event policies rather than hardcoded domain invariants.
+
+## Outstanding Decisions Requiring Official Rulebook Approval
+- Final deduction points catalog and specific violation penalties (e.g. stage debris,
+  late audio submission point deductions).
+- Formal tie-breaking algorithm (highest execution score vs head judge tie-break vote).
+- Official refund terms, partial refund processing policy, and split-payment deadline window.
+- Retention and deletion period for uploaded government/school identity documents and waivers.
+- Venue credential policy: exact offline QR pass expiry window and revocation reconciliation protocol.
 
 Record answers with sources and dates in `memory/decisions.md`.

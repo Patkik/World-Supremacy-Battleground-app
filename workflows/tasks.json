@@ -20,9 +20,12 @@
       "title": "Define pilot and acceptance criteria",
       "depends_on": [],
       "owner": "analyst",
-      "status": "todo",
+      "status": "done",
       "acceptance": "Prioritized requirements with sources and unresolved rules",
-      "evidence": []
+      "evidence": [
+        "docs/pilot-scope.md",
+        "docs/open-questions.md"
+      ]
     },
     {
       "id": "architecture",
@@ -31,9 +34,12 @@
         "scope"
       ],
       "owner": "architect",
-      "status": "todo",
+      "status": "done",
       "acceptance": "Tenant model, authority matrix and conflict protocol documented",
-      "evidence": []
+      "evidence": [
+        "docs/architecture.md",
+        "docs/website-plan/07-delivery-and-architecture.md"
+      ]
     },
     {
       "id": "foundation",
@@ -42,9 +48,13 @@
         "architecture"
       ],
       "owner": "implementer",
-      "status": "todo",
+      "status": "done",
       "acceptance": "App starts; emulator authorization smoke checks pass",
-      "evidence": []
+      "evidence": [
+        "docs/development.md",
+        "docs/validation.md",
+        "tests/firestore.test.mjs"
+      ]
     },
     {
       "id": "registration",
@@ -53,9 +63,14 @@
         "foundation"
       ],
       "owner": "implementer",
-      "status": "todo",
+      "status": "done",
       "acceptance": "Eligibility and consent states verified with synthetic fixtures",
-      "evidence": []
+      "evidence": [
+        "apps/api/src/domain.rs",
+        "apps/api/src/registration.rs",
+        "apps/api/src/store.rs",
+        "apps/api/src/main.rs"
+      ]
     },
     {
       "id": "payments",
@@ -75,9 +90,13 @@
         "foundation"
       ],
       "owner": "implementer",
-      "status": "todo",
+      "status": "done",
       "acceptance": "Offline recovery, conflicts and lock authorization verified",
-      "evidence": []
+      "evidence": [
+        "apps/api/src/judging.rs",
+        "apps/api/src/store.rs",
+        "apps/api/src/main.rs"
+      ]
     },
     {
       "id": "event-ops",

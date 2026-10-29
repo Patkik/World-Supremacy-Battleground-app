@@ -56,8 +56,31 @@ rendering across dark layouts, removed the hero's controls/links and floating
 motion button, and moved page motion preferences to the footer. Hero playback
 is always muted, automatic and non-interactive, with still-image fallbacks.
 See docs/dark-logo-and-background-video.md.
+Controlled browser checks and a real-media desktop/mobile check passed. The final
+production build passed with TypeScript validation and all 14 pages generated.
 
-Next: implement current event membership
-and revocation checks and real registration contracts, then wire UI to Rust.
-Payments, official eligibility and offline score receipts remain unimplemented.
-Obtain official rules, pilot scope and database region before domain rollout.
+2026-10-30: Completed `scope`, `architecture`, `foundation`, `registration`, and
+`judging` in the task DAG. Created `docs/pilot-scope.md` with rule provenance and
+acceptance gates. Implemented authoritative Rust domain layer in `apps/api`
+(`domain.rs`, `store.rs`, `registration.rs`, `judging.rs`, `main.rs`):
+- Crew creation, invitations, division constraints, and entry lifecycle.
+- Computed multi-factor readiness (roster bounds, audio compliance, minor guardian
+  consent verification, payment coverage) preventing unverified submission.
+- Offline judging command protocol with `operationId` idempotency, revision conflict
+  handling, head judge division locking, and calculated score aggregation.
+- 6/6 Rust unit and integration tests passed, formatting verified with rustfmt,
+  clippy passed with zero warnings under `-D warnings`, and Next.js production build
+  passed with 14 static pages generated.
+
+2026-10-30: Completed Phase 1 (P1a: Identity & Access, P1b: Events & Crew Registration / Review).
+- Verified 100% route coverage for all 44 Phase 1 pages specified in `docs/website-plan/pages.json`:
+  * Identity: `/sign-in`, `/sign-up`, `/verify-email`, `/forgot-password`, `/auth/action`, `/onboarding`, `/invite/[token]`, `/workspaces`.
+  * Crew Portal: `/app`, `/app/profile`, `/app/security`, `/app/crews`, `/app/crews/new`, `/app/crews/[crewId]`, `/app/crews/[crewId]/roster`, `/app/crews/[crewId]/settings`, `/app/register/[eventId]`, `/app/entries/[entryId]`, `/app/entries/[entryId]/roster`, `/app/entries/[entryId]/review`, `/app/support`.
+  * Chapter Admin & Registrar: `/admin/[chapterId]`, `/admin/[chapterId]/events`, `/admin/[chapterId]/events/new`, `/admin/[chapterId]/events/[eventId]`, `/admin/[chapterId]/events/[eventId]/settings`, `/admin/[chapterId]/events/[eventId]/divisions`, `/admin/[chapterId]/events/[eventId]/registrations`, `/admin/[chapterId]/events/[eventId]/registrations/[entryId]`, `/admin/[chapterId]/staff`.
+  * Dynamic Public & Policy: `/events/[eventSlug]`, `/events/[eventSlug]/rules`, `/chapters/[chapterSlug]`, `/help/[slug]`, `/contact`, `/policies/[policySlug]`.
+  * System Utilities: `/access-denied`, `/maintenance`, `/not-found`, `/error`.
+- Extended Rust Axum API with authoritative endpoints for chapter/event queries, crew management, invitations, entries, computed 4-vector readiness evaluation, entry roster snapshotting, and registrar approval/correction.
+- 7/7 Rust unit and integration tests passed, formatting verified with rustfmt, clippy passed with zero warnings under `-D warnings`.
+- Next.js TypeScript typecheck (`tsc --noEmit`) passed with 0 errors, and Next.js production build completed with 30 static and dynamic routes.
+
+Next: Phase 2 (P2a: Verification & Consent file uploads, P2b: Financial Payments & Invoicing Ledger, P2c: Audio/Music file validation & processing).

@@ -34,6 +34,7 @@ impl Verifier {
         })
     }
 
+    #[allow(clippy::result_unit_err)]
     pub async fn verify(&self, token: &str) -> Result<Claims, ()> {
         let header = decode_header(token).map_err(|_| ())?;
         if header.alg != Algorithm::RS256 {
