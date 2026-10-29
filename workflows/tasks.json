@@ -1,0 +1,163 @@
+{
+  "tasks": [
+    {
+      "id": "stack-foundation",
+      "title": "Establish Next.js, Rust and Firebase development foundation",
+      "depends_on": [],
+      "owner": "architect",
+      "status": "done",
+      "acceptance": "Frontend build and rules tests pass; Rust tests and optional Firestore adapter compile; Cargo.lock committed",
+      "evidence": [
+        "docs/architecture.md",
+        "docs/development.md",
+        "docs/validation.md",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ]
+    },
+    {
+      "id": "scope",
+      "title": "Define pilot and acceptance criteria",
+      "depends_on": [],
+      "owner": "analyst",
+      "status": "todo",
+      "acceptance": "Prioritized requirements with sources and unresolved rules",
+      "evidence": []
+    },
+    {
+      "id": "architecture",
+      "title": "Approve data and offline contracts",
+      "depends_on": [
+        "scope"
+      ],
+      "owner": "architect",
+      "status": "todo",
+      "acceptance": "Tenant model, authority matrix and conflict protocol documented",
+      "evidence": []
+    },
+    {
+      "id": "foundation",
+      "title": "Build app and isolated development environments",
+      "depends_on": [
+        "architecture"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "App starts; emulator authorization smoke checks pass",
+      "evidence": []
+    },
+    {
+      "id": "registration",
+      "title": "Crew onboarding and consent",
+      "depends_on": [
+        "foundation"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "Eligibility and consent states verified with synthetic fixtures",
+      "evidence": []
+    },
+    {
+      "id": "payments",
+      "title": "Payment ledger and reconciliation",
+      "depends_on": [
+        "registration"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "Verified webhook signatures, replay and refund cases pass",
+      "evidence": []
+    },
+    {
+      "id": "judging",
+      "title": "Offline scoring and authorized locks",
+      "depends_on": [
+        "foundation"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "Offline recovery, conflicts and lock authorization verified",
+      "evidence": []
+    },
+    {
+      "id": "event-ops",
+      "title": "Music, check-in and stage operations",
+      "depends_on": [
+        "registration"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "Compliance and venue recovery scenarios verified",
+      "evidence": []
+    },
+    {
+      "id": "results",
+      "title": "Published results and advancement",
+      "depends_on": [
+        "judging",
+        "registration"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "Aggregation, ties, publication and eligibility match sourced rules",
+      "evidence": []
+    },
+    {
+      "id": "pilot",
+      "title": "Run a simulated event and release assessment",
+      "depends_on": [
+        "payments",
+        "event-ops",
+        "results"
+      ],
+      "owner": "reviewer",
+      "status": "todo",
+      "acceptance": "End-to-end rehearsal, access review and recovery evidence recorded",
+      "evidence": []
+    },
+    {
+      "id": "website-plan",
+      "title": "Plan full website, roles, content and responsive behavior",
+      "depends_on": [
+        "stack-foundation"
+      ],
+      "owner": "architect",
+      "status": "done",
+      "acceptance": "Complete linked planning library with page inventory, permissions, orientation matrix, references and delivery gates",
+      "evidence": [
+        "docs/website-plan/README.md",
+        "docs/website-plan/pages.json",
+        "docs/website-plan/05-responsive-and-accessibility.md"
+      ]
+    },
+    {
+      "id": "visual-prototype",
+      "title": "Build and verify representative website screens",
+      "depends_on": [
+        "website-plan"
+      ],
+      "owner": "implementer",
+      "status": "done",
+      "acceptance": "Six representative screens plus supporting navigation; browser-local interactions and responsive verification documented",
+      "evidence": [
+        "docs/prototype-validation.md",
+        "docs/prototype-assets.md",
+        "tests/prototype-browser.cjs"
+      ]
+    },
+    {
+      "id": "public-motion",
+      "title": "Add official highlights and energetic public website presentation",
+      "depends_on": [
+        "visual-prototype"
+      ],
+      "owner": "implementer",
+      "status": "done",
+      "acceptance": "Official footage, real event links, accessible motion controls, playback/fallback and responsive checks pass",
+      "evidence": [
+        "docs/public-site-media.md",
+        "tests/public-motion-browser.cjs"
+      ]
+    }
+  ]
+}

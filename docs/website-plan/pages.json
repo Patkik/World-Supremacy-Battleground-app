@@ -1,0 +1,1804 @@
+[
+  {
+    "id": "PAGE-001",
+    "surface": "public",
+    "phase": "P1",
+    "route": "/",
+    "title": "Home",
+    "roles": "Visitor",
+    "content": [
+      "Hero",
+      "featured event",
+      "chapter discovery",
+      "crew stories",
+      "published results",
+      "community",
+      "FAQ"
+    ],
+    "primary_action": "Find an event or register a crew",
+    "critical_case": "No active events replaces live promotion with a truthful discovery message",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-002",
+    "surface": "public",
+    "phase": "P1",
+    "route": "/events",
+    "title": "Event directory",
+    "roles": "Visitor",
+    "content": [
+      "Country, date, format and status filters",
+      "event date, venue, fee summary and registration state"
+    ],
+    "primary_action": "Filter and open event",
+    "critical_case": "No matches preserves filters and offers reset; cancelled events remain clearly labeled",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-003",
+    "surface": "public",
+    "phase": "P1",
+    "route": "/events/[eventSlug]",
+    "title": "Event overview",
+    "roles": "Visitor",
+    "content": [
+      "Event title, chapter, venue, local timezone, divisions, fees, deadline, accessibility, contact and official rule version"
+    ],
+    "primary_action": "Start registration or view published results",
+    "critical_case": "Registration closed offers approved next steps without bypassing deadline",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-004",
+    "surface": "public",
+    "phase": "P3",
+    "route": "/events/[eventSlug]/schedule",
+    "title": "Public schedule",
+    "roles": "Visitor",
+    "content": [
+      "Day/stage/division selector",
+      "running order",
+      "estimated versus confirmed times",
+      "last update"
+    ],
+    "primary_action": "Follow an event segment",
+    "critical_case": "Delayed schedule displays updated time and reason without implying precise ETA",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-005",
+    "surface": "public",
+    "phase": "P1",
+    "route": "/events/[eventSlug]/rules",
+    "title": "Event rules",
+    "roles": "Visitor",
+    "content": [
+      "Version, effective date, division eligibility, music, scoring, appeals and downloadable official source"
+    ],
+    "primary_action": "Read a division policy",
+    "critical_case": "Missing approved rule version prevents claims that eligibility is confirmed",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-006",
+    "surface": "public",
+    "phase": "P2",
+    "route": "/events/[eventSlug]/tickets",
+    "title": "Spectator tickets",
+    "roles": "Visitor",
+    "content": [
+      "Ticket types, inventory, seating/accessibility, total price, refund policy and sales provider"
+    ],
+    "primary_action": "Select ticket and checkout",
+    "critical_case": "Sold-out or cancelled event cannot accept a new purchase",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-007",
+    "surface": "public",
+    "phase": "P3",
+    "route": "/events/[eventSlug]/live",
+    "title": "Spectator live hub",
+    "roles": "Visitor",
+    "content": [
+      "Published now/on-deck",
+      "stream link with rights",
+      "schedule",
+      "results tabs",
+      "feed freshness"
+    ],
+    "primary_action": "Follow published competition",
+    "critical_case": "Disconnected feed keeps last known state with timestamp",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-008",
+    "surface": "public",
+    "phase": "P3",
+    "route": "/results",
+    "title": "Results directory",
+    "roles": "Visitor",
+    "content": [
+      "Season, chapter, event and division filters",
+      "publication dates"
+    ],
+    "primary_action": "Open event results",
+    "critical_case": "An unpublished event must not appear through search or direct links",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-009",
+    "surface": "public",
+    "phase": "P3",
+    "route": "/events/[eventSlug]/results",
+    "title": "Event results",
+    "roles": "Visitor",
+    "content": [
+      "Division selector",
+      "placement",
+      "crew",
+      "chapter",
+      "official total",
+      "tie explanation",
+      "revision"
+    ],
+    "primary_action": "Inspect published scorecard",
+    "critical_case": "Corrected results retain a visible revision notice",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-010",
+    "surface": "public",
+    "phase": "P3",
+    "route": "/events/[eventSlug]/results/[entryId]",
+    "title": "Public scorecard",
+    "roles": "Visitor",
+    "content": [
+      "Approved score breakdown",
+      "deductions summary",
+      "placement",
+      "rule version",
+      "publication time"
+    ],
+    "primary_action": "Share official result",
+    "critical_case": "Private critique, judge identity or raw detail remains hidden unless publication policy permits",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-011",
+    "surface": "public",
+    "phase": "P4",
+    "route": "/rankings",
+    "title": "Season rankings",
+    "roles": "Visitor",
+    "content": [
+      "Season, division and territory",
+      "points",
+      "included events",
+      "methodology and update date"
+    ],
+    "primary_action": "Inspect ranking history",
+    "critical_case": "No approved ranking formula means this module is unavailable",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-012",
+    "surface": "public",
+    "phase": "P4",
+    "route": "/crews/[crewSlug]",
+    "title": "Public crew profile",
+    "roles": "Visitor",
+    "content": [
+      "Consented crew biography",
+      "chapter",
+      "media",
+      "published event history and awards"
+    ],
+    "primary_action": "View performances and results",
+    "critical_case": "No minors' private identities or unconsented roster biographies appear",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-013",
+    "surface": "public",
+    "phase": "P1",
+    "route": "/chapters",
+    "title": "Chapter directory",
+    "roles": "Visitor",
+    "content": [
+      "Country names, region coverage, local contact and next events"
+    ],
+    "primary_action": "Select chapter",
+    "critical_case": "Unsupported country offers inquiry rather than fabricated local operations",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-014",
+    "surface": "public",
+    "phase": "P1",
+    "route": "/chapters/[chapterSlug]",
+    "title": "Chapter home",
+    "roles": "Visitor",
+    "content": [
+      "Chapter identity",
+      "verified local events",
+      "contacts",
+      "local policy links and news"
+    ],
+    "primary_action": "Find a local event",
+    "critical_case": "Archived chapter is identified and routes users to current contact",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-015",
+    "surface": "public",
+    "phase": "P4",
+    "route": "/about",
+    "title": "About WSB",
+    "roles": "Visitor",
+    "content": [
+      "Verified history, purpose, operating model and leadership-approved statements"
+    ],
+    "primary_action": "Explore events or contact team",
+    "critical_case": "Unverified statistics are omitted",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-016",
+    "surface": "public",
+    "phase": "P4",
+    "route": "/stories",
+    "title": "Stories and news",
+    "roles": "Visitor",
+    "content": [
+      "Editorial feature",
+      "category/chapter filters",
+      "publication dates and captions"
+    ],
+    "primary_action": "Open story",
+    "critical_case": "Empty category offers other published stories",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-017",
+    "surface": "public",
+    "phase": "P4",
+    "route": "/stories/[slug]",
+    "title": "Story detail",
+    "roles": "Visitor",
+    "content": [
+      "Title, author, date, licensed media, accessible captions, related event and credits"
+    ],
+    "primary_action": "Read related event or story",
+    "critical_case": "Removed media has a meaningful text fallback",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-018",
+    "surface": "public",
+    "phase": "P4",
+    "route": "/community/studios",
+    "title": "Studios and partners",
+    "roles": "Visitor",
+    "content": [
+      "Approved directory with city, discipline, official links and inclusion criteria"
+    ],
+    "primary_action": "Find studio or apply",
+    "critical_case": "Expired partnership is removed from active listings",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-019",
+    "surface": "public",
+    "phase": "P4",
+    "route": "/community/apply",
+    "title": "Chapter or studio application",
+    "roles": "Applicant",
+    "content": [
+      "Organization, contact, territory, experience, proposed collaboration and consent"
+    ],
+    "primary_action": "Submit inquiry",
+    "critical_case": "Duplicate or interrupted submission returns a trackable receipt",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-020",
+    "surface": "public",
+    "phase": "P4",
+    "route": "/partners",
+    "title": "Sponsors and partnership",
+    "roles": "Visitor",
+    "content": [
+      "Verified partner placements",
+      "opportunity categories",
+      "inquiry route"
+    ],
+    "primary_action": "Request partnership information",
+    "critical_case": "No fake sponsor logos or unapproved commercial promises",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-021",
+    "surface": "public",
+    "phase": "P4",
+    "route": "/media",
+    "title": "Media hub",
+    "roles": "Visitor",
+    "content": [
+      "Approved press kit, brand-use guide, media contact and downloadable licensed assets"
+    ],
+    "primary_action": "Download permitted assets",
+    "critical_case": "Expired rights revoke downloads and explain contact path",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-022",
+    "surface": "public",
+    "phase": "P1",
+    "route": "/help",
+    "title": "Help center",
+    "roles": "Visitor",
+    "content": [
+      "Topic search",
+      "registration, payment, event-day and account categories"
+    ],
+    "primary_action": "Find answer or contact support",
+    "critical_case": "Search failure retains direct topic navigation",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-023",
+    "surface": "public",
+    "phase": "P1",
+    "route": "/help/[slug]",
+    "title": "Help article",
+    "roles": "Visitor",
+    "content": [
+      "Task steps, screenshots with alt text, related policies, update date"
+    ],
+    "primary_action": "Complete task or request support",
+    "critical_case": "Outdated article is visibly superseded",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-024",
+    "surface": "public",
+    "phase": "P1",
+    "route": "/contact",
+    "title": "Contact and support",
+    "roles": "Visitor",
+    "content": [
+      "Topic, chapter/event, reply email, message, safe attachment guidance and response expectations"
+    ],
+    "primary_action": "Send inquiry",
+    "critical_case": "Failure preserves draft and never falsely confirms receipt",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-025",
+    "surface": "public",
+    "phase": "P1",
+    "route": "/policies/[policySlug]",
+    "title": "Policy documents",
+    "roles": "Visitor",
+    "content": [
+      "Privacy, terms, accessibility, safeguarding, cookies or refund policy",
+      "owner",
+      "jurisdiction",
+      "effective date"
+    ],
+    "primary_action": "Read or manage applicable preferences",
+    "critical_case": "Missing required event policy blocks dependent checkout or consent flow",
+    "responsive": "Single-column mobile; editorial wide-screen composition; compact hero in short landscape; preserve filters and navigation on rotation.",
+    "authority": "Published content and projections only; draft/preview authorization separate."
+  },
+  {
+    "id": "PAGE-026",
+    "surface": "identity",
+    "phase": "P1",
+    "route": "/sign-in",
+    "title": "Sign in",
+    "roles": "Account holder",
+    "content": [
+      "Email/password",
+      "approved provider buttons",
+      "recovery",
+      "invitation context"
+    ],
+    "primary_action": "Authenticate and return to allowed destination",
+    "critical_case": "Generic invalid-login response avoids account enumeration",
+    "responsive": "Single-column form at all narrow widths; keyboard-aware scrolling; no essential image column; preserve safe redirect and form state.",
+    "authority": "Firebase identity plus Rust authorization; no user-selected privileged roles."
+  },
+  {
+    "id": "PAGE-027",
+    "surface": "identity",
+    "phase": "P1",
+    "route": "/sign-up",
+    "title": "Create account",
+    "roles": "Applicant",
+    "content": [
+      "Email, password, display name, locale, required terms and age-appropriate routing"
+    ],
+    "primary_action": "Create account and verify email",
+    "critical_case": "Invitation and registration intent survive verification",
+    "responsive": "Single-column form at all narrow widths; keyboard-aware scrolling; no essential image column; preserve safe redirect and form state.",
+    "authority": "Firebase identity plus Rust authorization; no user-selected privileged roles."
+  },
+  {
+    "id": "PAGE-028",
+    "surface": "identity",
+    "phase": "P1",
+    "route": "/verify-email",
+    "title": "Email verification",
+    "roles": "Account holder",
+    "content": [
+      "Current verification state",
+      "resend cooldown",
+      "change-email route"
+    ],
+    "primary_action": "Verify or resend email",
+    "critical_case": "Expired link offers a new link without losing the account",
+    "responsive": "Single-column form at all narrow widths; keyboard-aware scrolling; no essential image column; preserve safe redirect and form state.",
+    "authority": "Firebase identity plus Rust authorization; no user-selected privileged roles."
+  },
+  {
+    "id": "PAGE-029",
+    "surface": "identity",
+    "phase": "P1",
+    "route": "/forgot-password",
+    "title": "Password recovery",
+    "roles": "Account holder",
+    "content": [
+      "Email input",
+      "neutral delivery confirmation"
+    ],
+    "primary_action": "Request reset",
+    "critical_case": "Same outward response for known and unknown addresses",
+    "responsive": "Single-column form at all narrow widths; keyboard-aware scrolling; no essential image column; preserve safe redirect and form state.",
+    "authority": "Firebase identity plus Rust authorization; no user-selected privileged roles."
+  },
+  {
+    "id": "PAGE-030",
+    "surface": "identity",
+    "phase": "P1",
+    "route": "/auth/action",
+    "title": "Authentication action",
+    "roles": "Account holder",
+    "content": [
+      "Reset-password, verify-email or recover-email action validated by Firebase"
+    ],
+    "primary_action": "Complete authenticated action",
+    "critical_case": "Expired, used or malformed code gets safe recovery action",
+    "responsive": "Single-column form at all narrow widths; keyboard-aware scrolling; no essential image column; preserve safe redirect and form state.",
+    "authority": "Firebase identity plus Rust authorization; no user-selected privileged roles."
+  },
+  {
+    "id": "PAGE-031",
+    "surface": "identity",
+    "phase": "P1",
+    "route": "/onboarding",
+    "title": "Profile onboarding",
+    "roles": "Account holder",
+    "content": [
+      "Preferred name, locale, country, chapter intent and role explanation"
+    ],
+    "primary_action": "Complete profile",
+    "critical_case": "User cannot self-select privileged staff permissions",
+    "responsive": "Single-column form at all narrow widths; keyboard-aware scrolling; no essential image column; preserve safe redirect and form state.",
+    "authority": "Firebase identity plus Rust authorization; no user-selected privileged roles."
+  },
+  {
+    "id": "PAGE-032",
+    "surface": "identity",
+    "phase": "P1",
+    "route": "/invite/[token]",
+    "title": "Invitation acceptance",
+    "roles": "Invited dancer, guardian or staff",
+    "content": [
+      "Inviter, event/crew or assignment scope, expiry and privacy explanation"
+    ],
+    "primary_action": "Accept scoped invitation after identity check",
+    "critical_case": "Revoked, expired, wrong-account and already-used links have separate recovery paths",
+    "responsive": "Single-column form at all narrow widths; keyboard-aware scrolling; no essential image column; preserve safe redirect and form state.",
+    "authority": "Firebase identity plus Rust authorization; no user-selected privileged roles."
+  },
+  {
+    "id": "PAGE-033",
+    "surface": "identity",
+    "phase": "P1",
+    "route": "/workspaces",
+    "title": "Workspace chooser",
+    "roles": "Authenticated user",
+    "content": [
+      "Authorized chapters, crews and event assignments",
+      "last-used context"
+    ],
+    "primary_action": "Enter permitted workspace",
+    "critical_case": "No assignment shows request-access guidance without exposing other memberships",
+    "responsive": "Single-column form at all narrow widths; keyboard-aware scrolling; no essential image column; preserve safe redirect and form state.",
+    "authority": "Firebase identity plus Rust authorization; no user-selected privileged roles."
+  },
+  {
+    "id": "PAGE-034",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app",
+    "title": "Personal dashboard",
+    "roles": "Dancer, manager, guardian",
+    "content": [
+      "Upcoming events, required actions, readiness, outstanding balances and notices"
+    ],
+    "primary_action": "Continue highest-priority task",
+    "critical_case": "No crew or event shows role-specific onboarding",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-035",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/profile",
+    "title": "Profile",
+    "roles": "Account holder",
+    "content": [
+      "Personal name, preferred name, locale, country representation request and contact preferences"
+    ],
+    "primary_action": "Save own permitted fields",
+    "critical_case": "Eligibility-sensitive edits trigger review rather than silently rewriting registration history",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-036",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/security",
+    "title": "Security and sessions",
+    "roles": "Account holder",
+    "content": [
+      "Provider linking, password change, session information and reauthentication"
+    ],
+    "primary_action": "Update security settings or sign out",
+    "critical_case": "Recent-login requirement preserves the intended action",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-037",
+    "surface": "portal",
+    "phase": "P2",
+    "route": "/app/notifications",
+    "title": "Notification center",
+    "roles": "Account holder",
+    "content": [
+      "Event-scoped messages, read state, action links and delivery preferences"
+    ],
+    "primary_action": "Open required action",
+    "critical_case": "Withdrawn event notice remains distinguishable from a current instruction",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-038",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/crews",
+    "title": "My crews",
+    "roles": "Manager, dancer",
+    "content": [
+      "Crew names, chapter, role, event entries and next required action"
+    ],
+    "primary_action": "Create or open crew",
+    "critical_case": "Membership removal immediately removes private crew access",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-039",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/crews/new",
+    "title": "Create crew",
+    "roles": "Manager",
+    "content": [
+      "Crew name, home chapter, public display options and manager confirmation"
+    ],
+    "primary_action": "Create draft crew",
+    "critical_case": "Similar name warning does not invent global name exclusivity",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-040",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/crews/[crewId]",
+    "title": "Crew workspace",
+    "roles": "Manager, member",
+    "content": [
+      "Crew summary",
+      "readiness",
+      "event entries",
+      "limited roster and announcements"
+    ],
+    "primary_action": "Manage crew or open entry",
+    "critical_case": "Members see only their permitted fields and tasks",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-041",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/crews/[crewId]/roster",
+    "title": "Roster and invitations",
+    "roles": "Manager",
+    "content": [
+      "Names permitted by policy",
+      "invite status",
+      "eligibility/consent/payment summaries",
+      "role labels"
+    ],
+    "primary_action": "Invite, remove or resend invitation",
+    "critical_case": "Roster lock and removal of a paid member route through defined change policy",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-042",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/crews/[crewId]/settings",
+    "title": "Crew settings",
+    "roles": "Manager",
+    "content": [
+      "Name, media consent, manager transfer, contact and archive controls"
+    ],
+    "primary_action": "Update crew or transfer ownership",
+    "critical_case": "Last-manager removal and unaccepted ownership transfer cannot orphan a crew",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-043",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/register/[eventId]",
+    "title": "Registration: event and division",
+    "roles": "Manager",
+    "content": [
+      "Event context, approved division rules, eligibility inputs, fee preview and deadline"
+    ],
+    "primary_action": "Choose division and start entry",
+    "critical_case": "Unsupported or closed division cannot proceed",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-044",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/entries/[entryId]/roster",
+    "title": "Registration: roster",
+    "roles": "Manager",
+    "content": [
+      "Selected dancers, cross-entry conflicts, roster limits, missing requirements and qualifier comparison"
+    ],
+    "primary_action": "Save roster and continue",
+    "critical_case": "Roster requirements explain the exact sourced rule and affected members",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-045",
+    "surface": "portal",
+    "phase": "P2",
+    "route": "/app/entries/[entryId]/music",
+    "title": "Registration: music",
+    "roles": "Manager",
+    "content": [
+      "File picker, upload progress, waveform preview, duration, format, deadline and review status"
+    ],
+    "primary_action": "Upload or replace performance track",
+    "critical_case": "Interrupted upload resumes; rejected track gives actionable reason; lock prevents replacement",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-046",
+    "surface": "portal",
+    "phase": "P2",
+    "route": "/app/entries/[entryId]/checkout",
+    "title": "Registration: checkout",
+    "roles": "Manager, payer",
+    "content": [
+      "Itemized fees, currency, discounts, sizes/add-ons if enabled, split allocations and policy consent"
+    ],
+    "primary_action": "Pay full balance or assign shares",
+    "critical_case": "Expired price quote triggers review; return from provider remains pending until verified",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-047",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/entries/[entryId]/review",
+    "title": "Registration: review",
+    "roles": "Manager",
+    "content": [
+      "Read-only division, roster, consent, music and payment readiness",
+      "terms version"
+    ],
+    "primary_action": "Submit registration for review",
+    "critical_case": "Server revalidates deadline and prerequisites before accepting",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-048",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/entries/[entryId]",
+    "title": "Entry status",
+    "roles": "Manager, member",
+    "content": [
+      "Registration receipt, readiness checklist, blockers, timeline and allowed corrections"
+    ],
+    "primary_action": "Resolve blocker or view next event action",
+    "critical_case": "Submitted, approved, rejected, withdrawn and cancelled remain distinct",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-049",
+    "surface": "portal",
+    "phase": "P2",
+    "route": "/app/entries/[entryId]/changes",
+    "title": "Change or withdraw entry",
+    "roles": "Manager",
+    "content": [
+      "Change type, affected dancers, refund implications, deadline and reason"
+    ],
+    "primary_action": "Request roster change or withdrawal",
+    "critical_case": "Paid/locked entries require authorized review and retain history",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-050",
+    "surface": "portal",
+    "phase": "P2",
+    "route": "/app/verification",
+    "title": "Dancer verification",
+    "roles": "Dancer, guardian",
+    "content": [
+      "Required identity fields, restricted upload, review result, correction and deletion policy"
+    ],
+    "primary_action": "Submit own verification evidence",
+    "critical_case": "OCR uncertainty triggers human review rather than rejection solely by machine",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-051",
+    "surface": "portal",
+    "phase": "P2",
+    "route": "/app/consents",
+    "title": "Consent and waivers",
+    "roles": "Dancer, guardian",
+    "content": [
+      "Applicable event, signer capacity, document version, language and signed receipt"
+    ],
+    "primary_action": "Read and sign applicable document",
+    "critical_case": "Changed waiver requires a new version; manager cannot impersonate guardian",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-052",
+    "surface": "portal",
+    "phase": "P2",
+    "route": "/app/dependents",
+    "title": "Guardian dependents",
+    "roles": "Guardian",
+    "content": [
+      "Verified dependent relationships",
+      "event readiness",
+      "pending consent and payment tasks"
+    ],
+    "primary_action": "Manage authorized dependent task",
+    "critical_case": "Relationship revocation removes access; no access to unrelated minors",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-053",
+    "surface": "portal",
+    "phase": "P2",
+    "route": "/app/payments",
+    "title": "My payments",
+    "roles": "Payer, manager",
+    "content": [
+      "Balance by event",
+      "allocations",
+      "payment/refund status",
+      "receipts and due dates"
+    ],
+    "primary_action": "Pay assigned balance or inspect transaction",
+    "critical_case": "Manager cannot expose another payer's private payment details",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-054",
+    "surface": "portal",
+    "phase": "P2",
+    "route": "/app/payments/[paymentId]",
+    "title": "Payment and receipt",
+    "roles": "Payer",
+    "content": [
+      "Reference, amount/currency, verified status, allocation, refund history and receipt"
+    ],
+    "primary_action": "Download receipt or request help",
+    "critical_case": "Pending, failed, partial refund and chargeback are explicit states",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-055",
+    "surface": "portal",
+    "phase": "P2",
+    "route": "/app/payment-return",
+    "title": "Payment return",
+    "roles": "Payer",
+    "content": [
+      "Provider reference and server verification state"
+    ],
+    "primary_action": "Return to entry after verified outcome",
+    "critical_case": "Repeated return or refresh cannot duplicate a charge or registration",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-056",
+    "surface": "portal",
+    "phase": "P3",
+    "route": "/app/passes",
+    "title": "My passes",
+    "roles": "Dancer, attendee",
+    "content": [
+      "Event entitlement, pass validity, access zone, QR and offline status"
+    ],
+    "primary_action": "Present pass",
+    "critical_case": "Revoked, expired and offline-unverifiable passes do not show an unconditional valid badge",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-057",
+    "surface": "portal",
+    "phase": "P3",
+    "route": "/app/event-day/[eventId]",
+    "title": "My event day",
+    "roles": "Dancer, manager",
+    "content": [
+      "Check-in, call time, on-deck state, directions, official announcements and freshness"
+    ],
+    "primary_action": "Acknowledge call or open pass",
+    "critical_case": "Stale cached calls clearly show last update",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-058",
+    "surface": "portal",
+    "phase": "P3",
+    "route": "/app/scorecards",
+    "title": "My scorecards",
+    "roles": "Manager, dancer",
+    "content": [
+      "Published results, eligible private feedback, certificates and event filters"
+    ],
+    "primary_action": "Review scorecard or download certificate",
+    "critical_case": "Unpublished/retracted results are not available from cached private routes",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-059",
+    "surface": "portal",
+    "phase": "P3",
+    "route": "/app/advancement",
+    "title": "Qualification invitations",
+    "roles": "Manager",
+    "content": [
+      "Source event, destination event, qualification basis, validity and roster requirements"
+    ],
+    "primary_action": "Accept invitation and start next entry",
+    "critical_case": "Wildcard and normal qualification have auditable distinct sources",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-060",
+    "surface": "portal",
+    "phase": "P4",
+    "route": "/app/tickets",
+    "title": "Purchased tickets",
+    "roles": "Attendee",
+    "content": [
+      "Order, event, seats if used, QR entitlements and transfer/refund rules"
+    ],
+    "primary_action": "View ticket or allowed transfer",
+    "critical_case": "Transfer invalidates previous entitlement according to approved policy",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-061",
+    "surface": "portal",
+    "phase": "P1",
+    "route": "/app/support",
+    "title": "My support requests",
+    "roles": "Account holder",
+    "content": [
+      "Ticket topic, status, scoped messages and attachment handling"
+    ],
+    "primary_action": "Create or reply to request",
+    "critical_case": "Sensitive identity documents are redirected to the secure review flow",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-062",
+    "surface": "portal",
+    "phase": "P4",
+    "route": "/app/privacy",
+    "title": "Privacy and data requests",
+    "roles": "Account holder",
+    "content": [
+      "Export/deletion options, identity recheck, retention exceptions and request status"
+    ],
+    "primary_action": "Submit tracked data request",
+    "critical_case": "Deletion does not erase required audit/financial history without approved policy",
+    "responsive": "Phone task flow and compact record lists; tablet optional detail pane; desktop sidebar; sticky actions must clear keyboard and safe area.",
+    "authority": "Own identity, authorized dependent or crew scope; private evidence never enters public projections."
+  },
+  {
+    "id": "PAGE-063",
+    "surface": "admin",
+    "phase": "P1",
+    "route": "/admin/[chapterId]",
+    "title": "Chapter dashboard",
+    "roles": "Director, delegated staff",
+    "content": [
+      "Upcoming events, registration blockers, finance summaries by permission and operational alerts"
+    ],
+    "primary_action": "Open actionable work queue",
+    "critical_case": "Counts and links must use the same chapter-scoped query rules",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-064",
+    "surface": "admin",
+    "phase": "P1",
+    "route": "/admin/[chapterId]/events",
+    "title": "Event management",
+    "roles": "Director, event manager",
+    "content": [
+      "Draft, open, running, completed and cancelled events"
+    ],
+    "primary_action": "Create or edit authorized event",
+    "critical_case": "Archived event history remains read-only",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-065",
+    "surface": "admin",
+    "phase": "P1",
+    "route": "/admin/[chapterId]/events/new",
+    "title": "Create event",
+    "roles": "Director",
+    "content": [
+      "Name, timezone, venue, dates, stage structure, registration window and owner"
+    ],
+    "primary_action": "Save draft event",
+    "critical_case": "Invalid windows and missing timezone prevent publication",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-066",
+    "surface": "admin",
+    "phase": "P1",
+    "route": "/admin/[chapterId]/events/[eventId]",
+    "title": "Event command center",
+    "roles": "Event manager",
+    "content": [
+      "Readiness summary, staff, entries, division state, schedule and go-live checklist"
+    ],
+    "primary_action": "Move to event task",
+    "critical_case": "Event cancellation requires impact preview and communication workflow",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-067",
+    "surface": "admin",
+    "phase": "P1",
+    "route": "/admin/[chapterId]/events/[eventId]/settings",
+    "title": "Event configuration",
+    "roles": "Director, event manager",
+    "content": [
+      "Dates, venue, contacts, timezone, publication state, capacity and policies"
+    ],
+    "primary_action": "Publish event or amend settings",
+    "critical_case": "Material changes after registration opens require revision and attendee notice",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-068",
+    "surface": "admin",
+    "phase": "P1",
+    "route": "/admin/[chapterId]/events/[eventId]/divisions",
+    "title": "Divisions and rules",
+    "roles": "Director, rules administrator",
+    "content": [
+      "Division templates, sourced eligibility, roster limits, scoring config, version and effective date"
+    ],
+    "primary_action": "Attach approved rules to event",
+    "critical_case": "Editing a used template creates a new version instead of changing history",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-069",
+    "surface": "admin",
+    "phase": "P2",
+    "route": "/admin/[chapterId]/events/[eventId]/fees",
+    "title": "Fees and add-ons",
+    "roles": "Finance admin, director",
+    "content": [
+      "Currency, fee lines, discounts, cross-entry policy, merch sizes and refund rules"
+    ],
+    "primary_action": "Publish fee version",
+    "critical_case": "Already-paid registrations retain their original price basis",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-070",
+    "surface": "admin",
+    "phase": "P1",
+    "route": "/admin/[chapterId]/events/[eventId]/registrations",
+    "title": "Registration review queue",
+    "roles": "Registrar",
+    "content": [
+      "Entries, readiness filters, submission dates and ownership"
+    ],
+    "primary_action": "Assign or open review",
+    "critical_case": "Concurrent reviewers see assignment and version conflicts",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-071",
+    "surface": "admin",
+    "phase": "P1",
+    "route": "/admin/[chapterId]/events/[eventId]/registrations/[entryId]",
+    "title": "Registration review",
+    "roles": "Registrar",
+    "content": [
+      "Roster summary, evidence states, sourced rule checks, change history and reasons"
+    ],
+    "primary_action": "Approve or request correction",
+    "critical_case": "Manual override requires explicit permission, reason and audit record",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-072",
+    "surface": "admin",
+    "phase": "P2",
+    "route": "/admin/[chapterId]/verification",
+    "title": "Identity review queue",
+    "roles": "Identity reviewer",
+    "content": [
+      "Assigned cases, minimal identity evidence, OCR comparison and retention date"
+    ],
+    "primary_action": "Approve, reject or request replacement",
+    "critical_case": "Private evidence access is logged and excluded from normal exports",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-073",
+    "surface": "admin",
+    "phase": "P2",
+    "route": "/admin/[chapterId]/finance",
+    "title": "Finance overview",
+    "roles": "Finance admin",
+    "content": [
+      "Receivables, verified collections, reconciliation issues and refunds per currency"
+    ],
+    "primary_action": "Open exception queue",
+    "critical_case": "Do not sum currencies without a disclosed conversion method",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-074",
+    "surface": "admin",
+    "phase": "P2",
+    "route": "/admin/[chapterId]/finance/transactions",
+    "title": "Transactions and reconciliation",
+    "roles": "Finance admin",
+    "content": [
+      "Provider events, ledger entries, allocations, manual receipts and mismatches"
+    ],
+    "primary_action": "Reconcile or approve supported deposit",
+    "critical_case": "Receipt image alone never confirms funds received",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-075",
+    "surface": "admin",
+    "phase": "P2",
+    "route": "/admin/[chapterId]/finance/refunds",
+    "title": "Refunds and disputes",
+    "roles": "Finance admin, approver",
+    "content": [
+      "Original payment, eligible amount, policy, reason, approval and provider outcome"
+    ],
+    "primary_action": "Approve or execute permitted refund",
+    "critical_case": "Repeat submission cannot over-refund; request and settlement are distinct",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-076",
+    "surface": "admin",
+    "phase": "P1",
+    "route": "/admin/[chapterId]/staff",
+    "title": "Staff and assignments",
+    "roles": "Director",
+    "content": [
+      "Staff invitations, chapter/event roles, validity periods and revocation"
+    ],
+    "primary_action": "Assign least-privilege access",
+    "critical_case": "User cannot grant permissions above own authority",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-077",
+    "surface": "admin",
+    "phase": "P2",
+    "route": "/admin/[chapterId]/events/[eventId]/communications",
+    "title": "Event communications",
+    "roles": "Event manager",
+    "content": [
+      "Audience criteria, message preview, channels, schedule and delivery state"
+    ],
+    "primary_action": "Send approved announcement",
+    "critical_case": "Preview audience count and exclude unrelated chapters; duplicate sends are prevented",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-078",
+    "surface": "admin",
+    "phase": "P3",
+    "route": "/admin/[chapterId]/events/[eventId]/lineup",
+    "title": "Performance order",
+    "roles": "Event manager, marshal",
+    "content": [
+      "Eligible entries, rule-based seeds, randomized remainder, stage slots and version"
+    ],
+    "primary_action": "Generate, review and publish order",
+    "critical_case": "Manual reorder explains reason and notifies affected crews after publication",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-079",
+    "surface": "admin",
+    "phase": "P3",
+    "route": "/admin/[chapterId]/events/[eventId]/music",
+    "title": "Music readiness",
+    "roles": "Audio operator",
+    "content": [
+      "Accepted tracks, division duration, latest version, order, missing files and export manifest"
+    ],
+    "primary_action": "Prepare downloadable playlist",
+    "critical_case": "Do not rename WAV bytes to MP3; preserve format or explicitly transcode",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-080",
+    "surface": "admin",
+    "phase": "P3",
+    "route": "/admin/[chapterId]/events/[eventId]/results",
+    "title": "Result publication",
+    "roles": "Head judge, publisher",
+    "content": [
+      "Completion checks, penalties, ties, lock receipt, preview and audit"
+    ],
+    "primary_action": "Authorize finalization then publish",
+    "critical_case": "Head judge lock and public publication are separate permissions and events",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-081",
+    "surface": "admin",
+    "phase": "P3",
+    "route": "/admin/[chapterId]/events/[eventId]/advancement",
+    "title": "Advancement management",
+    "roles": "Director, registrar",
+    "content": [
+      "Source placements, qualification slots, wildcard reasons and invitations"
+    ],
+    "primary_action": "Issue qualification invitation",
+    "critical_case": "No silent qualification when source results are retracted",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-082",
+    "surface": "admin",
+    "phase": "P3",
+    "route": "/admin/[chapterId]/events/[eventId]/reports",
+    "title": "Event reports",
+    "roles": "Director, delegated staff",
+    "content": [
+      "Registration, check-in, judging completion and finance reports by access"
+    ],
+    "primary_action": "Export scoped report",
+    "critical_case": "Export strips private fields and logs recipient/scope",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-083",
+    "surface": "admin",
+    "phase": "P4",
+    "route": "/admin/[chapterId]/content",
+    "title": "Chapter content",
+    "roles": "Editor, publisher",
+    "content": [
+      "Event copy, chapter pages, stories, sponsor placements and revisions"
+    ],
+    "primary_action": "Draft, preview, submit or publish",
+    "critical_case": "Editor cannot publish unless separately granted publishing permission",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-084",
+    "surface": "admin",
+    "phase": "P4",
+    "route": "/admin/[chapterId]/support",
+    "title": "Support work queue",
+    "roles": "Support agent",
+    "content": [
+      "Tickets, priority, assigned staff, event context and safe reply history"
+    ],
+    "primary_action": "Resolve or escalate request",
+    "critical_case": "Support cannot edit scores or inspect identity evidence by default",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-085",
+    "surface": "admin",
+    "phase": "P3",
+    "route": "/admin/[chapterId]/audit",
+    "title": "Audit explorer",
+    "roles": "Auditor, director",
+    "content": [
+      "Actor, action, entity, timestamp, reason and correlation ID"
+    ],
+    "primary_action": "Filter authorized audit records",
+    "critical_case": "Logs redact secrets and prevent staff alteration",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-086",
+    "surface": "admin",
+    "phase": "P4",
+    "route": "/hq",
+    "title": "Global HQ overview",
+    "roles": "Global administrator",
+    "content": [
+      "Chapter health, event counts, approved global publications and operational exceptions"
+    ],
+    "primary_action": "Enter authorized chapter oversight",
+    "critical_case": "Global totals respect currency and publication boundaries",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-087",
+    "surface": "admin",
+    "phase": "P4",
+    "route": "/hq/chapters",
+    "title": "Chapter administration",
+    "roles": "Global administrator",
+    "content": [
+      "Country coverage, directors, localized settings, status and history"
+    ],
+    "primary_action": "Create, suspend or transfer chapter administration",
+    "critical_case": "Suspension preserves financial and competition evidence",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-088",
+    "surface": "admin",
+    "phase": "P4",
+    "route": "/hq/rules",
+    "title": "Global rule library",
+    "roles": "Rules administrator",
+    "content": [
+      "Source documents, version history, applicability and chapter overrides"
+    ],
+    "primary_action": "Publish approved rule template",
+    "critical_case": "Conflicting overrides require resolution before event activation",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-089",
+    "surface": "admin",
+    "phase": "P4",
+    "route": "/hq/access",
+    "title": "Global access governance",
+    "roles": "Global administrator",
+    "content": [
+      "Privileged roles, approvals, access reviews and break-glass history"
+    ],
+    "primary_action": "Grant or revoke scoped privilege",
+    "critical_case": "Elevated access requires reauthentication and logged reason",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-090",
+    "surface": "admin",
+    "phase": "P4",
+    "route": "/hq/content",
+    "title": "Global publishing",
+    "roles": "Global editor, publisher",
+    "content": [
+      "Home features, global pages, localization, legal content and media rights"
+    ],
+    "primary_action": "Preview and publish approved content",
+    "critical_case": "Future content does not leak through public previews",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-091",
+    "surface": "admin",
+    "phase": "P4",
+    "route": "/hq/integrations",
+    "title": "Integrations and configuration",
+    "roles": "Platform operator",
+    "content": [
+      "Provider connection health, webhook status, environment and secret references"
+    ],
+    "primary_action": "Inspect health or rotate approved configuration",
+    "critical_case": "Never display secret values in chapter documents or client bundles",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-092",
+    "surface": "admin",
+    "phase": "P4",
+    "route": "/hq/operations",
+    "title": "Platform operations",
+    "roles": "Platform operator",
+    "content": [
+      "Service health, job backlog, notification failures and event incident links"
+    ],
+    "primary_action": "Acknowledge and investigate incident",
+    "critical_case": "Technical access does not automatically grant score or identity access",
+    "responsive": "Desktop data workspace; tablet master/detail; phone record list with full detail and actions; controlled table overflow where necessary.",
+    "authority": "Server checks chapter, event, action and current assignment; mutation audit and optimistic concurrency."
+  },
+  {
+    "id": "PAGE-093",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console",
+    "title": "Duty selection",
+    "roles": "Assigned event staff",
+    "content": [
+      "Chapter, event, stage, role, device and connectivity status"
+    ],
+    "primary_action": "Enter assigned workstation",
+    "critical_case": "Expired or revoked assignment cannot be selected",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-094",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/judge",
+    "title": "Judge desk",
+    "roles": "Judge",
+    "content": [
+      "Assigned division, current/next crew, criteria version, completion and outbox state"
+    ],
+    "primary_action": "Open assigned scorecard",
+    "critical_case": "Judge cannot see peers' unfinalized scores",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-095",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/judge/[entryId]",
+    "title": "Score entry",
+    "roles": "Assigned judge",
+    "content": [
+      "Crew context, criteria labels/maxima, numeric controls, notes, revision and saved/queued/acknowledged state"
+    ],
+    "primary_action": "Save draft and submit score",
+    "critical_case": "Duplicate retry is idempotent; locked/revised entry produces a recoverable conflict",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-096",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/judge/review",
+    "title": "Judge submission review",
+    "roles": "Judge",
+    "content": [
+      "Own submissions, receipts, revision history and unresolved drafts"
+    ],
+    "primary_action": "Inspect own receipt or request authorized correction",
+    "critical_case": "No overwrite of a locked accepted score",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-097",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/head-judge",
+    "title": "Head judge overview",
+    "roles": "Head judge",
+    "content": [
+      "Judge completion matrix, missing scores, anomaly flags and technical deductions"
+    ],
+    "primary_action": "Inspect discrepancy and prepare lock",
+    "critical_case": "Outlier flag is advisory and never silently modifies a judge's score",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-098",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/head-judge/[divisionId]",
+    "title": "Division finalization",
+    "roles": "Head judge",
+    "content": [
+      "Completeness, conflict review, penalties, tie policy, final preview and rule version"
+    ],
+    "primary_action": "Lock division with explicit review",
+    "critical_case": "Missing acknowledgements prevent accidental finalization",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-099",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/penalties",
+    "title": "Technical deductions",
+    "roles": "Technical judge",
+    "content": [
+      "Entry, sourced violation codes, points, evidence, reviewer and history"
+    ],
+    "primary_action": "Submit or reverse authorized deduction",
+    "critical_case": "Reversal creates audit entry rather than deleting original evidence",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-100",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/battles",
+    "title": "Battle control",
+    "roles": "Head judge, battle operator",
+    "content": [
+      "Bracket, round format, assignment, voting window, tiebreak and match state"
+    ],
+    "primary_action": "Start round and advance confirmed winner",
+    "critical_case": "Byes, withdrawals and ties use approved event rules",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-101",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/battles/[matchId]/vote",
+    "title": "Battle voting",
+    "roles": "Assigned battle judge",
+    "content": [
+      "Competitor names, corner labels, round, vote state and receipt"
+    ],
+    "primary_action": "Cast authorized vote",
+    "critical_case": "Window closed or duplicate vote cannot silently change outcome",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-102",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/check-in",
+    "title": "Check-in scanner",
+    "roles": "Check-in operator",
+    "content": [
+      "Scanner, manual search, entitlement, identity confirmation and freshness"
+    ],
+    "primary_action": "Validate pass and record check-in",
+    "critical_case": "Replay, revoked pass, camera denial and offline uncertainty have distinct outcomes",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-103",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/marshal",
+    "title": "Backstage queue",
+    "roles": "Marshal",
+    "content": [
+      "Holding, on-deck, performing and complete lanes",
+      "stage and call history"
+    ],
+    "primary_action": "Move crew through allowed stage states",
+    "critical_case": "Concurrent stage transition conflicts are resolved with latest server version",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-104",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/audio",
+    "title": "DJ desk",
+    "roles": "Audio operator",
+    "content": [
+      "Performance order, accepted track version, cue, local availability and checksum"
+    ],
+    "primary_action": "Download approved pack or mark cue ready",
+    "critical_case": "Missing/corrupt local track is flagged before stage transition",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-105",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/broadcast",
+    "title": "Broadcast control",
+    "roles": "Broadcast operator",
+    "content": [
+      "Preview, scene preset, published data, sponsor schedule and display health"
+    ],
+    "primary_action": "Take authorized scene live",
+    "critical_case": "Preview data and internal scores never reach public display",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-106",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/sync",
+    "title": "Device and sync center",
+    "roles": "Assigned staff",
+    "content": [
+      "Queued operations, receipt state, last sync, local storage and device identity"
+    ],
+    "primary_action": "Retry or escalate conflict",
+    "critical_case": "Sign-out or storage clearing warns about unsent work and provides recovery",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-107",
+    "surface": "console",
+    "phase": "P3",
+    "route": "/console/[eventId]/incidents",
+    "title": "Event incident log",
+    "roles": "Event manager, assigned staff",
+    "content": [
+      "Incident time, stage, severity, owner, mitigation and resolution"
+    ],
+    "primary_action": "Record and escalate incident",
+    "critical_case": "Operational note cannot directly mutate results",
+    "responsive": "Landscape tablet is optimized; portrait and short screens reflow to scrolling sections; minimum primary control 56px; draft survives rotation.",
+    "authority": "Assigned event/stage/entry only; explicit revisions, operation IDs and acknowledgements for commands."
+  },
+  {
+    "id": "PAGE-108",
+    "surface": "broadcast",
+    "phase": "P3",
+    "route": "/arena-live/[eventId]",
+    "title": "Arena live display",
+    "roles": "Public display",
+    "content": [
+      "Now performing, chapter, division, approved sponsor and scene state"
+    ],
+    "primary_action": "Render operator-published scene",
+    "critical_case": "Connection loss freezes factual state with discreet freshness indicator",
+    "responsive": "16:9, 16:10, 21:9 and 9:16 scene presets; safe margins; no browser scrollbars; calibrated readable text and match-focused views.",
+    "authority": "Published projection only; separate authenticated controller; no private participant data."
+  },
+  {
+    "id": "PAGE-109",
+    "surface": "broadcast",
+    "phase": "P3",
+    "route": "/arena-live/[eventId]/results",
+    "title": "Arena result reveal",
+    "roles": "Public display",
+    "content": [
+      "Published placement, crew, official total and reveal ordering"
+    ],
+    "primary_action": "Show approved results sequence",
+    "critical_case": "Publication rollback stops reveal and shows holding scene",
+    "responsive": "16:9, 16:10, 21:9 and 9:16 scene presets; safe margins; no browser scrollbars; calibrated readable text and match-focused views.",
+    "authority": "Published projection only; separate authenticated controller; no private participant data."
+  },
+  {
+    "id": "PAGE-110",
+    "surface": "broadcast",
+    "phase": "P3",
+    "route": "/arena-live/[eventId]/bracket",
+    "title": "Arena bracket",
+    "roles": "Public display",
+    "content": [
+      "Current match, prior winners, round and next pairing"
+    ],
+    "primary_action": "Display current competition bracket",
+    "critical_case": "Large brackets focus current round instead of shrinking all names",
+    "responsive": "16:9, 16:10, 21:9 and 9:16 scene presets; safe margins; no browser scrollbars; calibrated readable text and match-focused views.",
+    "authority": "Published projection only; separate authenticated controller; no private participant data."
+  },
+  {
+    "id": "PAGE-111",
+    "surface": "broadcast",
+    "phase": "P3",
+    "route": "/arena-live/[eventId]/holding",
+    "title": "Arena holding scene",
+    "roles": "Public display",
+    "content": [
+      "Event identity, approved schedule message, sponsor loop and support contact if appropriate"
+    ],
+    "primary_action": "Wait for authorized live scene",
+    "critical_case": "No fabricated countdown when resume time is unknown",
+    "responsive": "16:9, 16:10, 21:9 and 9:16 scene presets; safe margins; no browser scrollbars; calibrated readable text and match-focused views.",
+    "authority": "Published projection only; separate authenticated controller; no private participant data."
+  },
+  {
+    "id": "PAGE-112",
+    "surface": "system",
+    "phase": "P1",
+    "route": "/access-denied",
+    "title": "Access denied",
+    "roles": "Any user",
+    "content": [
+      "Current account, unavailable scope and safe help path"
+    ],
+    "primary_action": "Switch authorized context or request help",
+    "critical_case": "Do not reveal whether a protected resource exists",
+    "responsive": "Readable single-column layout in every orientation; actions remain reachable at 400% zoom.",
+    "authority": "No sensitive diagnostic output; private route existence protected."
+  },
+  {
+    "id": "PAGE-113",
+    "surface": "system",
+    "phase": "P3",
+    "route": "/offline",
+    "title": "Offline and reconnect",
+    "roles": "Any user",
+    "content": [
+      "Available cached functions, pending operations, last sync and retry action"
+    ],
+    "primary_action": "Resume supported local work",
+    "critical_case": "Payments, publishing and identity approval remain unavailable offline",
+    "responsive": "Readable single-column layout in every orientation; actions remain reachable at 400% zoom.",
+    "authority": "No sensitive diagnostic output; private route existence protected."
+  },
+  {
+    "id": "PAGE-114",
+    "surface": "system",
+    "phase": "P1",
+    "route": "/maintenance",
+    "title": "Planned maintenance",
+    "roles": "Any user",
+    "content": [
+      "Service status, impact, verified next update and support"
+    ],
+    "primary_action": "Check service status or return later",
+    "critical_case": "Avoid unsourced recovery-time promises",
+    "responsive": "Readable single-column layout in every orientation; actions remain reachable at 400% zoom.",
+    "authority": "No sensitive diagnostic output; private route existence protected."
+  },
+  {
+    "id": "PAGE-115",
+    "surface": "system",
+    "phase": "P1",
+    "route": "/not-found",
+    "title": "Not found template",
+    "roles": "Any user",
+    "content": [
+      "Clear explanation, event search and home/help links"
+    ],
+    "primary_action": "Recover navigation",
+    "critical_case": "Missing private resource uses non-disclosing response; this also represents framework 404 boundaries",
+    "responsive": "Readable single-column layout in every orientation; actions remain reachable at 400% zoom.",
+    "authority": "No sensitive diagnostic output; private route existence protected."
+  },
+  {
+    "id": "PAGE-116",
+    "surface": "system",
+    "phase": "P1",
+    "route": "/error",
+    "title": "Unexpected-error template",
+    "roles": "Any user",
+    "content": [
+      "Safe error description, retry, preserved input and support reference"
+    ],
+    "primary_action": "Retry or report issue",
+    "critical_case": "No tokens, personal details or stack traces in user-visible errors",
+    "responsive": "Readable single-column layout in every orientation; actions remain reachable at 400% zoom.",
+    "authority": "No sensitive diagnostic output; private route existence protected."
+  }
+]

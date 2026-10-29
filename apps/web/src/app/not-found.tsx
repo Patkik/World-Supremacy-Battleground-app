@@ -1,0 +1,2 @@
+import Link from "next/link";
+export default function NotFound(){return <main id="main-content" className="system-page"><span className="eyebrow">404 / Out of bounds</span><h1>A different<br/>way back.</h1><p>This page isn’t part of the preview yet. Explore the available screens or head back to WSB.</p><Link className="button button-volt" href="/preview">Explore the preview →</Link><Link href="/" className="text-link">Back to home</Link></main>}

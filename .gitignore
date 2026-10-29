@@ -1,0 +1,16 @@
+.workspace/
+.venv/
+__pycache__/
+*.pyc
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+coverage/
+*.log
+.next/
+target/
+*.tsbuildinfo
+.firebase/
+.firecrawl/

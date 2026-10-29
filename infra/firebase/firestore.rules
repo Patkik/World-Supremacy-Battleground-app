@@ -1,0 +1,16 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Only explicit published projections may be publicly retrieved.
+    match /publicEvents/{eventId} {
+      allow read: if resource.data.published == true;
+      allow write: if false;
+    }
+    match /chapters/{chapterId}/members/{uid} {
+      allow get: if request.auth != null && request.auth.uid == uid
+        && request.auth.token.chapterId == chapterId;
+      allow list, write: if false;
+    }
+    match /{document=**} { allow read, write: if false; }
+  }
+}

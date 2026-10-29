@@ -1,0 +1,3 @@
+import {EmptyState,PageHeading} from "./ui";
+import {WSB} from "@/lib/public-content";
+export function PublicResults(){return <main id="main-content" className="section-wrap"><PageHeading eyebrow="The moments that matter" title="Results, made official." description="The floor tells the story. Official results tell you where it leads."/><EmptyState title="Follow the official competition updates">Find WSB’s published announcements, performance coverage and championship updates through the official channels.</EmptyState><a href={WSB.website} className="button button-outline spaced-link">Official WSB announcements ↗</a><a href={WSB.channel} className="text-link spaced-link">Watch the performances ↗</a></main>}
