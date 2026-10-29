@@ -44,13 +44,15 @@ slogan band and subtle stamp motion add continuous energy. Lenis remains the
 only smooth-scroll engine, on public desktop layouts. Operational pages import
 none of these motion components.
 
-Official excerpts cycle muted by default, with pause, sound and full-video
-controls. Reduced motion, data saving and slow-2G connections start with a poster
-and explicit play. Preference changes disable automatic playback. Offscreen and
-background video pauses; the slogan band pauses offscreen. A page-level pause
-stops video and GSAP/CSS motion together. No audio starts without user action.
+Official excerpts cycle as an always-muted decorative background. The hero has
+no playback, sound or click controls. Reduced motion, data saving and slow-2G
+connections use a still poster. Preference changes disable automatic playback.
+Offscreen/background video and the slogan band pause when unused. The footer
+motion preference stops video and page animation. See the later behavior update
+in `docs/dark-logo-and-background-video.md`.
 
-Video/API failures preserve the poster, CTA and channel link. Reduced-motion
+Video/API failures preserve the poster and primary CTA; the channel link remains
+in the footer. Reduced-motion
 and no-JavaScript modes keep readable content and navigation. Media loading is
 independent of registration/event discovery. No WebGL is necessary.
 

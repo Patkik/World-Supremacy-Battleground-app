@@ -23,6 +23,11 @@ Switch design intensity, motion, and companion skills strictly by Next.js App Ro
 
 ## Hard Guardrails ("Prove It" Gate)
 
+- **Current user direction**: use the exact white logo treatment on dark layouts
+  (`brand-mark-white`, dark root theme). The hero is decorative autoplay video:
+  always muted, no playback/sound buttons, no click links, no focusable player.
+  Keep motion preferences in the footer; honor reduced-motion and poster fallbacks.
+
 - **Anti-Slop Bans**: Reject purple/indigo/blue-to-pink SaaS gradients; reject `Inter`, `Roboto`, or `Arial` for display headlines; reject uniform 3-column `rounded-2xl` icon-circle card grids; never animate layout properties (`width`, `height`, `top`, `left`, `margin`)—animate only `transform`, `opacity`/`autoAlpha`, and `clip-path`.
 - **Semantic Tokens Only**: Reference semantic CSS variables (`--bg-obsidian`, `--bg-carbon`, `--bg-tungsten`, `--bg-glass`, `--text-chrome`, `--text-titanium`, `--text-muted`, `--accent-volt`, `--accent-crimson`, `--accent-cobalt`, `--accent-gold`, `--border-subtle`, `--border-active`) instead of raw hex literals in components.
 - **Tabular Numerals**: Apply `--font-mono` with `font-variant-numeric: tabular-nums` to every score, timer, seed number, and minor-unit currency display.

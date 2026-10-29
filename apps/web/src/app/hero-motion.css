@@ -24,3 +24,5 @@
 
 /* Exact white rendering of the original transparent artwork; no recolored raster. */
 html[data-theme="dark"] .brand-mark-white{background:transparent;filter:brightness(0) invert(1)}
+
+.hero-player iframe{pointer-events:none!important}.hero-video-surface{position:absolute;inset:0;z-index:3;pointer-events:auto;cursor:default;user-select:none}

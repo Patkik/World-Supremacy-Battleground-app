@@ -84,6 +84,6 @@ export function HeroHighlights(){
  return <div className={`hero-media hero-highlights ${playing?"is-playing":""}`} data-hero-reveal data-active-clip={clip.id} data-playback={unavailable?"unavailable":playing?"playing":"poster"}>
   <Image src={`https://i.ytimg.com/vi/${clip.id}/hqdefault.jpg`} alt={`${clip.title} at ${clip.event}, from the official WSBstreet archive`} fill priority unoptimized draggable={false} sizes="(max-width:767px) 100vw, 70vw" className="hero-photo highlights-poster"/>
   <div ref={mount} className="hero-player" aria-hidden="true"/>
-  <div className="hero-cross" aria-hidden="true">+</div>
+  <div className="hero-video-surface" aria-hidden="true"/>
  </div>;
 }

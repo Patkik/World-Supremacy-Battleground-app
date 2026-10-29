@@ -50,6 +50,13 @@ official Hong Kong 2027 form. Real three-clip playback, controlled motion/fallba
 tests, 54 responsive cases and production build passed. See docs/public-site-media.md.
 Internal sample workspaces retain accurate labels and are not exposed as live tools.
 
+2026-10-30: User requested white dark-mode branding and inert autoplay footage.
+Created a white SVG variant using the original logo alpha, applied exact white
+rendering across dark layouts, removed the hero's controls/links and floating
+motion button, and moved page motion preferences to the footer. Hero playback
+is always muted, automatic and non-interactive, with still-image fallbacks.
+See docs/dark-logo-and-background-video.md.
+
 Next: implement current event membership
 and revocation checks and real registration contracts, then wire UI to Rust.
 Payments, official eligibility and offline score receipts remain unimplemented.
