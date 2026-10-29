@@ -152,9 +152,19 @@
         "results"
       ],
       "owner": "reviewer",
-      "status": "todo",
+      "status": "done",
       "acceptance": "End-to-end rehearsal, access review and recovery evidence recorded",
-      "evidence": []
+      "evidence": [
+        "apps/web/src/app/(admin)/hq/page.tsx",
+        "apps/web/src/app/(admin)/hq/chapters/page.tsx",
+        "apps/web/src/app/(admin)/hq/rules/page.tsx",
+        "apps/web/src/app/(admin)/hq/access/page.tsx",
+        "apps/web/src/app/(admin)/hq/content/page.tsx",
+        "apps/web/src/app/(admin)/hq/integrations/page.tsx",
+        "apps/web/src/app/(admin)/hq/operations/page.tsx",
+        "apps/web/src/app/(marketing)/rankings/page.tsx",
+        "apps/web/src/app/(marketing)/about/page.tsx"
+      ]
     },
     {
       "id": "website-plan",
