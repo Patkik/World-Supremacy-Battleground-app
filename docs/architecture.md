@@ -98,6 +98,17 @@ API can run without credentials. `/healthz` is liveness only, not database readi
 - Payment amounts: integer minor units plus currency; provider event IDs are
   unique ledger keys. Replayed webhooks must produce no duplicate effects.
 
+## PayMongo payment architecture and provider contracts
+
+- Official Provider: PayMongo hosted checkout (`/v1/checkout_sessions`) and refunds (`/v1/refunds`).
+- Authentication: HTTP Basic Auth with `PAYMONGO_SECRET_KEY` as username and empty password.
+- Server Credential Gate: Secret keys are environment-only (`PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`). They are never stored in client documents, Firestore collections, or chapter records. Production modes fail closed (503 Service Unavailable) if credentials are missing.
+- Local Testing Gate: When `WSB_LOCAL_TESTING=true` with `demo-wsb` and local Firebase emulator, the system utilizes a dedicated synthetic container on port 8191 with explicit synthetic signatures (`WSB_PAYMONGO_LOCAL_SECRET`). Synthetic emulators never call PayMongo or move money.
+- Durable Reservation & Session Mapping: Before external checkout session creation, the server executes an atomic Firestore transaction (`reserve_local_checkout`) moving entry balance to `pending_minor`. On provider response, `bind_local_checkout_session` atomically writes `localCheckoutSessionIndex/{session_id}`.
+- Webhook Signature Protocol: PayMongo delivers `paymongo-signature: t={ts},te={test_sig},li={live_sig}`. The server computes `HMAC-SHA256(secret, "${t}.${raw_body}")`, enforces timestamp clock skew $\le 300\text{s}$, and verifies the signature corresponding to the active mode (test or live).
+- Event Deduplication & Settlement: Handlers at `/v1/paymongo/webhook` and `/v1/webhooks/paymongo` check event ID deduplication in `localCheckoutEvents/{event_id}`. Processing is an atomic transaction that moves `pending_minor` to `paid_minor`, recalculates division readiness, persists `PaymentRecord`, and writes an immutable audit log. Replayed events return 200 OK immediately without double crediting.
+- Refunds & Reversals: Authorized chapter finance users trigger refunds via `POST /v1/chapters/{chapter}/payments/{paymentId}/refund`. If `provider_reference` starts with `pay_`, the server calls PayMongo's `/v1/refunds` API. Incoming `payment.refunded` and `payment.refund.updated` webhooks find the payment transactionally, deduct `amount_minor` from `entry.paid_minor`, update division readiness, mark payment `Refunded`, and record an audit log. Replays return 200 OK idempotently.
+
 ## Offline judging contract (designed, not implemented)
 
 Each command includes operationId, event/crew scope, expectedRevision and a

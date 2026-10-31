@@ -8,7 +8,8 @@ use serde::Deserialize;
 use serde_json::json;
 
 use crate::domain::{
-    FinanceSummary, PaymentQuote, PaymentRecord, SyntheticWebhookPayload, WebhookReceipt,
+    FinanceSummary, PaymentQuote, PaymentRecord, PaymentStatus, SyntheticWebhookPayload,
+    WebhookReceipt,
 };
 use crate::registration::{authenticate, AppState};
 use crate::store::{constant_time_eq, hmac_sha256};
@@ -95,6 +96,313 @@ pub async fn local_paymongo_webhook(
     }
     let _ = (state, headers, body);
     Err(StatusCode::NOT_FOUND)
+}
+
+pub async fn paymongo_webhook(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: axum::body::Bytes,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let secret = std::env::var("PAYMONGO_WEBHOOK_SECRET")
+        .ok()
+        .filter(|v| v.len() >= 32);
+    #[cfg(feature = "local-testing")]
+    let secret = secret.or_else(|| {
+        if std::env::var("WSB_LOCAL_TESTING").as_deref() == Ok("true") {
+            std::env::var("WSB_PAYMONGO_LOCAL_SECRET")
+                .ok()
+                .filter(|v| v.len() >= 32)
+        } else {
+            None
+        }
+    });
+    let secret = secret.ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "PayMongo webhook secret is not configured"})),
+        )
+    })?;
+
+    let signature = headers
+        .get("paymongo-signature")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| {
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(json!({"error": "Missing paymongo-signature header"})),
+            )
+        })?;
+
+    let live_mode = std::env::var("PAYMONGO_LIVE_MODE").as_deref() == Ok("true");
+    let now = crate::store::now_secs();
+    if !crate::paymongo::verify_signature(signature, &body, secret.as_bytes(), live_mode, now, 300) {
+        return Err((
+            StatusCode::UNAUTHORIZED,
+            Json(json!({"error": "Invalid webhook HMAC signature or timestamp expired"})),
+        ));
+    }
+
+    let event = crate::paymongo::parse_event(&body).map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": format!("Malformed webhook JSON payload: {e}")})),
+        )
+    })?;
+
+    #[cfg(feature = "firestore")]
+    if let Some(repository) = &state.durable {
+        return repository
+            .settle_paymongo_event(&event)
+            .await
+            .map(|_| Json(json!({"received": true})))
+            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))));
+    }
+
+    let mut store = state.store.write().await;
+    store
+        .settle_paymongo_event(&event)
+        .map(|_| Json(json!({"received": true})))
+        .map_err(|err| (StatusCode::BAD_REQUEST, Json(json!({"error": err}))))
+}
+
+#[derive(Deserialize)]
+pub struct PaymongoCheckoutPayload {
+    pub operation_id: String,
+    pub amount_minor: Option<u64>,
+}
+
+pub async fn create_paymongo_checkout(
+    State(state): State<AppState>,
+    Path((chapter, event, entry)): Path<(String, String, String)>,
+    headers: HeaderMap,
+    Json(payload): Json<PaymongoCheckoutPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let claims = authenticate(&state, &headers, &chapter)
+        .await
+        .map_err(|s| (s, Json(json!({"error": "Authentication required"}))))?;
+
+    #[cfg(feature = "local-testing")]
+    if state.local_identity.is_some() && std::env::var("PAYMONGO_SECRET_KEY").is_err() {
+        let repo = state.durable.as_ref().ok_or((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "Durable storage unavailable"})),
+        ))?;
+        let res = repo
+            .start_local_checkout(
+                &claims,
+                &chapter,
+                &event,
+                &entry,
+                &payload.operation_id,
+                payload.amount_minor,
+            )
+            .await
+            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))))?;
+        let session_id = res.session_id.unwrap_or_default();
+        return Ok(Json(json!({
+            "checkout_url": format!("https://checkout.paymongo.com/local?session={session_id}"),
+            "session_id": session_id,
+            "reservation_id": res.id,
+            "reference_number": res.id,
+            "amount_minor": res.amount_minor,
+            "currency": res.currency,
+        })));
+    }
+
+    let client = crate::paymongo::PaymongoClient::from_env().ok_or_else(|| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({
+                "error": "PayMongo checkout is not configured. Submit manual payment reference or contact chapter director."
+            })),
+        )
+    })?;
+
+    #[cfg(feature = "firestore")]
+    if let Some(repo) = &state.durable {
+        let reservation = repo
+            .reserve_local_checkout(
+                &claims,
+                &chapter,
+                &event,
+                &entry,
+                &payload.operation_id,
+                payload.amount_minor,
+            )
+            .await
+            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))))?;
+
+        if let Some(session_id) = &reservation.session_id {
+            return Ok(Json(json!({
+                "checkout_url": format!("https://checkout.paymongo.com/{session_id}"),
+                "session_id": session_id,
+                "reference_number": reservation.id,
+                "amount_minor": reservation.amount_minor,
+                "currency": reservation.currency,
+            })));
+        }
+
+        let public_web_url = std::env::var("WSB_PUBLIC_WEB_URL")
+            .unwrap_or_else(|_| "http://localhost:3100".to_string());
+        let success_url = format!(
+            "{}/app/payment-return?session_id={{CHECKOUT_SESSION_ID}}&entry={}&event={}&chapter={}",
+            public_web_url, entry, event, chapter
+        );
+        let cancel_url = format!(
+            "{}/app/entries/{}/checkout?event={}",
+            public_web_url, entry, event
+        );
+
+        let quote = repo
+            .payment_quote(&claims, &chapter, &event, &entry)
+            .await
+            .map_err(|e| (StatusCode::from(&e), Json(json!({"error": e.to_string()}))))?;
+
+        let session = client
+            .create_checkout_session(&crate::paymongo::CreateCheckoutRequest {
+                reference_number: reservation.id.clone(),
+                line_items: vec![crate::paymongo::PaymongoCheckoutItem {
+                    name: format!("WSB Entry - {}", quote.division_name),
+                    amount: reservation.amount_minor,
+                    currency: reservation.currency.clone(),
+                    quantity: 1,
+                }],
+                description: Some(format!("WSB {} entry registration", quote.division_name)),
+                success_url: Some(success_url),
+                cancel_url: Some(cancel_url),
+                payment_method_types: vec![
+                    "card".into(),
+                    "gcash".into(),
+                    "grab_pay".into(),
+                    "paymaya".into(),
+                ],
+            })
+            .await
+            .map_err(|err| (StatusCode::BAD_GATEWAY, Json(json!({"error": err}))))?;
+
+        let bound = repo
+            .bind_local_checkout_session(&claims, &reservation, &session.id)
+            .await
+            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))))?;
+
+        return Ok(Json(json!({
+            "checkout_url": session.checkout_url,
+            "session_id": bound.session_id.unwrap_or(session.id),
+            "reference_number": reservation.id,
+            "amount_minor": bound.amount_minor,
+            "currency": bound.currency,
+        })));
+    }
+
+    let (available, division_name, currency) = {
+        let store = state.store.read().await;
+        access::entry_access(&store, &claims, &chapter, &event, &entry, false)
+            .map_err(|s| (s, Json(json!({"error": "Access denied"}))))?;
+        let q = store
+            .get_payment_quote(&chapter, &event, &entry)
+            .map_err(|_| (StatusCode::NOT_FOUND, Json(json!({"error": "Quote not found"}))))?;
+        (q.available_amount_minor, q.division_name, q.currency)
+    };
+
+    let amount = payload.amount_minor.unwrap_or(available);
+    if amount == 0 || amount > available {
+        return Err((
+            StatusCode::CONFLICT,
+            Json(json!({"error": "Requested amount exceeds available balance"})),
+        ));
+    }
+
+    let reference = format!("wsb_{}_{}_{}", chapter, entry, payload.operation_id);
+    let session = client
+        .create_checkout_session(&crate::paymongo::CreateCheckoutRequest {
+            reference_number: reference.clone(),
+            line_items: vec![crate::paymongo::PaymongoCheckoutItem {
+                name: format!("WSB Entry - {}", division_name),
+                amount,
+                currency: currency.clone(),
+                quantity: 1,
+            }],
+            description: Some(format!("WSB {} entry registration", division_name)),
+            success_url: None,
+            cancel_url: None,
+            payment_method_types: vec![
+                "card".into(),
+                "gcash".into(),
+                "grab_pay".into(),
+                "paymaya".into(),
+            ],
+        })
+        .await
+        .map_err(|err| (StatusCode::BAD_GATEWAY, Json(json!({"error": err}))))?;
+
+    {
+        let mut store = state.store.write().await;
+        let pay_id = format!("pay_pm_{}", session.id);
+        let new_pay = PaymentRecord {
+            payment_id: pay_id.clone(),
+            chapter_id: chapter.clone(),
+            entry_id: entry.clone(),
+            payer_uid: claims.sub.clone(),
+            amount_minor: session.amount_minor,
+            currency: session.currency.clone(),
+            status: PaymentStatus::Pending,
+            provider_reference: session.id.clone(),
+            created_at: crate::store::now_secs(),
+            settled_at: None,
+        };
+        store.payments.insert(pay_id, new_pay);
+    }
+
+    Ok(Json(json!({
+        "checkout_url": session.checkout_url,
+        "session_id": session.id,
+        "reference_number": session.reference_number,
+        "amount_minor": session.amount_minor,
+        "currency": session.currency,
+    })))
+}
+
+pub async fn cancel_paymongo_checkout(
+    State(state): State<AppState>,
+    Path((chapter, event, entry)): Path<(String, String, String)>,
+    headers: HeaderMap,
+    Json(payload): Json<PaymongoCheckoutPayload>,
+) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+    let claims = authenticate(&state, &headers, &chapter)
+        .await
+        .map_err(|s| (s, Json(json!({"error": "Authentication required"}))))?;
+
+    #[cfg(feature = "firestore")]
+    if let Some(repo) = &state.durable {
+        let reservation = repo
+            .cancel_local_checkout(&claims, &chapter, &event, &entry, &payload.operation_id)
+            .await
+            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))))?;
+
+        if let Some(client) = crate::paymongo::PaymongoClient::from_env() {
+            if let Some(session_id) = &reservation.session_id {
+                let _ = client.expire_checkout_session(session_id).await;
+            }
+        }
+
+        return Ok(Json(json!(reservation)));
+    }
+
+    #[cfg(feature = "local-testing")]
+    if state.local_identity.is_some() {
+        let repo = state.durable.as_ref().ok_or((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "Durable storage unavailable"})),
+        ))?;
+        return repo
+            .cancel_local_checkout(&claims, &chapter, &event, &entry, &payload.operation_id)
+            .await
+            .map(|r| Json(json!(r)))
+            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))));
+    }
+
+    let _ = (state, claims, event, entry, payload);
+    Ok(Json(json!({"cancelled": true})))
 }
 
 pub async fn get_payment_quote(
@@ -288,20 +596,48 @@ pub async fn refund_payment(
     headers: HeaderMap,
 ) -> Result<Json<PaymentRecord>, StatusCode> {
     let claims = authenticate(&state, &headers, &chapter_id).await?;
+    access::require_role(&claims, &["finance", "chapter_director"])?;
+
     #[cfg(feature = "firestore")]
     if let Some(repository) = &state.durable {
-        return repository
+        let payment = repository
             .refund_payment(&claims, &chapter_id, &payment_id)
             .await
-            .map(Json)
-            .map_err(StatusCode::from);
+            .map_err(StatusCode::from)?;
+        if let Some(client) = crate::paymongo::PaymongoClient::from_env() {
+            if payment.provider_reference.starts_with("pay_") {
+                let _ = client
+                    .create_refund(&crate::paymongo::CreateRefundRequest {
+                        payment_id: payment.provider_reference.clone(),
+                        amount_minor: payment.amount_minor,
+                        reason: "requested_by_customer".into(),
+                        notes: Some("WSB Finance Refund".into()),
+                    })
+                    .await
+                    .map_err(|_| StatusCode::BAD_GATEWAY)?;
+            }
+        }
+        return Ok(Json(payment));
     }
+
     let mut store = state.store.write().await;
-    access::require_role(&claims, &["finance", "chapter_director"])?;
     let payment = store
         .refund_payment(&chapter_id, &payment_id)
         .map_err(|_| StatusCode::BAD_REQUEST)?;
     store.record_audit(&chapter_id, &claims.sub, "payment_refunded", &payment_id);
+    if let Some(client) = crate::paymongo::PaymongoClient::from_env() {
+        if payment.provider_reference.starts_with("pay_") {
+            let _ = client
+                .create_refund(&crate::paymongo::CreateRefundRequest {
+                    payment_id: payment.provider_reference.clone(),
+                    amount_minor: payment.amount_minor,
+                    reason: "requested_by_customer".into(),
+                    notes: Some("WSB Finance Refund".into()),
+                })
+                .await
+                .map_err(|_| StatusCode::BAD_GATEWAY)?;
+        }
+    }
     Ok(Json(payment))
 }
 

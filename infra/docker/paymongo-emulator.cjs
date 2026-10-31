@@ -5,8 +5,12 @@ const path = require('node:path');
 if (process.env.WSB_PAYMONGO_EMULATOR !== 'true') throw new Error('PayMongo emulator must be explicitly enabled');
 const stateFile = process.env.WSB_PAYMONGO_STATE_FILE;
 if (!stateFile) throw new Error('Synthetic emulator state file is required');
-let state = { sessions: {}, operations: {} };
-try { state = JSON.parse(fs.readFileSync(stateFile, 'utf8')); if (!state.sessions || !state.operations) throw new Error('invalid emulator state'); }
+let state = { sessions: {}, operations: {}, refunds: {} };
+try {
+  state = JSON.parse(fs.readFileSync(stateFile, 'utf8'));
+  if (!state.sessions || !state.operations) throw new Error('invalid emulator state');
+  if (!state.refunds) state.refunds = {};
+}
 catch (error) { if (error.code !== 'ENOENT') throw error; }
 const persist = () => { fs.mkdirSync(path.dirname(stateFile), {recursive:true}); const temporary = `${stateFile}.tmp`; fs.writeFileSync(temporary,JSON.stringify(state)); fs.renameSync(temporary,stateFile); };
 const json = (response, status, value) => { response.writeHead(status, {'content-type':'application/json','cache-control':'no-store'}); response.end(JSON.stringify(value)); };
@@ -17,20 +21,35 @@ const server=http.createServer(async (request,response)=>{
   let body='';
   try { for await (const chunk of request) {body+=chunk; if(Buffer.byteLength(body)>65536) return json(response,413,{error:'body too large'});} } catch { return json(response,400,{error:'invalid request'}); }
   let input={};if(body){try{input=JSON.parse(body);}catch{return json(response,400,{error:'invalid JSON'});}}
-  if(request.method==='POST' && url.pathname==='/v2/checkout_sessions') {
+  if(request.method==='POST' && (url.pathname==='/v2/checkout_sessions' || url.pathname==='/v1/checkout_sessions')) {
     const attributes=input?.data?.attributes;const items=attributes?.line_items;
-    const operation=request.headers['idempotency-key'];if(typeof operation!=='string'||!/^[A-Za-z0-9_-]{1,200}$/.test(operation))return json(response,400,{error:'synthetic idempotency key required'});
+    const operation=request.headers['idempotency-key'] || (url.pathname==='/v1/checkout_sessions' ? id('idem') : undefined);
+    if(typeof operation!=='string'||!/^[A-Za-z0-9_-]{1,200}$/.test(operation))return json(response,400,{error:'synthetic idempotency key required'});
     const hash=createHash('sha256').update(body).digest('hex');const previous=state.operations[operation];if(previous){if(previous.hash!==hash)return json(response,409,{error:'synthetic operation conflict'});return json(response,200,{data:previous.response});}
     if(!Array.isArray(items)||items.length!==1||!Number.isSafeInteger(items[0]?.amount)||items[0].amount<=0||items[0].currency!=='PHP'||items[0].quantity!==1||typeof attributes.reference_number!=='string'||!attributes.reference_number.trim()||attributes.reference_number.length>200) return json(response,400,{error:'invalid synthetic checkout'});
-    const session={id:id('cs'),type:'checkout_session',attributes:{reference_number:attributes.reference_number,livemode:false,status:'active',amount:items[0].amount,currency:'PHP',payments:[]}};
+    const sessionId=id('cs');
+    const session={id:sessionId,type:'checkout_session',attributes:{reference_number:attributes.reference_number,livemode:false,status:'active',amount:items[0].amount,currency:'PHP',checkout_url:`https://checkout.paymongo.com/${sessionId}`,payments:[]}};
+    if(url.pathname==='/v2/checkout_sessions') {
+      delete session.attributes.checkout_url;
+    }
     state.sessions[session.id]=session;state.operations[operation]={hash,session_id:session.id,response:JSON.parse(JSON.stringify(session))};persist();return json(response,200,{data:session});
   }
-  const expire=url.pathname.match(/^\/v2\/checkout_sessions\/(cs_[a-f0-9]+)\/expire$/);
+  const expire=url.pathname.match(/^\/(?:v1|v2)\/checkout_sessions\/(cs_[a-f0-9]+)\/expire$/);
   if(request.method==='POST' && expire){
     const session=state.sessions[expire[1]];if(!session)return json(response,404,{error:'session not found'});
     if(session.attributes.status==='paid')return json(response,409,{error:'paid session cannot expire'});
     if(session.attributes.status!=='expired'){session.attributes.status='expired';persist();}
     return json(response,200,{data:session});
+  }
+  if(request.method==='POST' && (url.pathname==='/v1/refunds' || url.pathname==='/refunds')){
+    const attributes=input?.data?.attributes;
+    if(!attributes||typeof attributes.payment_id!=='string'||!Number.isSafeInteger(attributes.amount)||attributes.amount<=0) return json(response,400,{error:'invalid synthetic refund'});
+    const refundId=id('ref');
+    const refund={id:refundId,type:'refund',attributes:{amount:attributes.amount,currency:'PHP',payment_id:attributes.payment_id,reason:attributes.reason||'requested_by_customer',status:'succeeded',livemode:false,notes:attributes.notes||null,created_at:Math.floor(Date.now()/1000)}};
+    if(!state.refunds) state.refunds={};
+    state.refunds[refundId]=refund;
+    persist();
+    return json(response,200,{data:refund});
   }
   const delivery=url.pathname.match(/^\/test\/checkout_sessions\/(cs_[a-f0-9]+)\/deliver$/);
   if(request.method==='POST' && delivery){

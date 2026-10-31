@@ -91,6 +91,7 @@ pub struct RegistrationStore {
     pub check_ins: HashMap<String, CheckInRecord>,
     pub battle_matches: HashMap<String, BattleMatch>,
     pub published_results: HashMap<String, PublishedResultSnapshot>,
+    pub paymongo_events: HashSet<String>,
 }
 
 impl Default for RegistrationStore {
@@ -124,6 +125,7 @@ impl RegistrationStore {
             check_ins: HashMap::new(),
             battle_matches: HashMap::new(),
             published_results: HashMap::new(),
+            paymongo_events: HashSet::new(),
         }
     }
 
@@ -1593,6 +1595,131 @@ impl RegistrationStore {
             received: true,
             payment,
         })
+    }
+
+    pub fn settle_paymongo_event(
+        &mut self,
+        event: &crate::paymongo::PaymongoEvent,
+    ) -> Result<PaymentRecord, &'static str> {
+        match &event.event_type {
+            crate::paymongo::PaymongoEventType::CheckoutSessionPaid => {
+                let session_id = event.session_id.as_deref().unwrap_or_default();
+                if self.paymongo_events.contains(&event.event_id) {
+                    if let Some(p) = self.payments.values().find(|p| {
+                        p.provider_reference == session_id
+                            || p.payment_id == event.reference_number.as_deref().unwrap_or("")
+                    }) {
+                        return Ok(p.clone());
+                    }
+                }
+                let amount = event.payment.as_ref().map(|p| p.amount_minor).unwrap_or(0);
+                let currency = event
+                    .payment
+                    .as_ref()
+                    .map(|p| p.currency.as_str())
+                    .unwrap_or("PHP");
+                let ref_num = event.reference_number.as_deref().unwrap_or("");
+
+                let target_id = if let Some(p) = self.payments.values().find(|p| {
+                    p.payment_id == ref_num || p.provider_reference == session_id
+                }) {
+                    p.payment_id.clone()
+                } else if let Some(entry) = self.entries.get(ref_num) {
+                    let pay_id = format!("pay_pm_{}", event.event_id);
+                    let new_pay = PaymentRecord {
+                        payment_id: pay_id.clone(),
+                        chapter_id: entry.chapter_id.clone(),
+                        entry_id: entry.id.clone(),
+                        payer_uid: "paymongo_customer".to_string(),
+                        amount_minor: amount,
+                        currency: currency.to_string(),
+                        status: PaymentStatus::Pending,
+                        provider_reference: session_id.to_string(),
+                        created_at: now_secs(),
+                        settled_at: None,
+                    };
+                    self.payments.insert(pay_id.clone(), new_pay);
+                    pay_id
+                } else {
+                    return Err("No matching payment or entry found");
+                };
+
+                let payment = self
+                    .payments
+                    .get_mut(&target_id)
+                    .ok_or("Payment record not found")?;
+                if payment.status == PaymentStatus::Pending {
+                    let entry = self
+                        .entries
+                        .get_mut(&payment.entry_id)
+                        .ok_or("Entry not found")?;
+                    entry.paid_minor = entry
+                        .paid_minor
+                        .checked_add(payment.amount_minor)
+                        .ok_or("Payment overflow")?;
+                    entry.updated_at = now_secs();
+                    payment.status = PaymentStatus::Settled;
+                    payment.settled_at = Some(now_secs());
+                    payment.provider_reference = session_id.to_string();
+                }
+                self.paymongo_events.insert(event.event_id.clone());
+                Ok(payment.clone())
+            }
+            crate::paymongo::PaymongoEventType::PaymentRefunded => {
+                let p_id = event
+                    .payment
+                    .as_ref()
+                    .map(|p| p.payment_id.as_str())
+                    .unwrap_or_default();
+                if self.paymongo_events.contains(&event.event_id) {
+                    if let Some(p) = self
+                        .payments
+                        .values()
+                        .find(|p| p.payment_id == p_id || p.provider_reference == p_id)
+                    {
+                        return Ok(p.clone());
+                    }
+                }
+                let target_id = self
+                    .payments
+                    .values()
+                    .find(|p| p.payment_id == p_id || p.provider_reference == p_id)
+                    .map(|p| p.payment_id.clone())
+                    .ok_or("Payment not found for refund")?;
+
+                let payment = self
+                    .payments
+                    .get_mut(&target_id)
+                    .ok_or("Payment not found")?;
+                if payment.status == PaymentStatus::Settled {
+                    let entry = self
+                        .entries
+                        .get_mut(&payment.entry_id)
+                        .ok_or("Entry not found")?;
+                    entry.paid_minor = entry.paid_minor.saturating_sub(payment.amount_minor);
+                    entry.updated_at = now_secs();
+                    payment.status = PaymentStatus::Refunded;
+                }
+                self.paymongo_events.insert(event.event_id.clone());
+                Ok(payment.clone())
+            }
+            _ => {
+                self.paymongo_events.insert(event.event_id.clone());
+                let ack = PaymentRecord {
+                    payment_id: "evt_ack".to_string(),
+                    chapter_id: "global".to_string(),
+                    entry_id: String::new(),
+                    payer_uid: String::new(),
+                    amount_minor: 0,
+                    currency: "PHP".to_string(),
+                    status: PaymentStatus::Settled,
+                    provider_reference: String::new(),
+                    created_at: now_secs(),
+                    settled_at: Some(now_secs()),
+                };
+                Ok(ack)
+            }
+        }
     }
 
     // Phase 3: Venue Operations, Battles & Public Publication

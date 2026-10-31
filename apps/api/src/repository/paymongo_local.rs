@@ -126,7 +126,9 @@ impl FirestoreRepository {
     pub async fn settle_local_checkout(&self, event: &LocalPaidEvent) -> Result<PaymentRecord> {
         segment(&event.event_id)?;
         segment(&event.session_id)?;
-        segment(&event.reference)?;
+        if !event.reference.is_empty() {
+            segment(&event.reference)?;
+        }
         if !event.event_id.starts_with("evt_")
             || !event.session_id.starts_with("cs_")
             || event.currency != "PHP"
@@ -682,5 +684,182 @@ impl FirestoreRepository {
             })
             .await
             .map_err(transaction_error)
+    }
+
+    /// Settle a verified PayMongo webhook event (either CheckoutSessionPaid or PaymentRefunded).
+    pub async fn settle_paymongo_event(
+        &self,
+        event: &crate::paymongo::PaymongoEvent,
+    ) -> Result<PaymentRecord> {
+        match &event.event_type {
+            crate::paymongo::PaymongoEventType::CheckoutSessionPaid => {
+                let local_event = LocalPaidEvent {
+                    event_id: event.event_id.clone(),
+                    session_id: event.session_id.clone().unwrap_or_default(),
+                    reference: event.reference_number.clone().unwrap_or_default(),
+                    amount_minor: event.payment.as_ref().map(|p| p.amount_minor).unwrap_or(0),
+                    currency: event
+                        .payment
+                        .as_ref()
+                        .map(|p| p.currency.clone())
+                        .unwrap_or_else(|| "PHP".into()),
+                };
+                self.settle_local_checkout(&local_event).await
+            }
+            crate::paymongo::PaymongoEventType::PaymentRefunded => {
+                let payment_id = event
+                    .payment
+                    .as_ref()
+                    .map(|p| p.payment_id.as_str())
+                    .unwrap_or_default();
+                let receipt_path = format!("localCheckoutEvents/{}", key(&[&event.event_id]));
+                if let Some(existing) = get::<LocalEventReceipt>(&self.db, &receipt_path).await? {
+                    return Ok(existing.payment);
+                }
+                let event = event.clone();
+                let payment_id = payment_id.to_string();
+                self.db
+                    .run_transaction(|db, tx| {
+                        let event = event.clone();
+                        let payment_id = payment_id.clone();
+                        Box::pin(async move {
+                            async {
+                                let receipt_path =
+                                    format!("localCheckoutEvents/{}", key(&[&event.event_id]));
+                                if let Some(receipt) =
+                                    get::<LocalEventReceipt>(&db, &receipt_path).await?
+                                {
+                                    return Ok(receipt.payment);
+                                }
+                                let index_path =
+                                    format!("localCheckoutSessionIndex/{}", key(&[&payment_id]));
+                                let reservation: Option<LocalCheckoutReservation> =
+                                    get(&db, &index_path).await?;
+                                let (chapter_id, target_payment_id) = if let Some(res) = reservation
+                                {
+                                    (res.chapter_id, res.id)
+                                } else {
+                                    ("ph".to_string(), payment_id.clone())
+                                };
+
+                                let pay_path = format!(
+                                    "chapters/{}/payments/{}",
+                                    segment(&chapter_id)?,
+                                    segment(&target_payment_id)?
+                                );
+                                let mut payment: PaymentRecord = required(&db, &pay_path).await?;
+                                if payment.status == PaymentStatus::Refunded {
+                                    return Ok(payment);
+                                }
+                                let scope: PaymentLocation = required(
+                                    &db,
+                                    &format!(
+                                        "chapters/{}/paymentLocations/{}",
+                                        segment(&chapter_id)?,
+                                        segment(&target_payment_id)?
+                                    ),
+                                )
+                                .await?;
+
+                                let mut entry: EntryDocument = required(
+                                    &db,
+                                    &entry_path(&chapter_id, &scope.event_id, &scope.entry_id)?,
+                                )
+                                .await?;
+
+                                let division_path = division_path(
+                                    &chapter_id,
+                                    &scope.event_id,
+                                    &entry.entry.division_id,
+                                )?;
+                                let mut division: DivisionDocument =
+                                    required(&db, &division_path).await?;
+                                let before = readiness(&entry, &division)?.is_ready;
+
+                                let refund_amount = event
+                                    .payment
+                                    .as_ref()
+                                    .map(|p| p.amount_minor)
+                                    .unwrap_or(payment.amount_minor);
+                                entry.entry.paid_minor = entry
+                                    .entry
+                                    .paid_minor
+                                    .checked_sub(refund_amount)
+                                    .ok_or_else(|| conflict("Paid ledger underflow"))?;
+                                entry.entry.revision = entry
+                                    .entry
+                                    .revision
+                                    .checked_add(1)
+                                    .ok_or_else(|| conflict("Revision overflow"))?;
+                                entry.entry.updated_at = now_secs();
+
+                                let after = readiness(&entry, &division)?.is_ready;
+                                if entry.entry.status == EntryStatus::Approved {
+                                    adjust_readiness(&mut division, before, after)?;
+                                }
+
+                                payment.status = PaymentStatus::Refunded;
+
+                                put(
+                                    &db,
+                                    tx,
+                                    &entry_path(&chapter_id, &scope.event_id, &scope.entry_id)?,
+                                    &entry,
+                                )?;
+                                put(&db, tx, &division_path, &division)?;
+                                put(&db, tx, &pay_path, &payment)?;
+                                put(
+                                    &db,
+                                    tx,
+                                    &receipt_path,
+                                    &LocalEventReceipt {
+                                        event: LocalPaidEvent {
+                                            event_id: event.event_id.clone(),
+                                            session_id: payment_id.clone(),
+                                            reference: target_payment_id.clone(),
+                                            amount_minor: refund_amount,
+                                            currency: "PHP".into(),
+                                        },
+                                        payment: payment.clone(),
+                                    },
+                                )?;
+                                audit(
+                                    &db,
+                                    tx,
+                                    &chapter_id,
+                                    "paymongo_webhook",
+                                    "payment_refunded_webhook",
+                                    &target_payment_id,
+                                    &key(&["paymongo-refund-event", &event.event_id]),
+                                )?;
+                                Ok(payment)
+                            }
+                            .await
+                            .map_err(backoff)
+                        })
+                    })
+                    .await
+                    .map_err(transaction_error)
+            }
+            _ => {
+                let receipt_path = format!("localCheckoutEvents/{}", key(&[&event.event_id]));
+                if let Some(existing) = get::<LocalEventReceipt>(&self.db, &receipt_path).await? {
+                    return Ok(existing.payment);
+                }
+                let dummy = PaymentRecord {
+                    payment_id: "evt_ack".into(),
+                    chapter_id: "global".into(),
+                    entry_id: String::new(),
+                    payer_uid: String::new(),
+                    amount_minor: 0,
+                    currency: "PHP".into(),
+                    status: PaymentStatus::Settled,
+                    provider_reference: event.event_id.clone(),
+                    created_at: now_secs(),
+                    settled_at: Some(now_secs()),
+                };
+                Ok(dummy)
+            }
+        }
     }
 }

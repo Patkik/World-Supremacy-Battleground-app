@@ -179,6 +179,10 @@ real money.
 Its synthetic sessions and operation receipts are stored in a local Docker volume
 and survive an emulator container restart. Run
 `node tests/paymongo-emulator.cjs` while the stack is up. This is groundwork;
-The local-only checkout panel can start, cancel and simulate settlement. Full
-container-recreation recovery, provider reconciliation and real PayMongo
-integration are not yet verified. Never point production payment code at this service.
+The local-only checkout panel can start, cancel and simulate settlement. A signed
+API and mobile browser recovery check (`node tests/local-paymongo-recovery.cjs`)
+confirms that after full Docker container recreation (`down` followed by `up`),
+the synthetic settled payment, duplicate signed delivery idempotency, balance
+quotes and mobile UI state recover without double-crediting. Live provider
+credentials, production checkout, real PayMongo webhook handling and operational
+refunds remain unverified. Never point production payment code at this service.

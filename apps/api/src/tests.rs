@@ -2706,3 +2706,228 @@ fn adversarial_m4_division_locking_barrier_invariants() {
         .submit_score("ph", EVENT, "judge-1", replay_cmd)
         .is_ok());
 }
+
+#[tokio::test]
+async fn test_paymongo_webhook_http_matrix_and_idempotency() {
+    let mut store = fixture();
+    store.entries.get_mut(ENTRY).unwrap().paid_minor = 0;
+    store.payments.clear();
+
+    // Create a pending payment to be settled
+    let payment = store
+        .process_payment_amount("ph", ENTRY, "dancer-1", "pm-ref-001", Some(120_000))
+        .unwrap();
+
+    let state = AppState {
+        #[cfg(feature = "local-testing")]
+        local_identity: None,
+        #[cfg(feature = "firestore")]
+        durable: None,
+        verifier: auth::Verifier::new("demo-wsb".into()).unwrap(),
+        store: Arc::new(RwLock::new(store)),
+    };
+    let app = router(state, "http://localhost:3000".parse().unwrap());
+
+    let secret = "test-webhook-secret-with-at-least-32-chars-long-value!!";
+    let now = crate::store::now_secs();
+
+    let paid_payload = serde_json::json!({
+        "data": {
+            "id": "evt_paid_12345",
+            "type": "event",
+            "attributes": {
+                "type": "checkout_session.payment.paid",
+                "livemode": false,
+                "created_at": now,
+                "data": {
+                    "id": "cs_test_session_001",
+                    "type": "checkout_session",
+                    "attributes": {
+                        "status": "paid",
+                        "reference_number": payment.payment_id,
+                        "payments": [
+                            {
+                                "id": "pay_pm_charge_001",
+                                "type": "payment",
+                                "attributes": {
+                                    "amount": 120_000,
+                                    "currency": "PHP",
+                                    "status": "paid",
+                                    "livemode": false
+                                }
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    });
+    let raw_body = serde_json::to_vec(&paid_payload).unwrap();
+
+    let mut message = Vec::new();
+    message.extend_from_slice(now.to_string().as_bytes());
+    message.push(b'.');
+    message.extend_from_slice(&raw_body);
+    let hmac = crate::store::hmac_sha256(secret.as_bytes(), &message);
+    let te_sig: String = hmac.iter().map(|b| format!("{b:02x}")).collect();
+    let valid_header = format!("t={},te={},li=", now, te_sig);
+
+    // 1. Missing secret -> 503
+    std::env::remove_var("PAYMONGO_WEBHOOK_SECRET");
+    let res_no_secret = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/v1/paymongo/webhook")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("paymongo-signature", &valid_header)
+                .body(axum::body::Body::from(raw_body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_no_secret.status(), StatusCode::SERVICE_UNAVAILABLE);
+
+    // Set webhook secret
+    std::env::set_var("PAYMONGO_WEBHOOK_SECRET", secret);
+
+    // 2. Missing signature header -> 401
+    let res_no_sig = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/v1/paymongo/webhook")
+                .header(header::CONTENT_TYPE, "application/json")
+                .body(axum::body::Body::from(raw_body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_no_sig.status(), StatusCode::UNAUTHORIZED);
+
+    // 3. Invalid signature header -> 401
+    let res_bad_sig = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/v1/paymongo/webhook")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header(
+                    "paymongo-signature",
+                    format!(
+                        "t={},te=invalid00000000000000000000000000000000000000000000000000000000000,li=",
+                        now
+                    ),
+                )
+                .body(axum::body::Body::from(raw_body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_bad_sig.status(), StatusCode::UNAUTHORIZED);
+
+    // 4. Valid signature -> 200 OK
+    let res_valid = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/v1/paymongo/webhook")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("paymongo-signature", &valid_header)
+                .body(axum::body::Body::from(raw_body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_valid.status(), StatusCode::OK);
+
+    // 5. Replay of same event -> 200 OK (idempotent, no double crediting)
+    let res_replay = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/v1/paymongo/webhook")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("paymongo-signature", &valid_header)
+                .body(axum::body::Body::from(raw_body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_replay.status(), StatusCode::OK);
+
+    // 6. Global route alias /v1/webhooks/paymongo -> 200 OK
+    let res_alias = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/v1/webhooks/paymongo")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("paymongo-signature", &valid_header)
+                .body(axum::body::Body::from(raw_body.clone()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_alias.status(), StatusCode::OK);
+
+    // 7. Refund event -> 200 OK and transitions to Refunded
+    let refund_payload = serde_json::json!({
+        "data": {
+            "id": "evt_ref_98765",
+            "type": "event",
+            "attributes": {
+                "type": "payment.refunded",
+                "livemode": false,
+                "created_at": now + 10,
+                "data": {
+                    "id": "cs_test_session_001",
+                    "type": "payment",
+                    "attributes": {
+                        "amount": 120_000,
+                        "currency": "PHP",
+                        "status": "refunded",
+                        "refunds": [
+                            {
+                                "id": "ref_999",
+                                "amount": 120_000,
+                                "status": "succeeded"
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+    });
+    let refund_raw = serde_json::to_vec(&refund_payload).unwrap();
+    let mut ref_msg = Vec::new();
+    ref_msg.extend_from_slice(now.to_string().as_bytes());
+    ref_msg.push(b'.');
+    ref_msg.extend_from_slice(&refund_raw);
+    let ref_hmac = crate::store::hmac_sha256(secret.as_bytes(), &ref_msg);
+    let ref_te: String = ref_hmac.iter().map(|b| format!("{b:02x}")).collect();
+    let ref_header = format!("t={},te={},li=", now, ref_te);
+
+    let res_refund = app
+        .clone()
+        .oneshot(
+            axum::http::Request::builder()
+                .method("POST")
+                .uri("/v1/paymongo/webhook")
+                .header(header::CONTENT_TYPE, "application/json")
+                .header("paymongo-signature", &ref_header)
+                .body(axum::body::Body::from(refund_raw))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(res_refund.status(), StatusCode::OK);
+
+    std::env::remove_var("PAYMONGO_WEBHOOK_SECRET");
+}

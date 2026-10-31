@@ -619,3 +619,20 @@ HMAC header for synthetic delivery. Verify test mode and event/payment shape,
 then match the saved session and commit the event receipt and balance together.
 Synthetic simulation never enables the production provider. Source: user
 request and https://docs.paymongo.com/docs/developer-tools-webhook-setup-management.
+
+## PayMongo provider integration and durable reconciliation — 2026-10-31
+
+Implement official PayMongo API client (pps/api/src/paymongo.rs) with HTTP Basic Auth,
+hosted checkout creation (/v1/checkout_sessions), session expiration, and refunds
+(/v1/refunds). Enforce strict fail-closed security: missing credentials return 503
+Service Unavailable in production; keys are never stored in client or chapter records.
+Before checkout session dispatch, transactionally reserve entry balance in pending_minor;
+on creation, bind the session ID to the reservation index (localCheckoutSessionIndex/{session_id}).
+Webhook endpoints at /v1/paymongo/webhook and /v1/webhooks/paymongo verify HMAC-SHA256
+signature with 300s timestamp tolerance, enforce event deduplication (localCheckoutEvents/{event_id}),
+and execute atomic settlement (moving pending_minor to paid_minor, updating readiness,
+and recording audits). Refund events reverse paid amounts and update readiness transactionally.
+Portal UI provides direct PayMongo checkout initiation and an authoritative return status page
+at /app/payment-return emphasizing server webhook reconciliation.
+Source: user prompt, official PayMongo docs (https://docs.paymongo.com/docs/payment-channels-hosted-checkout-quick-start,
+https://docs.paymongo.com/docs/developer-tools-webhooks-events, https://docs.paymongo.com/docs/developer-tools-webhook-setup-management).

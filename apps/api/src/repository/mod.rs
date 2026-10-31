@@ -62,6 +62,14 @@ impl From<RepositoryError> for StatusCode {
         }
     }
 }
+impl From<&RepositoryError> for StatusCode {
+    fn from(error: &RepositoryError) -> Self {
+        match error {
+            RepositoryError::Denied(status, _) => *status,
+            RepositoryError::Storage(_) => Self::SERVICE_UNAVAILABLE,
+        }
+    }
+}
 fn deny(status: StatusCode, reason: &'static str) -> RepositoryError {
     RepositoryError::Denied(status, reason)
 }

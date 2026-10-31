@@ -185,8 +185,24 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
             post(finance::local_paymongo_webhook),
         )
         .route(
+            "/v1/paymongo/webhook",
+            post(finance::paymongo_webhook),
+        )
+        .route(
+            "/v1/webhooks/paymongo",
+            post(finance::paymongo_webhook),
+        )
+        .route(
             "/v1/webhooks/payments",
             post(finance::handle_synthetic_webhook),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/paymongo/checkout",
+            post(finance::create_paymongo_checkout),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/paymongo/cancel",
+            post(finance::cancel_paymongo_checkout),
         )
         .route(
             "/v1/chapters/{chapter_id}/verification",
@@ -486,6 +502,8 @@ async fn durable_route_gate(
             || path.ends_with("/refund")
             || path.ends_with("/webhook")
             || path == "/v1/webhooks/payments"
+            || path == "/v1/webhooks/paymongo"
+            || path.contains("/paymongo/")
             || (cfg!(feature = "local-testing") && path == "/v1/local/paymongo/webhook")
             || path == "/local/session"
             || path.contains("/battles")

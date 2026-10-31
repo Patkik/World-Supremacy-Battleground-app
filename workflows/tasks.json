@@ -353,7 +353,11 @@
         "apps/api/src/repository/paymongo_local.rs",
         "tests/local-paymongo-api.cjs",
         "apps/web/src/components/local-paymongo-checkout.tsx",
-        "tests/local-paymongo-browser.cjs"
+        "tests/local-paymongo-browser.cjs",
+        "tests/local-paymongo-recovery.cjs",
+        "tests/paymongo-webhook-integration.cjs",
+        "apps/web/src/app/(portal)/app/payment-return/page.tsx",
+        "apps/web/src/components/connected-checkout.tsx"
       ]
     },
     {

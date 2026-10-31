@@ -926,3 +926,33 @@ conflict and one credit. Mobile browser passed reservation, cancellation,
 simulated settlement and reload. TypeScript and strict Clippy passed. No real
 PayMongo API is called. Full container-recreation recovery, operational refund
 flow, provider integration and actual webhook compatibility remain unverified.
+
+## Local PayMongo container-recreation recovery — 2026-10-31
+
+A signed API and mobile browser recovery check (`tests/local-paymongo-recovery.cjs`)
+passed after full Docker container recreation (`down` followed by `up`):
+the synthetic settled payment and mobile checkout UI state recovered cleanly
+from Docker volume persistence, and re-delivering the signed paid event did
+not credit the entry balance a second time. This evidence confirms local
+emulation and restart persistence only; real PayMongo API compatibility,
+production checkout, provider refunds and complete platform readiness remain
+unverified.
+
+## PayMongo provider integration and webhook reconciliation — 2026-10-31
+
+Implemented official PayMongo integration, security gates, and durable webhook reconciliation:
+- Rust PayMongo client (pps/api/src/paymongo.rs): HTTP Basic Auth, typed checkout sessions (/v1/checkout_sessions), session expiration, and refunds (/v1/refunds). Fail-closed when credentials are not configured in production (503 Service Unavailable).
+- Durable session/event mapping (pps/api/src/repository/paymongo_local.rs and pps/api/src/finance.rs): atomic entry balance reservation in pending_minor before session dispatch; atomic binding of session ID to reservation index (localCheckoutSessionIndex/{session_id}).
+- Webhook signature and event reconciliation (/v1/paymongo/webhook and /v1/webhooks/paymongo): HMAC-SHA256 signature verification with 300s timestamp tolerance; deduplication in localCheckoutEvents/{event_id}; atomic transition from pending_minor to paid_minor, division readiness recalculation, payment recording, and audit logging. Replayed events return 200 OK without duplicate crediting.
+- Refund reconciliation: 
+efund_payment executes local transactional refund and dispatches provider refund when provider_reference is a PayMongo transaction (pay_...). Signed payment.refunded webhooks reverse paid amounts and recalculate division readiness transactionally.
+- Frontend portal checkout & return view: added PayMongo online checkout trigger in pps/web/src/components/connected-checkout.tsx and authoritative payment verification status view at pps/web/src/app/(portal)/app/payment-return/page.tsx reinforcing server webhook reconciliation.
+- Local Docker emulator enhancements (infra/docker/paymongo-emulator.cjs): added /v1/checkout_sessions, /v1/refunds, and /v1/checkout_sessions/:id/expire compatibility for offline fast-loop testing.
+- Verified test evidence:
+  - 50/50 Rust tests passed (cargo test --locked).
+  - Zero Clippy warnings (cargo clippy --locked --workspace --all-features -- -D warnings).
+  - Next.js typecheck (
+pm run typecheck) and full production build (
+pm run build) passed all 58 routes.
+  - End-to-end webhook integration suite (	ests/paymongo-webhook-integration.cjs): missing/tampered signature denial, timestamp skew rejection, global route alias verification, transactional balance settlement, duplicate event idempotency, signed refund reversal, and duplicate refund idempotency passed.
+  - Container recreation recovery (	ests/local-paymongo-recovery.cjs), mobile browser flows (	ests/local-paymongo-browser.cjs), and quote safety (	ests/checkout-quote-safety.cjs) all passed.
