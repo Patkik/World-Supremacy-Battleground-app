@@ -1,0 +1,34 @@
+const assert=require('node:assert/strict');const {readFileSync}=require('node:fs');const {randomUUID}=require('node:crypto');
+const c=Object.fromEntries(readFileSync('.env.docker','utf8').split(/\r?\n/).filter(x=>x&&!x.startsWith('#')).map(x=>{const i=x.indexOf('=');return[x.slice(0,i),x.slice(i+1)];}));
+const api=`http://localhost:${c.WSB_API_PORT||8189}`;const db=`http://localhost:${c.WSB_FIRESTORE_PORT||8188}/v1/projects/demo-wsb/databases/(default)/documents`;
+async function login(email){const r=await fetch(`${api}/local/session`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email,password:c.WSB_TEST_PASSWORD,chapter_id:'ph'})});assert.equal(r.status,200);return (await r.json()).token;}
+(async()=>{const id=`checkout-${randomUUID()}`;const fixture=await fetch(`${db}/chapters/ph/events/local-rehearsal/entries/local-entry-draft`,{headers:{authorization:'Bearer owner'}});assert.equal(fixture.status,200);const record=await fixture.json();record.fields.entry.mapValue.fields.id={stringValue:id};record.fields.entry.mapValue.fields.paid_minor={integerValue:'0'};record.fields.pending_minor={integerValue:'0'};
+ const write=await fetch(`${db}/chapters/ph/events/local-rehearsal/entries/${id}`,{method:'PATCH',headers:{authorization:'Bearer owner','content-type':'application/json'},body:JSON.stringify({fields:record.fields})});assert.equal(write.status,200);
+ const manager=await login('manager@ph.wsb.test');const marshal=await login('marshal@ph.wsb.test');const base=`${api}/v1/chapters/ph/events/local-rehearsal/entries/${id}`;const body={operation_id:randomUUID(),amount_minor:100};const headers=t=>({'content-type':'application/json',...(t?{authorization:`Bearer ${t}`}:{})});const send=(path,t,b)=>fetch(base+path,{method:'POST',headers:headers(t),body:JSON.stringify(b)});
+ assert.equal((await send('/local-checkout',null,body)).status,401);assert.equal((await send('/local-checkout',marshal,body)).status,403);
+ const result=await send('/local-checkout',manager,body);assert.equal(result.status,200);const created=await result.json();assert.equal(created.amount_minor,100);assert.ok(created.session_id.startsWith('cs_'));assert.equal(created.cancelled,false);
+ const again=await send('/local-checkout',manager,body);assert.equal(again.status,200);assert.deepEqual(await again.json(),created);
+ assert.equal((await send('/local-checkout',manager,{...body,amount_minor:101})).status,409);
+ const quote=await fetch(`${base}/quote`,{headers:headers(manager)});assert.equal(quote.status,200);assert.equal((await quote.json()).pending_amount_minor,100);
+ const canceled=await send('/local-checkout-cancel',manager,body);assert.equal(canceled.status,200);const canceledRecord=await canceled.json();assert.equal(canceledRecord.cancelled,true);
+ const listPath=`${base}/local-checkout`;assert.equal((await fetch(listPath)).status,401);assert.equal((await fetch(listPath,{headers:headers(marshal)})).status,403);
+ let cursor;let found=false;for(let i=0;i<200;i++){const query=new URLSearchParams({limit:'100',...(cursor?{cursor}:{})});const page=await fetch(`${listPath}?${query}`,{headers:headers(manager)});assert.equal(page.status,200);const value=await page.json();assert.ok(value.items.every(row=>row.entry_id===id && row.payer_uid==='local-ph-manager'));const match=value.items.find(row=>row.operation_id===body.operation_id);if(match){assert.equal(match.cancelled,true);found=true;break;}if(!value.next_page)break;cursor=value.next_page;}assert.equal(found,true);
+ const cancelAgain=await send('/local-checkout-cancel',manager,body);assert.equal(cancelAgain.status,200);assert.deepEqual(await cancelAgain.json(),canceledRecord);
+ const after=await fetch(`${base}/quote`,{headers:headers(manager)});assert.equal(after.status,200);assert.equal((await after.json()).pending_amount_minor,0);
+ assert.equal((await send('/local-checkout',manager,body)).status,409);
+ const second={operation_id:randomUUID(),amount_minor:100};const createPaid=await send('/local-checkout',manager,second);assert.equal(createPaid.status,200);const pending=await createPaid.json();
+ const emulator=`http://localhost:${c.WSB_PAYMONGO_EMULATOR_PORT||8191}`;const pay=await fetch(`${emulator}/test/checkout_sessions/${pending.session_id}/pay`,{method:'POST'});assert.equal(pay.status,200);const event=await pay.json();
+ const webhook=`${api}/v1/local/paymongo/webhook`;const raw=JSON.stringify(event);assert.equal((await fetch(webhook,{method:'POST',headers:{'content-type':'application/json','paymongo-signature':'t=1,te=bad,li='},body:raw})).status,401);
+ const deliver=()=>fetch(`${emulator}/test/checkout_sessions/${pending.session_id}/deliver`,{method:'POST'});assert.equal((await deliver()).status,200);assert.equal((await deliver()).status,200);
+ const paidQuote=await fetch(`${base}/quote`,{headers:headers(manager)});assert.equal(paidQuote.status,200);const balance=await paidQuote.json();assert.equal(balance.paid_amount_minor,100);assert.equal(balance.pending_amount_minor,0);
+ const crypto=require('node:crypto');event.data.attributes.data.attributes.payments[0].attributes.amount=101;const changed=JSON.stringify(event);const now=String(Math.floor(Date.now()/1000));const signature=crypto.createHmac('sha256',c.WSB_PAYMONGO_LOCAL_SECRET).update(`${now}.${changed}`).digest('hex');
+ assert.equal((await fetch(webhook,{method:'POST',headers:{'content-type':'application/json','paymongo-signature':`t=${now},te=${signature},li=`},body:changed})).status,409);
+ const unchanged=await fetch(`${base}/quote`,{headers:headers(manager)});assert.equal((await unchanged.json()).paid_amount_minor,100);
+ const simulatedBody={operation_id:randomUUID(),amount_minor:100};const simulated=await send('/local-checkout',manager,simulatedBody);assert.equal(simulated.status,200);
+ assert.equal((await send('/local-checkout-simulate',marshal,simulatedBody)).status,403);
+ const simulate=await send('/local-checkout-simulate',manager,simulatedBody);assert.equal(simulate.status,200);assert.equal((await simulate.json()).settled,true);
+ const simulateAgain=await send('/local-checkout-simulate',manager,simulatedBody);assert.equal(simulateAgain.status,200);assert.equal((await simulateAgain.json()).settled,true);
+ const finalQuote=await fetch(`${base}/quote`,{headers:headers(manager)});const finalBalance=await finalQuote.json();assert.equal(finalBalance.paid_amount_minor,200);assert.equal(finalBalance.pending_amount_minor,0);
+ if(process.argv[2]==='capture'){require('node:fs').mkdirSync('.workspace',{recursive:true});require('node:fs').writeFileSync('.workspace/local-paymongo-recovery.json',JSON.stringify({entry_id:id,operation_id:simulatedBody.operation_id}));}
+ console.log('PASS: signed local checkout reserve, replay, scope denial and cancellation release and signed synthetic settlement.');
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -8,6 +8,11 @@ See [architecture](docs/architecture.md) for the selected stack and boundaries,
 and [development setup](docs/development.md) for commands and validation limits.
 Run `npm run dev` for the frontend after installing dependencies.
 
+For the complete local test environment, start Docker Desktop and run
+`./tools/local.ps1 setup` from PowerShell. This builds the local images once and starts the web app, Rust API and
+Firebase test services with synthetic accounts and persistent local data.
+See [Docker setup and test accounts](docs/local-docker.md).
+
 The [complete website plan](docs/website-plan/README.md) specifies 116 pages and
 screen families, roles, features, landing-page direction, content and responsive
 behavior for the planned full platform.

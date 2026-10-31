@@ -1,23 +1,82 @@
-use std::collections::HashMap;
+use crate::domain::{AuditRecord, DivisionState, Membership, RecordedScore, ScoreReplay};
+use sha2::{Digest, Sha256};
+use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::domain::{
-    BattleMatch, Chapter, CheckInRecord, Crew, CrewInvitation, CrewMember, CrewResult, Deduction,
-    Division, Entry, EntryReadiness, EntryStatus, Event, FinanceSummary, MemberRole, PaymentQuote,
-    PaymentRecord, PaymentStatus, PublishedResultSnapshot, ScoreCriteria, ScoreReceipt,
-    SubmitScoreCommand, VerificationCase, VerificationStatus,
+    AudioUploadReceipt, BattleMatch, Chapter, CheckInRecord, Crew, CrewInvitation, CrewMember,
+    CrewResult, DJExportManifest, DJExportTrack, Deduction, Division, Entry, EntryReadiness,
+    EntryStatus, Event, FinanceSummary, GuardianConsentReceipt, MemberRole, PaymentQuote,
+    PaymentRecord, PaymentStatus, PublishedResultSnapshot, ScoreReceipt, SubmitScoreCommand,
+    SyntheticWebhookPayload, WebhookReceipt,
 };
 
-fn now_secs() -> u64 {
+pub(crate) fn now_secs() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs()
 }
 
-pub type RecordedScore = (String, u64, ScoreCriteria, Vec<Deduction>);
+pub(crate) fn new_id(prefix: &str) -> String {
+    let mut bytes = [0u8; 24];
+    getrandom::fill(&mut bytes).expect("operating system randomness unavailable");
+    format!(
+        "{}-{}",
+        prefix,
+        bytes.iter().map(|b| format!("{b:02x}")).collect::<String>()
+    )
+}
+
+pub(crate) fn scope_key(parts: &[&str]) -> String {
+    // JSON tuples avoid ambiguous user-controlled delimiter concatenation.
+    serde_json::to_string(parts).expect("string tuple serializes")
+}
+
+pub fn hmac_sha256(key: &[u8], message: &[u8]) -> [u8; 32] {
+    let mut k = [0u8; 64];
+    if key.len() > 64 {
+        let hash = Sha256::digest(key);
+        k[..32].copy_from_slice(&hash);
+    } else {
+        k[..key.len()].copy_from_slice(key);
+    }
+    let mut ipad = [0x36u8; 64];
+    let mut opad = [0x5cu8; 64];
+    for i in 0..64 {
+        ipad[i] ^= k[i];
+        opad[i] ^= k[i];
+    }
+    let mut inner = Sha256::new();
+    inner.update(ipad);
+    inner.update(message);
+    let inner_hash = inner.finalize();
+
+    let mut outer = Sha256::new();
+    outer.update(opad);
+    outer.update(inner_hash);
+    outer.finalize().into()
+}
+
+pub fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter()
+        .zip(b.iter())
+        .fold(0u8, |acc, (x, y)| acc | (x ^ y))
+        == 0
+}
 
 pub struct RegistrationStore {
+    pub memberships: HashMap<String, Membership>,
+    pub event_staff: HashMap<String, HashSet<String>>,
+    pub judge_panels: HashMap<String, Vec<String>>,
+    pub battle_panels: HashMap<String, Vec<String>>,
+    pub battle_votes: HashMap<String, String>,
+    pub technical_deductions: HashMap<String, Vec<Deduction>>,
+    pub deduction_revisions: HashMap<String, u64>,
+    pub audit: Vec<AuditRecord>,
     pub chapters: HashMap<String, Chapter>,
     pub events: HashMap<String, Event>,
     pub divisions: HashMap<String, Vec<Division>>,
@@ -25,11 +84,10 @@ pub struct RegistrationStore {
     pub invitations: HashMap<String, CrewInvitation>,
     pub entries: HashMap<String, Entry>,
     pub division_locks: HashMap<String, bool>,
-    pub scores: HashMap<String, Vec<RecordedScore>>, // division_id -> [(judge_id, revision, criteria, deductions)]
-    pub receipts: HashMap<String, ScoreReceipt>,     // operation_id -> ScoreReceipt
+    pub scores: HashMap<String, RecordedScore>,
+    pub receipts: HashMap<String, ScoreReplay>,
     pub division_revisions: HashMap<String, u64>,
     pub payments: HashMap<String, PaymentRecord>,
-    pub verification_cases: HashMap<String, VerificationCase>,
     pub check_ins: HashMap<String, CheckInRecord>,
     pub battle_matches: HashMap<String, BattleMatch>,
     pub published_results: HashMap<String, PublishedResultSnapshot>,
@@ -42,8 +100,16 @@ impl Default for RegistrationStore {
 }
 
 impl RegistrationStore {
-    pub fn new() -> Self {
-        let mut store = Self {
+    pub fn empty() -> Self {
+        Self {
+            memberships: HashMap::new(),
+            event_staff: HashMap::new(),
+            judge_panels: HashMap::new(),
+            battle_panels: HashMap::new(),
+            battle_votes: HashMap::new(),
+            technical_deductions: HashMap::new(),
+            deduction_revisions: HashMap::new(),
+            audit: Vec::new(),
             chapters: HashMap::new(),
             events: HashMap::new(),
             divisions: HashMap::new(),
@@ -55,11 +121,14 @@ impl RegistrationStore {
             receipts: HashMap::new(),
             division_revisions: HashMap::new(),
             payments: HashMap::new(),
-            verification_cases: HashMap::new(),
             check_ins: HashMap::new(),
             battle_matches: HashMap::new(),
             published_results: HashMap::new(),
-        };
+        }
+    }
+
+    pub fn new() -> Self {
+        let mut store = Self::empty();
         store.seed_defaults();
         store
     }
@@ -91,6 +160,7 @@ impl RegistrationStore {
         );
 
         let event_ph = Event {
+            registration_closes_at: None,
             id: "manila-session-2027".into(),
             chapter_id: "ph".into(),
             name: "Manila Session 2027".into(),
@@ -100,6 +170,7 @@ impl RegistrationStore {
         self.events.insert(event_ph.id.clone(), event_ph);
 
         let event_hk = Event {
+            registration_closes_at: None,
             id: "hk-championship-2027".into(),
             chapter_id: "hk".into(),
             name: "Hong Kong World Championship 2027".into(),
@@ -162,6 +233,7 @@ impl RegistrationStore {
             .insert("hk-championship-2027".into(), standard_divisions);
 
         let sample_crew = Crew {
+            revision: 1,
             id: "crew-afterhours".into(),
             chapter_id: "ph".into(),
             name: "Afterhours Collective".into(),
@@ -217,6 +289,8 @@ impl RegistrationStore {
             .insert(sample_crew.id.clone(), sample_crew.clone());
 
         let sample_entry = Entry {
+            rules_version: "synthetic-legacy-v1".into(),
+            revision: 1,
             id: "entry-manila-open-1".into(),
             chapter_id: "ph".into(),
             event_id: "manila-session-2027".into(),
@@ -247,21 +321,6 @@ impl RegistrationStore {
         self.payments
             .insert(sample_payment.payment_id.clone(), sample_payment);
 
-        let sample_verification = VerificationCase {
-            case_id: "case-2001".into(),
-            chapter_id: "ph".into(),
-            dancer_uid: "dancer-5".into(),
-            dancer_name: "Carlo Lim".into(),
-            is_minor: true,
-            status: VerificationStatus::Approved,
-            document_type: "Guardian Release & Government ID".into(),
-            submitted_at: 1700000000,
-            reviewed_at: Some(1700000000),
-            reviewer_note: Some("Verified parent signature matches passport ID".into()),
-        };
-        self.verification_cases
-            .insert(sample_verification.case_id.clone(), sample_verification);
-
         let sample_battle = BattleMatch {
             match_id: "match-101".into(),
             event_id: "manila-session-2027".into(),
@@ -272,10 +331,51 @@ impl RegistrationStore {
             votes_red: 0,
             votes_blue: 0,
             winner_corner: None,
-            status: "live".into(),
+            status: "active".into(),
         };
         self.battle_matches
             .insert(sample_battle.match_id.clone(), sample_battle);
+        self.battle_panels.insert(
+            "match-101".into(),
+            vec![
+                "staff-judge-1".into(),
+                "staff-judge-2".into(),
+                "staff-judge-3".into(),
+            ],
+        );
+        self.event_staff.insert(
+            "manila-session-2027".into(),
+            [
+                "staff-judge-1",
+                "staff-judge-2",
+                "staff-judge-3",
+                "staff-head-judge",
+            ]
+            .map(String::from)
+            .into(),
+        );
+        for uid in ["staff-judge-1", "staff-judge-2", "staff-judge-3"] {
+            self.memberships.insert(
+                format!("ph/{uid}"),
+                Membership {
+                    uid: uid.into(),
+                    chapter_id: "ph".into(),
+                    role: "judge".into(),
+                    active: true,
+                    valid_after: 0,
+                },
+            );
+        }
+        self.memberships.insert(
+            "ph/staff-head-judge".into(),
+            Membership {
+                uid: "staff-head-judge".into(),
+                chapter_id: "ph".into(),
+                role: "head_judge".into(),
+                active: true,
+                valid_after: 0,
+            },
+        );
     }
 
     pub fn get_divisions(
@@ -300,8 +400,19 @@ impl RegistrationStore {
         if name.trim().is_empty() {
             return Err("Crew name cannot be blank");
         }
-        let crew_id = format!("crew-{}", now_secs());
+        if !self.chapters.contains_key(chapter_id) {
+            return Err("Chapter not found");
+        }
+        if self
+            .crews
+            .values()
+            .any(|c| c.chapter_id == chapter_id && c.name.eq_ignore_ascii_case(name.trim()))
+        {
+            return Err("Crew name already exists in chapter");
+        }
+        let crew_id = new_id("crew");
         let crew = Crew {
+            revision: 1,
             id: crew_id.clone(),
             chapter_id: chapter_id.into(),
             name: name.trim().into(),
@@ -347,6 +458,9 @@ impl RegistrationStore {
         if crew.chapter_id != chapter_id {
             return Err("Cross-chapter crew update denied");
         }
+        if name.trim().is_empty() {
+            return Err("Crew name cannot be blank");
+        }
         crew.name = name.trim().into();
         crew.city = city.trim().into();
         Ok(crew.clone())
@@ -366,7 +480,7 @@ impl RegistrationStore {
         if crew.manager_uid != inviter_uid {
             return Err("Only the crew manager can issue invitations");
         }
-        let token = format!("inv-{}-{}", crew_id, now_secs());
+        let token = new_id("inv");
         let invitation = CrewInvitation {
             token: token.clone(),
             crew_id: crew_id.into(),
@@ -401,7 +515,6 @@ impl RegistrationStore {
         if inv.chapter_id != chapter_id {
             return Err("Cross-chapter invitation acceptance denied");
         }
-        inv.used = true;
 
         let crew_id = inv.crew_id.clone();
         let role = inv.role.clone();
@@ -409,6 +522,10 @@ impl RegistrationStore {
         if crew.members.iter().any(|m| m.uid == dancer_uid) {
             return Err("Dancer is already a member of this crew");
         }
+        if dancer_name.trim().is_empty() {
+            return Err("Dancer name cannot be blank");
+        }
+        inv.used = true;
         crew.members.push(CrewMember {
             uid: dancer_uid.into(),
             name: dancer_name.into(),
@@ -430,6 +547,9 @@ impl RegistrationStore {
         if event.chapter_id != chapter_id {
             return Err("Cross-chapter entry creation denied");
         }
+        if !matches!(event.status.as_str(), "active" | "registration_open") {
+            return Err("Event is not accepting registrations");
+        }
         let crew = self.crews.get(crew_id).ok_or("Crew not found")?;
         if crew.chapter_id != chapter_id {
             return Err("Cross-chapter crew entry denied");
@@ -443,7 +563,12 @@ impl RegistrationStore {
         }
 
         let entry_id = format!("entry-{}-{}-{}", event_id, crew_id, division_id);
+        if let Some(existing) = self.entries.get(&entry_id) {
+            return Ok(existing.clone());
+        }
         let entry = Entry {
+            rules_version: event.rules_version.clone(),
+            revision: 1,
             id: entry_id.clone(),
             chapter_id: chapter_id.into(),
             event_id: event_id.into(),
@@ -494,9 +619,10 @@ impl RegistrationStore {
         // 2. Audio track check
         let music_ready = match (&entry.track_filename, entry.track_duration_secs) {
             (Some(name), Some(duration)) => {
-                if duration > division.max_duration_secs {
+                let max_allowed = division.max_duration_secs;
+                if name.trim().is_empty() || duration == 0 || duration > max_allowed {
                     diagnostics.push(format!(
-                        "Track '{}' is {}s; exceeds division maximum {}s (5s grace applied)",
+                        "Track '{}' is {}s; exceeds configured division maximum {}s",
                         name, duration, division.max_duration_secs
                     ));
                     false
@@ -527,7 +653,10 @@ impl RegistrationStore {
         };
 
         // 4. Payment check
-        let expected_fee = division.fee_minor * (roster_count as u64);
+        let expected_fee = division
+            .fee_minor
+            .checked_mul(roster_count as u64)
+            .ok_or("Fee overflow")?;
         let payment_ready = if entry.paid_minor < expected_fee {
             diagnostics.push(format!(
                 "Paid {} minor units out of expected {} minor units",
@@ -562,6 +691,12 @@ impl RegistrationStore {
         if entry_snapshot.chapter_id != chapter_id {
             return Err("Cross-chapter entry submission denied");
         }
+        if !matches!(
+            entry_snapshot.status,
+            EntryStatus::Draft | EntryStatus::NeedsCorrection | EntryStatus::Submitted
+        ) {
+            return Err("Entry cannot be resubmitted in its current state");
+        }
         let readiness = self.evaluate_readiness(&entry_snapshot)?;
         let entry = self.entries.get_mut(entry_id).ok_or("Entry not found")?;
         if readiness.is_ready {
@@ -594,7 +729,24 @@ impl RegistrationStore {
         if entry.status == EntryStatus::Approved {
             return Err("Cannot modify roster of approved entry");
         }
-        entry.roster = roster;
+        let crew = self.crews.get(&entry.crew_id).ok_or("Crew not found")?;
+        let mut seen = HashSet::new();
+        let mut canonical_roster = Vec::new();
+        for member in roster {
+            if !seen.insert(member.uid.clone()) {
+                return Err("Duplicate dancer in roster");
+            }
+            // Accept selection only. Never trust client-supplied identity or consent flags.
+            canonical_roster.push(
+                crew.members
+                    .iter()
+                    .find(|m| m.uid == member.uid)
+                    .ok_or("Dancer is not a crew member")?
+                    .clone(),
+            );
+        }
+        entry.roster = canonical_roster;
+        entry.status = EntryStatus::Draft;
         entry.updated_at = now_secs();
         Ok(entry.clone())
     }
@@ -605,141 +757,537 @@ impl RegistrationStore {
         entry_id: &str,
         status: EntryStatus,
     ) -> Result<Entry, &'static str> {
-        let entry = self.entries.get_mut(entry_id).ok_or("Entry not found")?;
-        if entry.chapter_id != chapter_id {
+        let snapshot = self.entries.get(entry_id).ok_or("Entry not found")?;
+        if snapshot.chapter_id != chapter_id {
             return Err("Cross-chapter review denied");
         }
+        if self
+            .division_locks
+            .get(&scope_key(&[&snapshot.event_id, &snapshot.division_id]))
+            == Some(&true)
+        {
+            return Err("Cannot review entries in a locked division");
+        }
+        if !matches!(status, EntryStatus::Approved | EntryStatus::NeedsCorrection) {
+            return Err("Invalid review decision");
+        }
+        if status == EntryStatus::Approved && !self.evaluate_readiness(snapshot)?.is_ready {
+            return Err("Entry prerequisites are incomplete");
+        }
+        let entry = self.entries.get_mut(entry_id).ok_or("Entry not found")?;
         entry.status = status;
         entry.updated_at = now_secs();
         Ok(entry.clone())
     }
 
-    // Judging Protocol & Offline Locks
-    pub fn submit_score(
+    pub fn submit_guardian_consent(
+        &mut self,
+        chapter_id: &str,
+        crew_id: &str,
+        minor_uid: &str,
+        guardian_name: &str,
+        signature_date: &str,
+    ) -> Result<GuardianConsentReceipt, &'static str> {
+        let crew = self.crews.get_mut(crew_id).ok_or("Crew not found")?;
+        if crew.chapter_id != chapter_id {
+            return Err("Crew not found");
+        }
+        let member = crew
+            .members
+            .iter_mut()
+            .find(|m| m.uid == minor_uid)
+            .ok_or("Minor not found in crew")?;
+        if !member.is_minor {
+            return Err("Member is not a minor");
+        }
+        let trimmed = guardian_name.trim();
+        if trimmed.is_empty() {
+            return Err("Guardian name required");
+        }
+        if trimmed.chars().count() > 200 || trimmed.chars().any(char::is_control) {
+            return Err("Guardian name invalid or exceeds 200 characters");
+        }
+
+        member.consent_verified = true;
+        crew.revision = crew.revision.saturating_add(1);
+
+        // Propagate to all open entries for this crew in the chapter
+        for entry in self.entries.values_mut() {
+            if entry.chapter_id == chapter_id
+                && entry.crew_id == crew_id
+                && entry.status != EntryStatus::Approved
+            {
+                if let Some(entry_member) = entry.roster.iter_mut().find(|m| m.uid == minor_uid) {
+                    entry_member.consent_verified = true;
+                    entry.revision = entry.revision.saturating_add(1);
+                    entry.updated_at = now_secs();
+                }
+            }
+        }
+
+        Ok(GuardianConsentReceipt {
+            verified: true,
+            minor_uid: minor_uid.to_string(),
+            guardian_name: trimmed.to_string(),
+            signature_date: signature_date.to_string(),
+        })
+    }
+
+    pub fn update_entry_audio(
         &mut self,
         chapter_id: &str,
         event_id: &str,
-        judge_uid: &str,
-        cmd: SubmitScoreCommand,
-    ) -> Result<ScoreReceipt, &'static str> {
-        // Idempotency: return existing receipt if duplicate command received
-        if let Some(existing) = self.receipts.get(&cmd.operation_id) {
-            return Ok(existing.clone());
+        entry_id: &str,
+        track_filename: &str,
+        track_duration_secs: u32,
+    ) -> Result<AudioUploadReceipt, &'static str> {
+        let trimmed = track_filename.trim();
+        if trimmed.is_empty() || track_duration_secs == 0 {
+            return Err("Invalid track parameters");
+        }
+        let entry = self.entries.get_mut(entry_id).ok_or("Entry not found")?;
+        if entry.chapter_id != chapter_id || entry.event_id != event_id {
+            return Err("Entry not found in chapter/event");
+        }
+        if entry.status == EntryStatus::Approved {
+            return Err("Cannot modify audio of approved entry");
         }
 
-        let event = self.events.get(event_id).ok_or("Event not found")?;
-        if event.chapter_id != chapter_id {
-            return Err("Cross-chapter score submission denied");
-        }
+        let divisions = self
+            .divisions
+            .get(event_id)
+            .ok_or("Division configuration missing")?;
+        let division = divisions
+            .iter()
+            .find(|d| d.id == entry.division_id)
+            .ok_or("Division not found")?;
 
-        // Division lock check
-        let lock_key = format!("{}-{}", event_id, cmd.division_id);
-        if *self.division_locks.get(&lock_key).unwrap_or(&false) {
-            return Err("Division is locked; cannot submit scores");
-        }
-
-        // Criteria validation
-        if !cmd.criteria.is_valid() {
-            return Err("Criteria scores must be between 0.0 and 20.0");
-        }
-
-        // Revision check
-        let current_revision = *self.division_revisions.get(&lock_key).unwrap_or(&0);
-        if cmd.expected_revision != current_revision {
-            return Err("Score revision mismatch; please refresh division state");
-        }
-
-        let total_deductions: f64 = cmd.deductions.iter().map(|d| d.points).sum();
-        let net_score = (cmd.criteria.total() - total_deductions).max(0.0);
-
-        let new_revision = current_revision + 1;
-        self.division_revisions.insert(lock_key, new_revision);
-
-        let entry_scores = self.scores.entry(cmd.division_id.clone()).or_default();
-        entry_scores.push((judge_uid.into(), new_revision, cmd.criteria, cmd.deductions));
-
-        let receipt = ScoreReceipt {
-            operation_id: cmd.operation_id.clone(),
-            receipt_id: format!("rcpt-{}", now_secs()),
-            event_id: event_id.into(),
-            division_id: cmd.division_id,
-            crew_id: cmd.crew_id,
-            judge_uid: judge_uid.into(),
-            score_revision: new_revision,
-            net_score,
-            recorded_at: now_secs(),
+        let max_allowed = division.max_duration_secs;
+        let compliant = track_duration_secs <= max_allowed;
+        let excess_secs = if compliant {
+            0
+        } else {
+            track_duration_secs.saturating_sub(max_allowed)
         };
 
-        self.receipts.insert(cmd.operation_id, receipt.clone());
+        entry.track_filename = Some(trimmed.to_string());
+        entry.track_duration_secs = Some(track_duration_secs);
+        entry.revision = entry.revision.saturating_add(1);
+        entry.updated_at = now_secs();
+
+        Ok(AudioUploadReceipt {
+            entry_id: entry.id.clone(),
+            track_filename: trimmed.to_string(),
+            track_duration_secs,
+            compliant,
+            excess_secs,
+        })
+    }
+
+    pub fn export_dj_playlist(
+        &self,
+        chapter_id: &str,
+        event_id: &str,
+        division_id: &str,
+    ) -> Result<DJExportManifest, &'static str> {
+        self.assert_event(chapter_id, event_id)?;
+        let mut approved_entries: Vec<&Entry> = self
+            .entries
+            .values()
+            .filter(|e| {
+                e.chapter_id == chapter_id
+                    && e.event_id == event_id
+                    && e.division_id == division_id
+                    && e.status == EntryStatus::Approved
+            })
+            .collect();
+
+        // Sort deterministically by created_at then entry id
+        approved_entries.sort_by(|a, b| {
+            a.created_at
+                .cmp(&b.created_at)
+                .then_with(|| a.id.cmp(&b.id))
+        });
+
+        let tracks: Vec<DJExportTrack> = approved_entries
+            .iter()
+            .enumerate()
+            .map(|(idx, entry)| {
+                let order = idx + 1;
+                let order_str = format!("{:02}", order);
+                let crew = self.crews.get(&entry.crew_id);
+                let crew_name = crew.map(|c| c.name.as_str()).unwrap_or("Crew");
+                let clean_crew: String = crew_name
+                    .chars()
+                    .map(|c| {
+                        if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                            c
+                        } else {
+                            '_'
+                        }
+                    })
+                    .collect();
+                let export_filename = format!("{}_{}_{}.mp3", order_str, division_id, clean_crew);
+                DJExportTrack {
+                    order,
+                    entry_id: entry.id.clone(),
+                    crew_name: crew_name.to_string(),
+                    original_track: entry.track_filename.clone().unwrap_or_default(),
+                    duration_secs: entry.track_duration_secs.unwrap_or(0),
+                    export_filename,
+                }
+            })
+            .collect();
+
+        Ok(DJExportManifest {
+            event_id: event_id.to_string(),
+            division_id: division_id.to_string(),
+            total_tracks: tracks.len(),
+            manifest: tracks,
+        })
+    }
+
+    pub fn assert_event(&self, chapter: &str, event: &str) -> Result<(), &'static str> {
+        self.events
+            .get(event)
+            .filter(|e| e.chapter_id == chapter)
+            .map(|_| ())
+            .ok_or("Event not found in chapter")
+    }
+
+    pub fn assert_entry(
+        &self,
+        chapter: &str,
+        event: &str,
+        entry: &str,
+    ) -> Result<&Entry, &'static str> {
+        self.assert_event(chapter, event)?;
+        self.entries
+            .get(entry)
+            .filter(|e| e.chapter_id == chapter && e.event_id == event)
+            .ok_or("Entry not found in event")
+    }
+
+    pub fn has_event_assignment(&self, event: &str, uid: &str) -> bool {
+        self.event_staff
+            .get(event)
+            .is_some_and(|staff| staff.contains(uid))
+            && self.events.get(event).is_some_and(|e| {
+                self.memberships
+                    .get(&format!("{}/{}", e.chapter_id, uid))
+                    .is_some_and(|m| m.active && m.chapter_id == e.chapter_id && m.uid == uid)
+            })
+    }
+
+    pub fn has_judge_assignment(&self, event: &str, division: &str, uid: &str) -> bool {
+        self.has_event_assignment(event, uid)
+            && self.events.get(event).is_some_and(|e| {
+                self.memberships
+                    .get(&format!("{}/{}", e.chapter_id, uid))
+                    .is_some_and(|m| matches!(m.role.as_str(), "judge" | "head_judge"))
+            })
+            && self
+                .judge_panels
+                .get(&scope_key(&[event, division]))
+                .is_some_and(|panel| panel.iter().any(|id| id == uid))
+    }
+
+    pub fn set_judge_panel(
+        &mut self,
+        event: &str,
+        division: &str,
+        panel: Vec<String>,
+    ) -> Result<(), &'static str> {
+        let chapter = self
+            .events
+            .get(event)
+            .ok_or("Event not found")?
+            .chapter_id
+            .clone();
+        if !self
+            .get_divisions(&chapter, event)?
+            .iter()
+            .any(|d| d.id == division)
+        {
+            return Err("Division not found");
+        }
+        let key = scope_key(&[event, division]);
+        if self.division_locks.get(&key) == Some(&true)
+            || self
+                .scores
+                .values()
+                .any(|s| s.event_id == event && s.division_id == division)
+        {
+            return Err("Cannot change panel after scoring begins");
+        }
+        if panel.is_empty() || panel.iter().collect::<HashSet<_>>().len() != panel.len() {
+            return Err("Invalid judge panel");
+        }
+        for uid in &panel {
+            if !self.has_event_assignment(event, uid) {
+                return Err("Judge has no event assignment");
+            }
+        }
+        self.judge_panels.insert(key, panel);
+        Ok(())
+    }
+
+    pub fn division_state(
+        &self,
+        chapter: &str,
+        event: &str,
+        division: &str,
+        crew: &str,
+        judge: &str,
+    ) -> Result<DivisionState, &'static str> {
+        self.assert_event(chapter, event)?;
+        if !self.has_judge_assignment(event, division, judge) {
+            return Err("Judge not assigned to division");
+        }
+        if !self.entries.values().any(|e| {
+            e.event_id == event
+                && e.division_id == division
+                && e.crew_id == crew
+                && e.status == EntryStatus::Approved
+        }) {
+            return Err("Approved crew entry not found");
+        }
+        let score = self.scores.get(&scope_key(&[event, division, crew, judge]));
+        Ok(DivisionState {
+            schema_version: 1,
+            locked: self.division_locks.get(&scope_key(&[event, division])) == Some(&true),
+            revision: score.map_or(0, |s| s.revision),
+            criteria: score.map(|s| s.criteria.clone()),
+        })
+    }
+
+    pub fn submit_score(
+        &mut self,
+        chapter: &str,
+        event: &str,
+        judge: &str,
+        cmd: SubmitScoreCommand,
+    ) -> Result<ScoreReceipt, &'static str> {
+        // Revalidate tenant and current assignment even for receipt replays.
+        self.division_state(chapter, event, &cmd.division_id, &cmd.crew_id, judge)?;
+        if cmd.schema_version != 1 || cmd.operation_id.is_empty() || cmd.operation_id.len() > 128 {
+            return Err("Unsupported command version or operation ID");
+        }
+        let replay_key = scope_key(&[judge, &cmd.operation_id]);
+        if let Some(existing) = self.receipts.get(&replay_key) {
+            if existing.chapter_id != chapter
+                || existing.receipt.event_id != event
+                || existing.command != cmd
+            {
+                return Err("Operation ID payload mismatch");
+            }
+            return Ok(existing.receipt.clone());
+        }
+        let state = self.division_state(chapter, event, &cmd.division_id, &cmd.crew_id, judge)?;
+        if state.locked {
+            return Err("Division is locked; cannot submit scores");
+        }
+        if !cmd.criteria.is_valid() {
+            return Err("Invalid criteria scores");
+        }
+        if !cmd.deductions.is_empty() {
+            return Err("Deductions require the technical judge command");
+        }
+        if cmd.expected_revision != state.revision {
+            return Err("Score revision mismatch");
+        }
+        let revision = state.revision + 1;
+        let key = scope_key(&[event, &cmd.division_id, &cmd.crew_id, judge]);
+        self.scores.insert(
+            key,
+            RecordedScore {
+                chapter_id: chapter.into(),
+                event_id: event.into(),
+                division_id: cmd.division_id.clone(),
+                crew_id: cmd.crew_id.clone(),
+                judge_uid: judge.into(),
+                revision,
+                criteria: cmd.criteria.clone(),
+            },
+        );
+        let receipt = ScoreReceipt {
+            operation_id: cmd.operation_id.clone(),
+            receipt_id: new_id("receipt"),
+            event_id: event.into(),
+            division_id: cmd.division_id.clone(),
+            crew_id: cmd.crew_id.clone(),
+            judge_uid: judge.into(),
+            score_revision: revision,
+            net_score: cmd.criteria.total(),
+            recorded_at: now_secs(),
+        };
+        self.receipts.insert(
+            replay_key,
+            ScoreReplay {
+                chapter_id: chapter.into(),
+                command: cmd,
+                receipt: receipt.clone(),
+            },
+        );
         Ok(receipt)
+    }
+
+    pub fn set_deductions(
+        &mut self,
+        chapter: &str,
+        event: &str,
+        division: &str,
+        crew: &str,
+        expected_revision: u64,
+        deductions: Vec<Deduction>,
+    ) -> Result<u64, &'static str> {
+        self.assert_event(chapter, event)?;
+        if self.division_locks.get(&scope_key(&[event, division])) == Some(&true) {
+            return Err("Division is locked");
+        }
+        if !self.entries.values().any(|e| {
+            e.event_id == event
+                && e.division_id == division
+                && e.crew_id == crew
+                && e.status == EntryStatus::Approved
+        }) {
+            return Err("Approved entry not found");
+        }
+        if deductions.iter().any(|d| {
+            !d.points.is_finite()
+                || !(0.0..=100.0).contains(&d.points)
+                || d.code.trim().is_empty()
+                || d.reason.trim().is_empty()
+        }) {
+            return Err("Invalid deduction");
+        }
+        let key = scope_key(&[event, division, crew]);
+        let revision = *self.deduction_revisions.get(&key).unwrap_or(&0);
+        // Exact replay succeeds; changed stale commands never overwrite newer deductions.
+        if expected_revision.checked_add(1) == Some(revision)
+            && self.technical_deductions.get(&key) == Some(&deductions)
+        {
+            return Ok(revision);
+        }
+        if expected_revision != revision {
+            return Err("Deduction revision mismatch");
+        }
+        self.technical_deductions.insert(key.clone(), deductions);
+        self.deduction_revisions.insert(key, revision + 1);
+        Ok(revision + 1)
     }
 
     pub fn lock_division(
         &mut self,
-        chapter_id: &str,
-        event_id: &str,
-        division_id: &str,
+        chapter: &str,
+        event: &str,
+        division: &str,
     ) -> Result<bool, &'static str> {
-        let event = self.events.get(event_id).ok_or("Event not found")?;
-        if event.chapter_id != chapter_id {
-            return Err("Cross-chapter lock operation denied");
+        self.assert_event(chapter, event)?;
+        let key = scope_key(&[event, division]);
+        let panel = self
+            .judge_panels
+            .get(&key)
+            .ok_or("Judge panel not configured")?;
+        if panel.is_empty() {
+            return Err("Judge panel is empty");
         }
-        let lock_key = format!("{}-{}", event_id, division_id);
-        self.division_locks.insert(lock_key, true);
+        let entries: Vec<_> = self
+            .entries
+            .values()
+            .filter(|e| {
+                e.event_id == event
+                    && e.division_id == division
+                    && e.status == EntryStatus::Approved
+            })
+            .collect();
+        if entries.is_empty() {
+            return Err("No approved entries to lock");
+        }
+        for entry in entries {
+            if !self.evaluate_readiness(entry)?.is_ready {
+                return Err("Entry readiness changed; reconcile before locking");
+            }
+            for judge in panel {
+                if !self.has_judge_assignment(event, division, judge)
+                    || !self.scores.contains_key(&scope_key(&[
+                        event,
+                        division,
+                        &entry.crew_id,
+                        judge,
+                    ]))
+                {
+                    return Err("Judge score missing or assignment revoked");
+                }
+            }
+        }
+        self.division_locks.insert(key, true);
         Ok(true)
     }
 
     pub fn get_division_results(
         &self,
-        chapter_id: &str,
-        event_id: &str,
-        division_id: &str,
+        chapter: &str,
+        event: &str,
+        division: &str,
     ) -> Result<Vec<CrewResult>, &'static str> {
-        let event = self.events.get(event_id).ok_or("Event not found")?;
-        if event.chapter_id != chapter_id {
-            return Err("Cross-chapter results query denied");
-        }
-
-        let scores = self.scores.get(division_id).cloned().unwrap_or_default();
-        if scores.is_empty() {
-            return Ok(Vec::new());
-        }
-
-        let mut crew_scores: HashMap<String, Vec<f64>> = HashMap::new();
-        let mut crew_deductions: HashMap<String, f64> = HashMap::new();
-
-        for (_, _, crit, deds) in scores {
-            // Find crew for this division if mapped, or aggregate
-            let crew_id = "sample-crew".to_string(); // In full store mapped via cmd
-            crew_scores
-                .entry(crew_id.clone())
+        self.assert_event(chapter, event)?;
+        let mut grouped: HashMap<String, Vec<f64>> = HashMap::new();
+        for score in self
+            .scores
+            .values()
+            .filter(|s| s.event_id == event && s.division_id == division && s.chapter_id == chapter)
+        {
+            if !self.entries.values().any(|e| {
+                e.event_id == event
+                    && e.division_id == division
+                    && e.crew_id == score.crew_id
+                    && e.status == EntryStatus::Approved
+            }) {
+                continue;
+            }
+            grouped
+                .entry(score.crew_id.clone())
                 .or_default()
-                .push(crit.total());
-            let sum_ded: f64 = deds.iter().map(|d| d.points).sum();
-            *crew_deductions.entry(crew_id).or_default() += sum_ded;
+                .push(score.criteria.total());
         }
-
-        let mut results = Vec::new();
-        for (crew_id, totals) in crew_scores {
-            let count = totals.len() as f64;
-            let raw_average = totals.iter().sum::<f64>() / count;
-            let total_ded = *crew_deductions.get(&crew_id).unwrap_or(&0.0);
-            let final_score = (raw_average - total_ded).max(0.0);
-
-            results.push(CrewResult {
-                crew_id,
-                raw_average,
-                total_deductions: total_ded,
-                final_score,
-                rank: 0,
-            });
+        let mut results: Vec<_> = grouped
+            .into_iter()
+            .map(|(crew_id, totals)| {
+                let raw_average = totals.iter().sum::<f64>() / totals.len() as f64;
+                let deductions = self
+                    .technical_deductions
+                    .get(&scope_key(&[event, division, &crew_id]))
+                    .map_or(0.0, |v| v.iter().map(|d| d.points).sum());
+                CrewResult {
+                    entry_id: self
+                        .entries
+                        .values()
+                        .find(|e| {
+                            e.event_id == event && e.division_id == division && e.crew_id == crew_id
+                        })
+                        .map(|e| e.id.clone())
+                        .unwrap_or_default(),
+                    crew_id,
+                    raw_average,
+                    total_deductions: deductions,
+                    final_score: ((raw_average - deductions).max(0.0) * 100.0).round() / 100.0,
+                    rank: 0,
+                }
+            })
+            .collect();
+        results.sort_by(|a, b| {
+            b.final_score
+                .total_cmp(&a.final_score)
+                .then_with(|| a.crew_id.cmp(&b.crew_id))
+        });
+        for i in 0..results.len() {
+            results[i].rank = if i > 0 && results[i].final_score == results[i - 1].final_score {
+                results[i - 1].rank
+            } else {
+                i + 1
+            };
         }
-
-        results.sort_by(|a, b| b.final_score.partial_cmp(&a.final_score).unwrap());
-        for (idx, res) in results.iter_mut().enumerate() {
-            res.rank = idx + 1;
-        }
-
         Ok(results)
     }
 
@@ -765,8 +1313,22 @@ impl RegistrationStore {
         let chapter = self.chapters.get(chapter_id).ok_or("Chapter not found")?;
 
         let dancer_count = entry.roster.len();
-        let total_amount_minor = division.fee_minor * (dancer_count as u64);
+        let total_amount_minor = division
+            .fee_minor
+            .checked_mul(dancer_count as u64)
+            .ok_or("Fee overflow")?;
 
+        let pending = self
+            .payments
+            .values()
+            .filter(|p| {
+                p.chapter_id == chapter_id
+                    && p.entry_id == entry_id
+                    && p.status == PaymentStatus::Pending
+            })
+            .try_fold(0u64, |sum, p| sum.checked_add(p.amount_minor))
+            .ok_or("Payment overflow")?;
+        let outstanding = total_amount_minor.saturating_sub(entry.paid_minor);
         Ok(PaymentQuote {
             entry_id: entry_id.into(),
             division_name: division.name.clone(),
@@ -774,6 +1336,10 @@ impl RegistrationStore {
             rate_per_dancer_minor: division.fee_minor,
             total_amount_minor,
             currency: chapter.currency.clone(),
+            paid_amount_minor: entry.paid_minor,
+            pending_amount_minor: pending,
+            outstanding_amount_minor: outstanding,
+            available_amount_minor: outstanding.saturating_sub(pending),
         })
     }
 
@@ -784,34 +1350,119 @@ impl RegistrationStore {
         payer_uid: &str,
         provider_ref: &str,
     ) -> Result<PaymentRecord, &'static str> {
+        self.process_payment_amount(chapter_id, entry_id, payer_uid, provider_ref, None)
+    }
+
+    pub fn process_payment_amount(
+        &mut self,
+        chapter_id: &str,
+        entry_id: &str,
+        payer_uid: &str,
+        provider_ref: &str,
+        requested_amount: Option<u64>,
+    ) -> Result<PaymentRecord, &'static str> {
         let entry = self.entries.get(entry_id).ok_or("Entry not found")?.clone();
         if entry.chapter_id != chapter_id {
             return Err("Cross-chapter payment denied");
         }
+        let provider_ref = provider_ref.trim();
+        if provider_ref.is_empty() || provider_ref.len() > 200 {
+            return Err("Invalid payment reference");
+        }
+        if let Some(existing) = self
+            .payments
+            .values()
+            .find(|p| p.chapter_id == chapter_id && p.provider_reference == provider_ref)
+        {
+            if existing.entry_id != entry_id
+                || existing.payer_uid != payer_uid
+                || requested_amount.is_some_and(|amount| amount != existing.amount_minor)
+            {
+                return Err("Provider reference already used with different amount");
+            }
+            return Ok(existing.clone());
+        }
         let quote = self.get_payment_quote(chapter_id, &entry.event_id, entry_id)?;
-        let payment_id = format!("pay-{}", now_secs());
-
+        let reserved = self
+            .payments
+            .values()
+            .filter(|p| p.entry_id == entry_id && p.status == PaymentStatus::Pending)
+            .try_fold(0u64, |sum, p| sum.checked_add(p.amount_minor))
+            .ok_or("Payment overflow")?;
+        let amount = quote
+            .total_amount_minor
+            .saturating_sub(entry.paid_minor)
+            .saturating_sub(reserved);
+        if requested_amount == Some(0) {
+            return Err("Payment amount must be greater than zero");
+        }
+        if amount == 0 {
+            return Err("No outstanding balance available for payment");
+        }
+        let amount = requested_amount.unwrap_or(amount);
+        if amount == 0 || amount > quote.available_amount_minor {
+            return Err("Payment amount exceeds available balance");
+        }
+        let payment_id = new_id("pay");
         let payment = PaymentRecord {
             payment_id: payment_id.clone(),
             chapter_id: chapter_id.into(),
             entry_id: entry_id.into(),
             payer_uid: payer_uid.into(),
-            amount_minor: quote.total_amount_minor,
+            amount_minor: amount,
             currency: quote.currency,
-            status: PaymentStatus::Settled,
+            status: PaymentStatus::Pending,
             provider_reference: provider_ref.into(),
             created_at: now_secs(),
-            settled_at: Some(now_secs()),
+            settled_at: None,
         };
-
-        // Reconcile entry paid amount in ledger
-        if let Some(entry_mut) = self.entries.get_mut(entry_id) {
-            entry_mut.paid_minor += quote.total_amount_minor;
-            entry_mut.updated_at = now_secs();
-        }
-
+        // A payer's reference is a reconciliation request, never evidence of settlement.
         self.payments.insert(payment_id, payment.clone());
         Ok(payment)
+    }
+
+    pub fn reconcile_payment(
+        &mut self,
+        chapter: &str,
+        payment_id: &str,
+        approve: bool,
+    ) -> Result<PaymentRecord, &'static str> {
+        let snapshot = self
+            .payments
+            .get(payment_id)
+            .filter(|p| p.chapter_id == chapter)
+            .ok_or("Payment not found")?
+            .clone();
+        let target = if approve {
+            PaymentStatus::Settled
+        } else {
+            PaymentStatus::Failed
+        };
+        if snapshot.status == target {
+            return Ok(snapshot);
+        }
+        if snapshot.status != PaymentStatus::Pending {
+            return Err("Only pending payments may be reconciled");
+        }
+        let entry = self
+            .entries
+            .get_mut(&snapshot.entry_id)
+            .filter(|e| e.chapter_id == chapter)
+            .ok_or("Entry not found")?;
+        if approve {
+            entry.paid_minor = entry
+                .paid_minor
+                .checked_add(snapshot.amount_minor)
+                .ok_or("Payment overflow")?;
+        }
+        entry.updated_at = now_secs();
+        let payment = self
+            .payments
+            .get_mut(payment_id)
+            .ok_or("Payment not found")?;
+        payment.status = target;
+        payment.settled_at = if approve { Some(now_secs()) } else { None };
+        Ok(payment.clone())
     }
 
     pub fn refund_payment(
@@ -825,6 +1476,9 @@ impl RegistrationStore {
             .ok_or("Payment not found")?;
         if payment.chapter_id != chapter_id {
             return Err("Cross-chapter refund denied");
+        }
+        if payment.status == PaymentStatus::Refunded {
+            return Ok(payment.clone());
         }
         if payment.status != PaymentStatus::Settled {
             return Err("Only settled payments can be refunded");
@@ -884,79 +1538,99 @@ impl RegistrationStore {
         }
     }
 
-    // Phase 2: Identity & Guardian Verification Cases
-    pub fn list_verification_cases(&self, chapter_id: &str) -> Vec<VerificationCase> {
-        self.verification_cases
-            .values()
-            .filter(|c| c.chapter_id == chapter_id)
-            .cloned()
-            .collect()
-    }
-
-    pub fn review_verification_case(
+    pub fn process_synthetic_webhook(
         &mut self,
-        chapter_id: &str,
-        case_id: &str,
-        status: VerificationStatus,
-        note: Option<String>,
-    ) -> Result<VerificationCase, &'static str> {
-        let case = self
-            .verification_cases
-            .get_mut(case_id)
-            .ok_or("Verification case not found")?;
-        if case.chapter_id != chapter_id {
-            return Err("Cross-chapter verification review denied");
+        chapter_id: Option<&str>,
+        payload: &SyntheticWebhookPayload,
+    ) -> Result<WebhookReceipt, &'static str> {
+        let payment_id = payload.payment_id.trim();
+        if payment_id.is_empty() {
+            return Err("Payment id required");
         }
-        case.status = status;
-        case.reviewed_at = Some(now_secs());
-        case.reviewer_note = note;
-        Ok(case.clone())
-    }
+        let payment = self
+            .payments
+            .get(payment_id)
+            .ok_or("Payment record not found")?
+            .clone();
 
-    pub fn submit_verification_case(
-        &mut self,
-        chapter_id: &str,
-        dancer_uid: &str,
-        dancer_name: &str,
-        is_minor: bool,
-        doc_type: &str,
-    ) -> VerificationCase {
-        let case_id = format!("case-{}", now_secs());
-        let case = VerificationCase {
-            case_id: case_id.clone(),
-            chapter_id: chapter_id.into(),
-            dancer_uid: dancer_uid.into(),
-            dancer_name: dancer_name.into(),
-            is_minor,
-            status: VerificationStatus::Pending,
-            document_type: doc_type.into(),
-            submitted_at: now_secs(),
-            reviewed_at: None,
-            reviewer_note: None,
-        };
-        self.verification_cases.insert(case_id, case.clone());
-        case
+        if let Some(chapter) = chapter_id {
+            if payment.chapter_id != chapter {
+                return Err("Payment record not found");
+            }
+        }
+
+        if payload.status == "settled" {
+            if payment.status == PaymentStatus::Pending {
+                let entry = self
+                    .entries
+                    .get_mut(&payment.entry_id)
+                    .ok_or("Entry not found")?;
+                entry.paid_minor = entry
+                    .paid_minor
+                    .checked_add(payment.amount_minor)
+                    .ok_or("Payment overflow")?;
+                entry.updated_at = now_secs();
+
+                let payment_mut = self
+                    .payments
+                    .get_mut(payment_id)
+                    .ok_or("Payment record not found")?;
+                payment_mut.status = PaymentStatus::Settled;
+                payment_mut.settled_at = Some(now_secs());
+                return Ok(WebhookReceipt {
+                    received: true,
+                    payment: payment_mut.clone(),
+                });
+            } else if payment.status == PaymentStatus::Settled {
+                return Ok(WebhookReceipt {
+                    received: true,
+                    payment,
+                });
+            }
+        }
+
+        Ok(WebhookReceipt {
+            received: true,
+            payment,
+        })
     }
 
     // Phase 3: Venue Operations, Battles & Public Publication
     pub fn check_in_dancer(
         &mut self,
-        chapter_id: &str,
-        event_id: &str,
-        dancer_uid: &str,
-        scanner_uid: &str,
-    ) -> CheckInRecord {
-        let pass_id = format!("pass-{}-{}", dancer_uid, now_secs());
+        chapter: &str,
+        event: &str,
+        dancer: &str,
+        scanner: &str,
+    ) -> Result<CheckInRecord, &'static str> {
+        self.assert_event(chapter, event)?;
+        let entry = self
+            .entries
+            .values()
+            .find(|e| {
+                e.chapter_id == chapter
+                    && e.event_id == event
+                    && e.status == EntryStatus::Approved
+                    && e.roster.iter().any(|m| m.uid == dancer)
+            })
+            .ok_or("No approved dancer entry")?;
+        if !self.evaluate_readiness(entry)?.is_ready {
+            return Err("Dancer entry is not ready for check-in");
+        }
+        let key = scope_key(&[chapter, event, dancer]);
+        if let Some(existing) = self.check_ins.get(&key) {
+            return Ok(existing.clone());
+        }
         let record = CheckInRecord {
-            pass_id: pass_id.clone(),
-            chapter_id: chapter_id.into(),
-            event_id: event_id.into(),
-            dancer_uid: dancer_uid.into(),
+            pass_id: new_id("pass"),
+            chapter_id: chapter.into(),
+            event_id: event.into(),
+            dancer_uid: dancer.into(),
             checked_in_at: now_secs(),
-            scanner_uid: scanner_uid.into(),
+            scanner_uid: scanner.into(),
         };
-        self.check_ins.insert(pass_id, record.clone());
-        record
+        self.check_ins.insert(key, record.clone());
+        Ok(record)
     }
 
     pub fn list_check_ins(&self, chapter_id: &str, event_id: &str) -> Vec<CheckInRecord> {
@@ -975,67 +1649,162 @@ impl RegistrationStore {
             .collect()
     }
 
-    pub fn vote_battle(
-        &mut self,
+    pub fn get_battle_match(
+        &self,
         event_id: &str,
         match_id: &str,
-        winner_corner: &str,
     ) -> Result<BattleMatch, &'static str> {
-        let match_record = self
+        let m = self
+            .battle_matches
+            .get(match_id)
+            .ok_or("Battle match not found")?;
+        if m.event_id != event_id {
+            return Err("Battle match not found in event");
+        }
+        Ok(m.clone())
+    }
+
+    pub fn vote_battle(
+        &mut self,
+        event: &str,
+        match_id: &str,
+        judge: &str,
+        corner: &str,
+    ) -> Result<BattleMatch, &'static str> {
+        if !matches!(corner, "red" | "blue") {
+            return Err("Invalid corner");
+        }
+        let panel = self
+            .battle_panels
+            .get(match_id)
+            .ok_or("Battle panel not configured")?;
+        if !self.has_event_assignment(event, judge)
+            || !panel.iter().any(|id| id == judge)
+            || !matches!(panel.len(), 3 | 5)
+        {
+            return Err("Judge not assigned to battle");
+        }
+        let record = self
+            .battle_matches
+            .get(match_id)
+            .filter(|m| m.event_id == event)
+            .ok_or("Match not found in event")?;
+        let key = scope_key(&[event, match_id, judge]);
+        if let Some(existing) = self.battle_votes.get(&key) {
+            return if existing == corner {
+                Ok(record.clone())
+            } else {
+                Err("Battle ballot already cast")
+            };
+        }
+        if record.status != "active" && record.status != "live" {
+            return Err("Battle voting is closed");
+        }
+        self.battle_votes.insert(key, corner.into());
+        let record = self
             .battle_matches
             .get_mut(match_id)
             .ok_or("Match not found")?;
-        if match_record.event_id != event_id {
-            return Err("Match does not belong to event");
-        }
-        if winner_corner == "red" {
-            match_record.votes_red += 1;
-        } else if winner_corner == "blue" {
-            match_record.votes_blue += 1;
+        if corner == "red" {
+            record.votes_red += 1;
         } else {
-            return Err("Invalid corner for vote (must be 'red' or 'blue')");
+            record.votes_blue += 1;
         }
-
-        if match_record.votes_red >= 3 {
-            match_record.winner_corner = Some("Red Corner (B-Boy Sonic)".into());
-            match_record.status = "completed".into();
-        } else if match_record.votes_blue >= 3 {
-            match_record.winner_corner = Some("Blue Corner (B-Boy Kidlock)".into());
-            match_record.status = "completed".into();
+        let majority = panel.len() / 2 + 1;
+        if record.votes_red >= majority || record.votes_blue >= majority {
+            record.winner_corner = Some(
+                if record.votes_red >= majority {
+                    "red"
+                } else {
+                    "blue"
+                }
+                .into(),
+            );
+            record.status = "closed".into();
         }
-
-        Ok(match_record.clone())
+        Ok(record.clone())
     }
 
     pub fn publish_division_results(
         &mut self,
-        chapter_id: &str,
-        event_id: &str,
-        division_id: &str,
+        chapter: &str,
+        event: &str,
+        division: &str,
     ) -> Result<PublishedResultSnapshot, &'static str> {
-        let results = self.get_division_results(chapter_id, event_id, division_id)?;
-        let pub_id = format!("pub-{}-{}-{}", event_id, division_id, now_secs());
+        self.publish_division_results_with_payload(chapter, event, division, None)
+    }
+
+    pub fn publish_division_results_with_policy(
+        &mut self,
+        chapter: &str,
+        event: &str,
+        division: &str,
+        allow_ties: Option<bool>,
+    ) -> Result<PublishedResultSnapshot, &'static str> {
+        let payload = crate::event_ops::PublishDivisionPayload { allow_ties };
+        self.publish_division_results_with_payload(chapter, event, division, Some(&payload))
+    }
+
+    pub fn publish_division_results_with_payload(
+        &mut self,
+        chapter: &str,
+        event: &str,
+        division: &str,
+        payload: Option<&crate::event_ops::PublishDivisionPayload>,
+    ) -> Result<PublishedResultSnapshot, &'static str> {
+        self.assert_event(chapter, event)?;
+        let key = scope_key(&[event, division]);
+        if self.division_locks.get(&key) != Some(&true) {
+            return Err("Division must be locked before publication");
+        }
+        if let Some(existing) = self.published_results.get(&key) {
+            return Ok(existing.clone());
+        }
+        let results = self.get_division_results(chapter, event, division)?;
+        if results.is_empty() {
+            return Err("No results to publish");
+        }
+        let allow_ties = payload.and_then(|p| p.allow_ties).unwrap_or(false);
+        if !allow_ties && results.windows(2).any(|pair| pair[0].rank == pair[1].rank) {
+            return Err("Tied results require an approved tie policy before publication");
+        }
+        let digest = Sha256::digest(
+            serde_json::to_vec(&results).map_err(|_| "Result serialization failed")?,
+        )
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
         let snapshot = PublishedResultSnapshot {
-            publication_id: pub_id.clone(),
-            chapter_id: chapter_id.into(),
-            event_id: event_id.into(),
-            division_id: division_id.into(),
+            publication_id: new_id("pub"),
+            chapter_id: chapter.into(),
+            event_id: event.into(),
+            division_id: division.into(),
             results,
             published_at: now_secs(),
+            digest,
         };
-        self.published_results.insert(pub_id, snapshot.clone());
+        self.published_results.insert(key, snapshot.clone());
         Ok(snapshot)
     }
 
     pub fn get_published_snapshot(
         &self,
-        event_id: &str,
-        division_id: &str,
+        event: &str,
+        division: &str,
     ) -> Option<PublishedResultSnapshot> {
         self.published_results
-            .values()
-            .filter(|p| p.event_id == event_id && p.division_id == division_id)
-            .max_by_key(|p| p.published_at)
+            .get(&scope_key(&[event, division]))
             .cloned()
+    }
+
+    pub fn record_audit(&mut self, chapter: &str, actor: &str, action: &str, resource: &str) {
+        self.audit.push(AuditRecord {
+            id: new_id("audit"),
+            actor_uid: actor.into(),
+            chapter_id: chapter.into(),
+            action: action.into(),
+            resource_id: resource.into(),
+            recorded_at: now_secs(),
+        });
     }
 }

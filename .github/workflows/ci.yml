@@ -26,4 +26,36 @@ jobs:
           components: rustfmt, clippy
       - run: cargo fmt --all --check
       - run: cargo test --locked --workspace
-      - run: cargo check --locked --workspace --all-features
+      - run: cargo test --locked --workspace --all-features
+      - run: cargo clippy --locked --workspace --all-features --all-targets -- -D warnings
+  persistence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npm run test:persistence
+  local-stack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create isolated local settings
+        run: |
+          cp .env.docker.example .env.docker
+          printf '\nWSB_TEST_PASSWORD=%s\n' "$(openssl rand -hex 24)" >> .env.docker
+      - run: docker compose --env-file .env.docker up --build -d --wait --wait-timeout 1200
+      - run: docker compose --env-file .env.docker run --rm --no-deps seed node infra/docker/test-local.cjs
+      - run: docker compose --env-file .env.docker down
+      - run: docker compose --env-file .env.docker up -d --wait --wait-timeout 300
+      - run: docker compose --env-file .env.docker run --rm --no-deps seed node infra/docker/test-local.cjs --recover
+      - if: always()
+        run: docker compose --env-file .env.docker down

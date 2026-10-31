@@ -79,7 +79,7 @@
         "registration"
       ],
       "owner": "implementer",
-      "status": "done",
+      "status": "in_progress",
       "acceptance": "Verified webhook signatures, replay and refund cases pass",
       "evidence": [
         "apps/api/src/domain.rs",
@@ -112,16 +112,37 @@
         "registration"
       ],
       "owner": "implementer",
-      "status": "done",
+      "status": "in_progress",
       "acceptance": "Compliance and venue recovery scenarios verified",
       "evidence": [
         "apps/api/src/event_ops.rs",
+        "apps/api/src/repository/venue.rs",
+        "apps/api/src/repository/venue_tests.rs",
+        "apps/api/src/repository/stage.rs",
+        "apps/api/src/repository/stage_tests.rs",
         "apps/api/src/domain.rs",
         "apps/api/src/store.rs",
         "apps/web/src/app/(console)/console/[eventId]/check-in/page.tsx",
         "apps/web/src/app/(console)/console/[eventId]/marshal/page.tsx",
         "apps/web/src/app/(console)/console/[eventId]/audio/page.tsx",
-        "apps/web/src/app/(arena-live)/arena-live/[eventId]/page.tsx"
+        "apps/web/src/app/(arena-live)/arena-live/[eventId]/page.tsx",
+        "docs/online-checkin.md",
+        "docs/stage-operations.md",
+        "tests/venue-browser.cjs",
+        "tests/venue-recovery.cjs",
+        "tests/stage-api.cjs",
+        "apps/web/src/components/stage-workspace.tsx",
+        "apps/web/src/components/stage-timeline.tsx",
+        "tests/stage-browser.cjs",
+        "tests/stage-browser-recovery.cjs",
+        "apps/web/src/components/stage-assignments.tsx",
+        "tests/stage-access-browser.cjs",
+        "apps/web/src/components/stage-create.tsx",
+        "apps/web/src/components/stage-configuration.tsx",
+        "apps/api/src/repository/lineup.rs",
+        "apps/web/src/components/stage-lineup.tsx",
+        "apps/web/src/components/lineup-history.tsx",
+        "tests/lineup-recovery.cjs"
       ]
     },
     {
@@ -132,7 +153,7 @@
         "registration"
       ],
       "owner": "implementer",
-      "status": "done",
+      "status": "in_progress",
       "acceptance": "Aggregation, ties, publication and eligibility match sourced rules",
       "evidence": [
         "apps/api/src/event_ops.rs",
@@ -140,7 +161,13 @@
         "apps/web/src/app/(console)/console/[eventId]/head-judge/[divisionId]/page.tsx",
         "apps/web/src/app/(admin)/admin/[chapterId]/events/[eventId]/results/page.tsx",
         "apps/web/src/app/(marketing)/events/[eventSlug]/results/page.tsx",
-        "apps/web/src/app/(marketing)/results/page.tsx"
+        "apps/web/src/app/(marketing)/results/page.tsx",
+        "docs/implementation-audit-2026-10-30.md",
+        "apps/api/src/repository/publication.rs",
+        "apps/api/src/repository/publication_tests.rs",
+        "apps/web/src/components/connected-results-publication.tsx",
+        "docs/firestore-repositories.md",
+        "tests/docker-browser.cjs"
       ]
     },
     {
@@ -152,7 +179,7 @@
         "results"
       ],
       "owner": "reviewer",
-      "status": "done",
+      "status": "todo",
       "acceptance": "End-to-end rehearsal, access review and recovery evidence recorded",
       "evidence": [
         "apps/web/src/app/(admin)/hq/page.tsx",
@@ -209,6 +236,295 @@
         "docs/public-site-media.md",
         "tests/public-motion-browser.cjs"
       ]
+    },
+    {
+      "id": "core-integrity",
+      "title": "Restore authorization, scoring and offline integrity gates",
+      "depends_on": [],
+      "owner": "implementer",
+      "status": "done",
+      "acceptance": "Server-owned authorization, versioned commands, conflict handling and offline privacy are verified.",
+      "evidence": [
+        "docs/implementation-audit-2026-10-30.md",
+        "apps/api/src/access.rs"
+      ]
+    },
+    {
+      "id": "account-workflows",
+      "title": "Connect real account, crew and entry workflows",
+      "depends_on": [
+        "core-integrity"
+      ],
+      "owner": "implementer",
+      "status": "in_progress",
+      "acceptance": "Account actions use Firebase and business reads/writes enforce current ownership and chapter roles.",
+      "evidence": [
+        "apps/web/src/lib/account.ts",
+        "apps/api/src/registration.rs"
+      ]
+    },
+    {
+      "id": "offline-device-outbox",
+      "title": "Persist trusted-device score drafts and reconnect delivery",
+      "depends_on": [
+        "core-integrity"
+      ],
+      "owner": "implementer",
+      "status": "done",
+      "acceptance": "Versioned offline drafts preserve conflicts and only server receipts count as accepted scores.",
+      "evidence": [
+        "apps/web/src/lib/judging/",
+        "tests/judging-outbox.test.cjs"
+      ]
+    },
+    {
+      "id": "firestore-repositories",
+      "title": "Persist business aggregates and atomic receipts/audits in Firestore",
+      "depends_on": [
+        "core-integrity"
+      ],
+      "owner": "implementer",
+      "status": "in_progress",
+      "acceptance": "demo-wsb restart, multi-instance transactions, atomic lock races, payment idempotency, technical-deduction revisions and tenant tests pass.",
+      "evidence": [
+        "docs/firestore-repositories.md",
+        "apps/api/src/repository/tests.rs",
+        "apps/api/src/repository/deductions_tests.rs",
+        "tests/run-firestore-repository.cjs",
+        "apps/api/src/repository/publication.rs",
+        "apps/api/src/repository/publication_tests.rs"
+      ]
+    },
+    {
+      "id": "persistent-membership",
+      "title": "Provision authoritative membership and assignments",
+      "depends_on": [
+        "firestore-repositories"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "Production membership/assignment provisioning and signed identity lifecycle are verified.",
+      "evidence": [
+        "apps/api/src/repository/",
+        "docs/implementation-audit-2026-10-30.md"
+      ]
+    },
+    {
+      "id": "verification-media",
+      "title": "Implement private identity, guardian-consent and music workflows",
+      "depends_on": [
+        "registration"
+      ],
+      "owner": "implementer",
+      "status": "in_progress",
+      "acceptance": "Private identity/residency evidence uploads and chapter-authorized review are durable and isolated; guardian relationship and event consent use verified authority, music files are inspected, and retention/readiness policy is approved and enforced before this task is done.",
+      "evidence": [
+        "docs/private-verification.md",
+        "apps/api/src/repository/verification.rs",
+        "apps/api/src/repository/verification_tests.rs",
+        "apps/api/src/verification.rs",
+        "apps/web/src/components/verification-workspace.tsx",
+        "infra/firebase/storage.rules",
+        "tests/storage.test.mjs",
+        "tests/verification-browser.cjs",
+        "tests/run-firestore-repository.cjs",
+        "docs/open-questions.md",
+        "docs/implementation-audit-2026-10-30.md"
+      ]
+    },
+    {
+      "id": "payment-providers",
+      "title": "Connect provider payments and signed webhook reconciliation",
+      "depends_on": [
+        "firestore-repositories"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "Provider checkout, signed idempotent callbacks, refunds and reconciliation pass end-to-end.",
+      "evidence": [
+        "apps/api/src/finance.rs",
+        "docs/implementation-audit-2026-10-30.md",
+        "tests/synthetic-webhook-disabled.cjs",
+        "apps/api/src/repository/tests.rs",
+        "apps/api/src/paymongo.rs",
+        "tests/checkout-quote-safety.cjs",
+        "infra/docker/paymongo-emulator.cjs",
+        "tests/paymongo-emulator.cjs",
+        "apps/api/src/repository/paymongo_local.rs",
+        "tests/local-paymongo-api.cjs",
+        "apps/web/src/components/local-paymongo-checkout.tsx",
+        "tests/local-paymongo-browser.cjs"
+      ]
+    },
+    {
+      "id": "venue-passes-stage",
+      "title": "Deliver signed entry passes, venue reconciliation and stage operations",
+      "depends_on": [
+        "verification-media",
+        "persistent-membership"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "Authorized online/offline pass checks, reconnection conflict handling and stage state recover safely.",
+      "evidence": [
+        "docs/online-checkin.md",
+        "apps/api/src/repository/venue.rs"
+      ]
+    },
+    {
+      "id": "battle-progression",
+      "title": "Persist BG.ONE matches, ballots and advancement",
+      "depends_on": [
+        "results"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "Battle ballots, match transitions and advancement use sourced policy and idempotent server commands.",
+      "evidence": [
+        "apps/api/src/event_ops.rs",
+        "docs/open-questions.md"
+      ]
+    },
+    {
+      "id": "advancement-policy",
+      "title": "Approve and implement ranking and advancement policies",
+      "depends_on": [
+        "results"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "Published rankings and advancement follow approved scoring, tie, correction and eligibility rules.",
+      "evidence": [
+        "docs/open-questions.md",
+        "docs/implementation-audit-2026-10-30.md"
+      ]
+    },
+    {
+      "id": "hq-expansion",
+      "title": "Implement global HQ governance and chapter operations",
+      "depends_on": [
+        "persistent-membership"
+      ],
+      "owner": "implementer",
+      "status": "todo",
+      "acceptance": "HQ actions are durable, audited and role-scoped across chapters.",
+      "evidence": [
+        "docs/implementation-audit-2026-10-30.md"
+      ]
+    },
+    {
+      "id": "durable-core-commands",
+      "title": "Persist scoring and manual payment commands with atomic receipts and audit",
+      "depends_on": [
+        "core-integrity"
+      ],
+      "owner": "implementer",
+      "status": "done",
+      "acceptance": "demo-wsb emulator verifies independent-process recovery, competing writers, exact replay, refund/reservation accounting, rollback, lock races, revocation and no in-memory fallback.",
+      "evidence": [
+        "docs/firestore-repositories.md",
+        "apps/api/src/repository/tests.rs",
+        "tests/run-firestore-repository.cjs"
+      ]
+    },
+    {
+      "id": "local-docker-stack",
+      "title": "Provide a reproducible local full-stack environment",
+      "depends_on": [
+        "foundation"
+      ],
+      "owner": "implementer",
+      "status": "done",
+      "acceptance": "Docker runs the web app, API and Firebase emulators with synthetic demo-wsb data and no production secrets.",
+      "evidence": [
+        "docs/local-docker.md",
+        "compose.yaml",
+        "docs/docker-validation-2026-10-30.md"
+      ]
+    },
+    {
+      "id": "native-system-forms",
+      "title": "Audit inherited site links and replace workflow redirects with WSB-owned forms",
+      "depends_on": [
+        "core-integrity"
+      ],
+      "owner": "implementer",
+      "status": "in_progress",
+      "acceptance": "Inventory inherited CTAs, form actions and workflow destinations; replace each workflow redirect with a WSB-owned form, durable receipt and authorized review. Chapter/studio/partner proposal intake and selected-chapter support follow-up are implemented; global HQ application queue, membership and affiliation decisions remain explicitly unfinished. Preserve reference links and keep incomplete sensitive workflows tracked.",
+      "evidence": [
+        "docs/native-workflows.md",
+        "docs/native-applications.md",
+        "apps/web/src/components/native-application.tsx",
+        "apps/web/src/app/(marketing)/partners/page.tsx",
+        "apps/web/src/app/(marketing)/community/studios/page.tsx",
+        "apps/api/src/repository/support.rs",
+        "tests/native-cta.cjs",
+        "tests/applications-browser.cjs",
+        "tests/unavailable-workflows.cjs"
+      ]
+    },
+    {
+      "id": "durable-registration-commands",
+      "title": "Persist crew, invitation, roster and registrar review commands",
+      "depends_on": [
+        "registration"
+      ],
+      "owner": "implementer",
+      "status": "done",
+      "acceptance": "demo-wsb verifies replay, revisions, approval races, tenancy, roster and payment barriers.",
+      "evidence": [
+        "docs/persistent-registration.md",
+        "apps/api/src/repository/registration_tests.rs"
+      ]
+    },
+    {
+      "id": "native-contact-support",
+      "title": "Provide native public contact and account support",
+      "depends_on": [
+        "core-integrity"
+      ],
+      "owner": "implementer",
+      "status": "done",
+      "acceptance": "Scoped native conversations, private recovery and chapter support review pass emulator, browser and recovery checks.",
+      "evidence": [
+        "docs/native-inquiries.md",
+        "apps/api/src/repository/support_tests.rs",
+        "tests/support-browser.cjs"
+      ]
     }
+  ],
+  "order": [
+    "stack-foundation",
+    "scope",
+    "architecture",
+    "foundation",
+    "registration",
+    "payments",
+    "judging",
+    "event-ops",
+    "results",
+    "pilot",
+    "website-plan",
+    "visual-prototype",
+    "public-motion",
+    "core-integrity",
+    "account-workflows",
+    "offline-device-outbox",
+    "firestore-repositories",
+    "persistent-membership",
+    "verification-media",
+    "payment-providers",
+    "venue-passes-stage",
+    "battle-progression",
+    "advancement-policy",
+    "hq-expansion",
+    "durable-core-commands",
+    "local-docker-stack",
+    "native-system-forms",
+    "durable-registration-commands",
+    "native-contact-support"
+  ],
+  "ready": [
+    "verification-media"
   ]
 }

@@ -1,0 +1,163 @@
+name: wsb-local
+
+services:
+  firebase:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+      target: emulators
+    environment:
+      GCLOUD_PROJECT: demo-wsb
+      WSB_AUTH_PORT: ${WSB_AUTH_PORT:-9099}
+      WSB_FIRESTORE_PORT: ${WSB_FIRESTORE_PORT:-8188}
+      WSB_STORAGE_PORT: ${WSB_STORAGE_PORT:-9199}
+      WSB_EMULATOR_UI_PORT: ${WSB_EMULATOR_UI_PORT:-4408}
+      WSB_EMULATOR_HUB_PORT: ${WSB_EMULATOR_HUB_PORT:-4418}
+      WSB_EMULATOR_LOG_PORT: ${WSB_EMULATOR_LOG_PORT:-4518}
+      WSB_FIRESTORE_WS_PORT: ${WSB_FIRESTORE_WS_PORT:-9288}
+    ports:
+      - "127.0.0.1:${WSB_AUTH_PORT:-9099}:${WSB_AUTH_PORT:-9099}"
+      - "127.0.0.1:${WSB_FIRESTORE_PORT:-8188}:${WSB_FIRESTORE_PORT:-8188}"
+      - "127.0.0.1:${WSB_STORAGE_PORT:-9199}:${WSB_STORAGE_PORT:-9199}"
+      - "127.0.0.1:${WSB_EMULATOR_UI_PORT:-4408}:${WSB_EMULATOR_UI_PORT:-4408}"
+      - "127.0.0.1:${WSB_EMULATOR_HUB_PORT:-4418}:${WSB_EMULATOR_HUB_PORT:-4418}"
+      - "127.0.0.1:${WSB_EMULATOR_LOG_PORT:-4518}:${WSB_EMULATOR_LOG_PORT:-4518}"
+      - "127.0.0.1:${WSB_FIRESTORE_WS_PORT:-9288}:${WSB_FIRESTORE_WS_PORT:-9288}"
+    volumes:
+      - firebase-data:/data
+    healthcheck:
+      test: [CMD, node, /workspace/infra/docker/health.cjs, firebase]
+      interval: 5s
+      timeout: 12s
+      retries: 30
+      start_period: 30s
+    stop_grace_period: 45s
+    mem_limit: 1536m
+
+  paymongo-emulator:
+    image: node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
+    environment:
+      WSB_PAYMONGO_EMULATOR: "true"
+      WSB_PAYMONGO_LOCAL_SECRET: ${WSB_PAYMONGO_LOCAL_SECRET:?Run tools/local.ps1 up}
+      WSB_PAYMONGO_STATE_FILE: /data/state.json
+      HOST: 0.0.0.0
+      PORT: "8191"
+    command: [node, /emulator/paymongo-emulator.cjs]
+    volumes:
+      - ./infra/docker/paymongo-emulator.cjs:/emulator/paymongo-emulator.cjs:ro
+      - paymongo-data:/data
+    ports:
+      - "127.0.0.1:${WSB_PAYMONGO_EMULATOR_PORT:-8191}:8191"
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:8191/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  seed:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+      target: seed
+    depends_on:
+      firebase:
+        condition: service_healthy
+    environment:
+      GCLOUD_PROJECT: demo-wsb
+      FIRESTORE_EMULATOR_HOST: firebase:${WSB_FIRESTORE_PORT:-8188}
+      FIREBASE_AUTH_EMULATOR_HOST: firebase:${WSB_AUTH_PORT:-9099}
+      WSB_TEST_PASSWORD: ${WSB_TEST_PASSWORD:?Run tools/local.ps1 up to create local settings}
+      WSB_LOCAL_KEY_DIR: /local-identity
+    volumes:
+      - local-identity:/local-identity
+      - ./infra/docker/seed.cjs:/workspace/infra/docker/seed.cjs:ro
+    restart: "no"
+
+  api:
+    image: rust:1-bookworm@sha256:9181b56c2a21ab1d5e73cffe04fc762426d30aa7fac3c91141dd033f49a7fc8b
+    working_dir: /source
+    command: [cargo, run, --locked, -p, wsb-api, --features, local-testing]
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    environment:
+      FIREBASE_PROJECT_ID: demo-wsb
+      FIREBASE_STORAGE_BUCKET: demo-wsb.appspot.com
+      WSB_STORAGE_API_ORIGIN: http://firebase:${WSB_STORAGE_PORT:-9199}
+      FIRESTORE_EMULATOR_HOST: firebase:${WSB_FIRESTORE_PORT:-8188}
+      FIREBASE_AUTH_EMULATOR_HOST: firebase:${WSB_AUTH_PORT:-9099}
+      WSB_STORAGE: firestore
+      WSB_LOCAL_TESTING: "true"
+      WSB_PAYMONGO_LOCAL_SECRET: ${WSB_PAYMONGO_LOCAL_SECRET:?Run tools/local.ps1 up}
+      WSB_LOCAL_KEY_DIR: /local-identity
+      WEB_ORIGIN: http://localhost:${WSB_WEB_PORT:-3100}
+      PORT: "8088"
+      CARGO_TARGET_DIR: /build
+    ports:
+      - "127.0.0.1:${WSB_API_PORT:-8189}:8088"
+    volumes:
+      - ./Cargo.toml:/source/Cargo.toml:ro
+      - ./Cargo.lock:/source/Cargo.lock:ro
+      - ./rust-toolchain.toml:/source/rust-toolchain.toml:ro
+      - ./apps/api:/source/apps/api:ro
+      - rust-target:/build
+      - cargo-registry:/usr/local/cargo/registry
+      - rustup:/usr/local/rustup
+      - local-identity:/local-identity:ro
+    stop_grace_period: 15s
+    healthcheck:
+      test: [CMD, curl, --fail, --silent, http://127.0.0.1:8088/healthz]
+      interval: 5s
+      timeout: 3s
+      retries: 60
+      start_period: 120s
+
+  web:
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile
+      target: web-dev
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+    environment:
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: http://localhost:${WSB_API_PORT:-8189}
+      NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-wsb
+      NEXT_PUBLIC_FIREBASE_API_KEY: demo-key
+      NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: demo-wsb.firebaseapp.com
+      NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: demo-wsb.appspot.com
+      NEXT_PUBLIC_FIREBASE_APP_ID: demo-wsb-local
+      NEXT_PUBLIC_USE_FIREBASE_EMULATORS: "true"
+      NEXT_PUBLIC_WSB_LOCAL_TESTING: "true"
+      NEXT_PUBLIC_AUTH_EMULATOR_URL: http://localhost:${WSB_AUTH_PORT:-9099}
+      NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST: localhost
+      NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT: ${WSB_FIRESTORE_PORT:-8188}
+      NEXT_PUBLIC_STORAGE_EMULATOR_HOST: localhost
+      NEXT_PUBLIC_STORAGE_EMULATOR_PORT: ${WSB_STORAGE_PORT:-9199}
+    ports:
+      - "127.0.0.1:${WSB_WEB_PORT:-3100}:3000"
+    volumes:
+      - ./apps/web/src:/workspace/apps/web/src:ro
+      - ./apps/web/public:/workspace/apps/web/public:ro
+      - web-next:/workspace/apps/web/.next
+    healthcheck:
+      test: [CMD, node, /workspace/infra/docker/health.cjs, web]
+      interval: 10s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  paymongo-data:
+  firebase-data:
+  local-identity:
+  web-next:
+  rust-target:
+    name: wsb-cargo-target
+  cargo-registry:
+    name: wsb-cargo-registry
+  rustup:
+    name: wsb-rustup

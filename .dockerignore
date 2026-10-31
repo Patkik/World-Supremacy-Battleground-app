@@ -5,3 +5,7 @@ target
 .git
 .workspace
 **/.env*
+**/firebase-debug.log
+**/firestore-debug.log
+.firebase
+.firecrawl

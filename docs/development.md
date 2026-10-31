@@ -1,5 +1,18 @@
 # Run the foundation
 
+The preferred local environment is now [Docker Compose](local-docker.md): run
+`./tools/local.ps1 setup` the first time, then use `up` for fast no-build starts.
+It includes signed local-test API sessions and persistent
+demo-wsb emulators. The host-tool instructions below remain available; their
+historical unsigned-emulator limitation is superseded only by the separately
+compiled Docker local identity flow. Production credentials are not needed.
+
+Native registration and contact/account support are connected on this stack.
+Use [registration contracts](persistent-registration.md) and
+[native inquiry contracts](native-inquiries.md) for their browser, authorization,
+replay and full-container-recreation checks. Other workflow migrations and
+production identity/provider/policy gates remain unfinished.
+
 Use Node 24 and npm. Install with `npm ci` after the lockfile exists.
 The initial setup creates ignored `.env.development.local` for demo emulators
 and `.env.production.local` with the user's supplied public Firebase web config.
@@ -20,7 +33,7 @@ Checks: `npm run typecheck`, `npm run build`, `npm run test:rules`.
 Rust needs a stable toolchain and the host linker/build tools. From repository root:
 
 ```powershell
-$env:FIREBASE_PROJECT_ID = 'model-palace-346207'
+$env:FIREBASE_PROJECT_ID = 'demo-wsb'
 $env:WEB_ORIGIN = 'http://localhost:3000'
 cargo run -p wsb-api
 cargo test --locked --workspace
@@ -50,3 +63,46 @@ deployed to the real project. Business features are tracked separately in the DA
 Windows toolchain: Rust 1.99.1, Cargo, rustfmt and Clippy are installed under
 `C:\Users\patri\.cargo\bin`. Reopen your terminal to pick up the PATH change.
 The Microsoft C++ build tools and Windows SDK provide the native linker.
+
+
+## Connected workflow checks — 2026-10-30
+
+The business API is currently synthetic and volatile. It refuses non-demo project
+startup, and `/readyz` reports 503. The optional adapter is not a business repository.
+The Firebase Auth emulator can exercise real browser account actions, but its
+unsigned tokens are intentionally rejected by the Rust API. Do not use fake
+persona/demo-token credentials to bypass this boundary. See the implementation
+audit for persistence and signed-token integration still required.
+
+- `npm run test:outbox`: isolated synthetic queue state/recovery tests.
+- `npm run test:rules`: Firestore authorization tests, only demo-wsb.
+- Run `npm run dev --workspace @wsb/web -- --port 3108`, then
+  `npm run test:identity`: actual Firebase Auth emulator account workflow.
+- Run the production web app on port 3107, then `npm run test:browser-connected`:
+  responsive anonymous states and real browser IndexedDB/offline-shell recovery.
+  Set `WSB_PREVIEW_URL` or `WSB_PLAYWRIGHT_MODULE` if necessary.
+- `cargo test --locked --workspace`, `cargo clippy --locked --workspace -- -D warnings`,
+  `cargo fmt --all --check`, `npm run typecheck`, `npm run build`.
+
+Prepare `/offline` online on a trusted device, then save each assigned scorecard
+before losing the connection. Reopening the generic offline workspace restores
+saved drafts/commands. Queued state is not submission. Conflicts and rejected
+commands remain on device for review; accepted copies can be explicitly removed.
+Changing accounts never sends another judge's saved commands.
+
+
+## Persistent core mode — 2026-10-30
+
+See `docs/firestore-repositories.md` for schema, migration gates and checks.
+`npm run test:persistence` starts the separate demo-wsb emulator on port 8188 and
+runs the explicit repository integration scenario. On this Windows machine set
+`WSB_PERSISTENCE_RUNNER=docker` to use the pinned Linux toolchain. The test runner
+uses fresh processes as well as independent clients; no real Firebase data is used.
+
+To run a feature-enabled API against an already running isolated emulator, set
+`FIREBASE_PROJECT_ID=demo-wsb`, `FIRESTORE_EMULATOR_HOST=127.0.0.1:8188` and
+`WSB_STORAGE=firestore`, then `cargo run -p wsb-api --features firestore`.
+The Windows optional SDK native C/NASM limitation still applies; use the Linux
+builder where needed. This mode currently supports session validation and the
+migrated scoring/payment core. Other workflow routes return 501. Readiness stays
+503 until the migration and signed identity flow are complete.

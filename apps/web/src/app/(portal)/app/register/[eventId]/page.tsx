@@ -1,3 +1,3 @@
-import {notFound} from "next/navigation";
-import {RegistrationFlow} from "@/components/registration-flow";
-export default async function Page({params}:{params:Promise<{eventId:string}>}){if((await params).eventId!=="demo")notFound();return <RegistrationFlow/>}
+import { RegistrationFlow } from "@/components/registration-flow";
+import { ConnectedEntry } from "@/components/connected-entry";
+export default async function Page({params}:{params:Promise<{eventId:string}>}){const {eventId}=await params;return eventId==="demo"?<RegistrationFlow/>:<ConnectedEntry eventId={eventId}/>;}

@@ -1,5 +1,6 @@
 import "client-only";
 import { firebaseClient } from "./firebase/client";
+import { apiToken } from "./firebase/api-session";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8088";
 
@@ -7,7 +8,7 @@ export async function chapterSession(chapterId: string) {
   const user = firebaseClient().auth.currentUser;
   if (!user) throw new Error("Sign in to continue.");
   const response = await fetch(`${API_BASE}/v1/chapters/${encodeURIComponent(chapterId)}/session`, {
-    headers: { Authorization: `Bearer ${await user.getIdToken()}` },
+    headers: { Authorization: `Bearer ${await apiToken(user)}` },
     cache: "no-store",
     signal: AbortSignal.timeout(10000),
   });
@@ -40,6 +41,7 @@ export interface CrewMember {
 }
 
 export interface Crew {
+  revision?: number;
   id: string;
   chapter_id: string;
   name: string;
@@ -72,6 +74,8 @@ export interface EntryReadiness {
 }
 
 export interface Entry {
+  rules_version?: string;
+  revision?: number;
   id: string;
   chapter_id: string;
   event_id: string;
@@ -87,6 +91,7 @@ export interface Entry {
 }
 
 export interface EntryDetailResponse {
+  pending_minor?: number;
   entry: Entry;
   readiness: EntryReadiness;
 }
@@ -365,6 +370,10 @@ export async function fetchEvents(
 }
 
 export interface PaymentQuote {
+  paid_amount_minor?: number;
+  pending_amount_minor?: number;
+  outstanding_amount_minor?: number;
+  available_amount_minor?: number;
   entry_id: string;
   division_name: string;
   dancer_count: number;
@@ -393,19 +402,6 @@ export interface FinanceSummary {
   total_refunded_minor: number;
   currency: string;
   transaction_count: number;
-}
-
-export interface VerificationCase {
-  case_id: string;
-  chapter_id: string;
-  dancer_uid: string;
-  dancer_name: string;
-  is_minor: boolean;
-  status: "pending" | "approved" | "rejected";
-  document_type: string;
-  submitted_at: number;
-  reviewed_at?: number;
-  reviewer_note?: string;
 }
 
 export async function fetchPaymentQuote(
@@ -460,62 +456,6 @@ export async function fetchPayments(chapterId: string, token: string): Promise<P
   });
   if (!res.ok) {
     throw new Error(`Failed to list payments: ${res.statusText}`);
-  }
-  return await res.json();
-}
-
-export async function fetchVerificationCases(chapterId: string, token: string): Promise<VerificationCase[]> {
-  const res = await fetch(`${API_BASE}/v1/chapters/${chapterId}/verification`, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to fetch verification cases: ${res.statusText}`);
-  }
-  return await res.json();
-}
-
-export async function submitVerificationCase(
-  chapterId: string,
-  token: string,
-  dancerName: string,
-  isMinor: boolean,
-  documentType: string
-): Promise<VerificationCase> {
-  const res = await fetch(`${API_BASE}/v1/chapters/${chapterId}/verification`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({
-      dancer_name: dancerName,
-      is_minor: isMinor,
-      document_type: documentType,
-    }),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to submit verification: ${res.statusText}`);
-  }
-  return await res.json();
-}
-
-export async function reviewVerificationCase(
-  chapterId: string,
-  token: string,
-  caseId: string,
-  status: "approved" | "rejected",
-  note?: string
-): Promise<VerificationCase> {
-  const res = await fetch(`${API_BASE}/v1/chapters/${chapterId}/verification/${caseId}/review`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ status, note }),
-  });
-  if (!res.ok) {
-    throw new Error(`Failed to review verification case: ${res.statusText}`);
   }
   return await res.json();
 }

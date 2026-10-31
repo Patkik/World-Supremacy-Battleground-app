@@ -1,119 +1,47 @@
 "use client";
-
-import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 import { useSearchParams } from "next/navigation";
-import { Arrow, Brand, PageHeading, Status } from "@/components/ui";
+import { applyActionCode, confirmPasswordReset, verifyPasswordResetCode } from "firebase/auth";
+import { firebaseClient } from "@/lib/firebase/client";
+import { identityError } from "@/lib/account";
+import { Brand } from "@/components/ui";
 
-function AuthActionContent() {
-  const searchParams = useSearchParams();
-  const mode = searchParams.get("mode") || "verifyEmail";
-  const oobCode = searchParams.get("oobCode") || "";
-  const [status, setStatus] = useState<"loading" | "success" | "error">("loading");
-  const [newPassword, setNewPassword] = useState("");
-  const [completed, setCompleted] = useState(false);
-
+function Action() {
+  const params = useSearchParams();
+  const mode = params.get("mode"); const code = params.get("oobCode") || "";
+  const [state, setState] = useState("checking");
+  const [error, setError] = useState("");
+  const [password, setPassword] = useState("");
+  const actionRequest = useRef<{ key: string; promise: Promise<void> } | null>(null);
   useEffect(() => {
-    if (mode === "verifyEmail") {
-      // Simulate verification of oobCode
-      const timer = setTimeout(() => {
-        setStatus("success");
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else {
-      setStatus("success");
+    let alive = true;
+    const key = `${mode}:${code}`;
+    if (actionRequest.current?.key !== key) {
+      actionRequest.current = { key, promise: (async () => {
+        if (!code || !["verifyEmail", "resetPassword"].includes(mode || "")) throw new Error("Unsupported action");
+        const auth = firebaseClient().auth;
+        if (mode === "verifyEmail") { await applyActionCode(auth, code); await auth.currentUser?.reload(); }
+        else await verifyPasswordResetCode(auth, code);
+      })() };
     }
-  }, [mode, oobCode]);
-
-  function handleResetPassword(e: React.FormEvent) {
-    e.preventDefault();
-    setCompleted(true);
+    // Reuse the in-flight action during React's effect rehearsal. Verification
+    // links are single use and must not be consumed twice on the same mount.
+    actionRequest.current.promise.then(() => { if (alive) setState(mode === "resetPassword" ? "ready" : "done"); })
+      .catch(reason => { if (alive) { setError(identityError(reason)); setState("error"); } });
+    return () => { alive = false; };
+  }, [mode, code]);
+  async function reset(event: FormEvent) {
+    event.preventDefault(); setState("saving"); setError("");
+    try { await confirmPasswordReset(firebaseClient().auth, code, password); setState("done"); }
+    catch (reason) { setError(identityError(reason)); setState("error"); }
   }
-
-  return (
-    <div className="auth-card">
-      <Brand />
-      
-      {mode === "verifyEmail" && (
-        <div className="space-y-4 pt-4">
-          <PageHeading
-            eyebrow="Account Verification"
-            title={status === "loading" ? "Verifying Email..." : "Email Verified"}
-            description={
-              status === "loading"
-                ? "Checking security token with identity authority."
-                : "Your email address has been successfully verified. You now have full access to crew registration."
-            }
-          />
-          {status === "success" && (
-            <div className="pt-4">
-              <Link href="/workspaces" className="button button-volt w-full text-center">
-                Continue to Workspaces <Arrow />
-              </Link>
-            </div>
-          )}
-        </div>
-      )}
-
-      {mode === "resetPassword" && (
-        <div className="space-y-4 pt-4">
-          <PageHeading
-            eyebrow="Security Recovery"
-            title="Set New Password"
-            description="Choose a strong password to protect your crew and dancer account."
-          />
-          {completed ? (
-            <div className="space-y-4 text-center">
-              <Status tone="volt">Password Updated</Status>
-              <p className="text-sm text-titanium">Your password has been changed. You can now sign in.</p>
-              <Link href="/sign-in" className="button button-volt w-full text-center">
-                Sign In with New Password <Arrow />
-              </Link>
-            </div>
-          ) : (
-            <form onSubmit={handleResetPassword} className="space-y-4">
-              <div>
-                <label className="block text-sm font-semibold text-chrome mb-1">New Password</label>
-                <input
-                  type="password"
-                  value={newPassword}
-                  onChange={(e) => setNewPassword(e.target.value)}
-                  required
-                  minLength={8}
-                  placeholder="At least 8 characters"
-                  className="w-full p-3 rounded bg-tungsten border border-subtle text-chrome focus:border-volt"
-                />
-              </div>
-              <button type="submit" className="button button-volt w-full">
-                Save New Password <Arrow />
-              </button>
-            </form>
-          )}
-        </div>
-      )}
-
-      {mode !== "verifyEmail" && mode !== "resetPassword" && (
-        <div className="space-y-4 pt-4 text-center">
-          <PageHeading
-            eyebrow="Identity Action"
-            title="Action Received"
-            description="Your security action code has been acknowledged."
-          />
-          <Link href="/sign-in" className="button button-outline w-full text-center">
-            Return to Sign In <Arrow />
-          </Link>
-        </div>
-      )}
-    </div>
-  );
+  return <div className="account-form"><h1>{mode === "resetPassword" ? "Reset password" : "Verify email"}</h1>
+    {state === "checking" && <p role="status">Checking your link…</p>}
+    {error && <p role="alert" className="form-error">{error}</p>}
+    {["ready", "saving"].includes(state) && <form onSubmit={reset}><label htmlFor="new-password">New password<input id="new-password" type="password" autoComplete="new-password" minLength={8} required value={password} onChange={e => setPassword(e.target.value)} /></label><button className="button button-volt" disabled={state === "saving"}>Save password</button></form>}
+    {state === "done" && <p role="status">{mode === "resetPassword" ? "Password changed. You can now sign in." : "Email verified. Your chapter membership is checked separately."}</p>}
+    <Link className="text-link" href="/sign-in">Return to sign in</Link>
+  </div>;
 }
-
-export default function AuthActionPage() {
-  return (
-    <main className="min-h-screen flex items-center justify-center p-4 bg-obsidian">
-      <Suspense fallback={<div className="text-chrome mono text-center">Verifying credentials...</div>}>
-        <AuthActionContent />
-      </Suspense>
-    </main>
-  );
-}
+export default function Page() { return <main id="main-content" className="system-page"><Brand /><Suspense fallback={<p>Checking your link…</p>}><Action /></Suspense></main>; }

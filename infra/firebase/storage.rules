@@ -1,7 +1,57 @@
 rules_version = '2';
 service firebase.storage {
   match /b/{bucket}/o {
-    // Upload flows require scoped validation before being enabled.
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function memberPath(chapterId) {
+      return /databases/(default)/documents/chapters/$(chapterId)/members/$(request.auth.uid);
+    }
+
+    function activeChapterMember(chapterId) {
+      return signedIn()
+        && request.auth.token.chapterId == chapterId
+        && firestore.exists(memberPath(chapterId))
+        && firestore.get(memberPath(chapterId)).data.active == true;
+    }
+
+    function isReviewer(chapterId) {
+      let member = firestore.get(memberPath(chapterId)).data;
+      return activeChapterMember(chapterId)
+        && member.role in ['verifier', 'registrar', 'chapter_director'];
+    }
+
+    function casePath(chapterId, caseId) {
+      return /databases/(default)/documents/chapters/$(chapterId)/verificationCases/$(caseId);
+    }
+
+    function ownerCase(chapterId, uid, caseId) {
+      let record = firestore.get(casePath(chapterId, caseId)).data;
+      return record.chapter_id == chapterId
+        && record.case_id == caseId
+        && record.dancer_uid == uid;
+    }
+
+    match /chapters/{chapterId}/verification/{uid}/{caseId}/{fileName} {
+      allow create: if activeChapterMember(chapterId)
+        && request.auth.uid == uid
+        && fileName == 'document'
+        && ownerCase(chapterId, uid, caseId)
+        && firestore.get(casePath(chapterId, caseId)).data.status == 'uploading'
+        && request.resource.size > 0
+        && request.resource.size <= 10 * 1024 * 1024
+        && request.resource.contentType.matches('application/pdf|image/jpeg|image/png');
+
+      allow read: if activeChapterMember(chapterId)
+        && ((request.auth.uid == uid && ownerCase(chapterId, uid, caseId))
+          || isReviewer(chapterId));
+
+      // Files are immutable. New evidence gets a new case and object path.
+      // Retention and deletion periods remain event/jurisdiction policy gates.
+      allow update, delete: if false;
+    }
+
     match /{allPaths=**} { allow read, write: if false; }
   }
 }

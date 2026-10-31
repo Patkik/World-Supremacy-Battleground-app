@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Chapter {
@@ -9,6 +10,8 @@ pub struct Chapter {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Event {
+    #[serde(default)]
+    pub registration_closes_at: Option<u64>,
     pub id: String,
     pub chapter_id: String,
     pub name: String,
@@ -44,6 +47,8 @@ pub struct CrewMember {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct Crew {
+    #[serde(default)]
+    pub revision: u64,
     pub id: String,
     pub chapter_id: String,
     pub name: String,
@@ -89,6 +94,10 @@ pub struct EntryReadiness {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Entry {
+    #[serde(default)]
+    pub rules_version: String,
+    #[serde(default)]
+    pub revision: u64,
     pub id: String,
     pub chapter_id: String,
     pub event_id: String,
@@ -140,6 +149,7 @@ pub struct Deduction {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct SubmitScoreCommand {
+    pub schema_version: u32,
     pub operation_id: String,
     pub division_id: String,
     pub crew_id: String,
@@ -163,6 +173,7 @@ pub struct ScoreReceipt {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CrewResult {
+    pub entry_id: String,
     pub crew_id: String,
     pub raw_average: f64,
     pub total_deductions: f64,
@@ -187,6 +198,10 @@ pub struct PaymentQuote {
     pub rate_per_dancer_minor: u64,
     pub total_amount_minor: u64,
     pub currency: String,
+    pub paid_amount_minor: u64,
+    pub pending_amount_minor: u64,
+    pub outstanding_amount_minor: u64,
+    pub available_amount_minor: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -203,12 +218,36 @@ pub struct PaymentRecord {
     pub settled_at: Option<u64>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SyntheticWebhookPayload {
+    pub payment_id: String,
+    pub status: String,
+    #[serde(default)]
+    pub amount_minor: Option<u64>,
+    #[serde(flatten)]
+    pub extra: HashMap<String, serde_json::Value>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WebhookReceipt {
+    pub received: bool,
+    pub payment: PaymentRecord,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 pub enum VerificationStatus {
+    Uploading,
     Pending,
     Approved,
-    Rejected,
+    NeedsCorrection,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum VerificationPurpose {
+    Identity,
+    Residency,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -216,12 +255,15 @@ pub struct VerificationCase {
     pub case_id: String,
     pub chapter_id: String,
     pub dancer_uid: String,
-    pub dancer_name: String,
-    pub is_minor: bool,
+    pub purpose: VerificationPurpose,
     pub status: VerificationStatus,
-    pub document_type: String,
-    pub submitted_at: u64,
+    pub storage_path: String,
+    pub content_type: Option<String>,
+    pub size_bytes: Option<u64>,
+    pub created_at: u64,
+    pub submitted_at: Option<u64>,
     pub reviewed_at: Option<u64>,
+    pub reviewer_uid: Option<String>,
     pub reviewer_note: Option<String>,
 }
 
@@ -245,6 +287,43 @@ pub struct CheckInRecord {
     pub scanner_uid: String,
 }
 
+/// Operational progression for an entry on a stage. Exceptional outcomes
+/// require a separately configured policy and are intentionally not inferred.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum StagePosition {
+    Holding,
+    OnDeck,
+    Performing,
+    Completed,
+}
+
+impl StagePosition {
+    pub fn may_advance_to(self, next: Self) -> bool {
+        matches!(
+            (self, next),
+            (Self::Holding, Self::OnDeck)
+                | (Self::OnDeck, Self::Performing)
+                | (Self::Performing, Self::Completed)
+        )
+    }
+}
+
+#[cfg(test)]
+mod stage_position_tests {
+    use super::StagePosition::*;
+
+    #[test]
+    fn stage_progression_cannot_skip_repeat_or_reverse() {
+        let positions = [Holding, OnDeck, Performing, Completed];
+        for (from_index, from) in positions.iter().enumerate() {
+            for (to_index, to) in positions.iter().enumerate() {
+                assert_eq!(from.may_advance_to(*to), to_index == from_index + 1);
+            }
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct BattleMatch {
     pub match_id: String,
@@ -260,6 +339,11 @@ pub struct BattleMatch {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BattleVotePayload {
+    pub winner_corner: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct PublishedResultSnapshot {
     pub publication_id: String,
     pub chapter_id: String,
@@ -267,4 +351,99 @@ pub struct PublishedResultSnapshot {
     pub division_id: String,
     pub results: Vec<CrewResult>,
     pub published_at: u64,
+    pub digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RecordedScore {
+    pub chapter_id: String,
+    pub event_id: String,
+    pub division_id: String,
+    pub crew_id: String,
+    pub judge_uid: String,
+    pub revision: u64,
+    pub criteria: ScoreCriteria,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ScoreReplay {
+    pub chapter_id: String,
+    pub command: SubmitScoreCommand,
+    pub receipt: ScoreReceipt,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Membership {
+    pub uid: String,
+    pub chapter_id: String,
+    pub role: String,
+    pub active: bool,
+    pub valid_after: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AuditRecord {
+    pub id: String,
+    pub actor_uid: String,
+    pub chapter_id: String,
+    pub action: String,
+    pub resource_id: String,
+    pub recorded_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DivisionState {
+    pub schema_version: u32,
+    pub locked: bool,
+    pub revision: u64,
+    pub criteria: Option<ScoreCriteria>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SubmitGuardianConsentPayload {
+    pub operation_id: Option<String>,
+    pub guardian_name: String,
+    pub signature_date: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GuardianConsentReceipt {
+    pub verified: bool,
+    pub minor_uid: String,
+    pub guardian_name: String,
+    pub signature_date: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UploadAudioPayload {
+    pub operation_id: Option<String>,
+    pub track_filename: String,
+    pub track_duration_secs: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AudioUploadReceipt {
+    pub entry_id: String,
+    pub track_filename: String,
+    pub track_duration_secs: u32,
+    pub compliant: bool,
+    pub excess_secs: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DJExportTrack {
+    pub order: usize,
+    pub entry_id: String,
+    pub crew_name: String,
+    pub original_track: String,
+    pub duration_secs: u32,
+    pub export_filename: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DJExportManifest {
+    pub event_id: String,
+    pub division_id: String,
+    pub total_tracks: usize,
+    pub manifest: Vec<DJExportTrack>,
 }

@@ -2,8 +2,8 @@
 // Source inventory and retrieval date: docs/public-site-media.md.
 export const WSB = {
   website: "https://worldsupremacybattlegrounds.com/",
-  registration: "https://form.jotform.com/maspresentsau/wsb-hong-kong-registration-form",
-  contact: "https://worldsupremacybattlegrounds.com/contact/",
+  registration: "/app/register/hk-championship-2027",
+  contact: "/contact",
   countries: "https://worldsupremacybattlegrounds.com/countries/",
   channel: "https://www.youtube.com/maspresentshd",
   community: "https://worldsupremacybattlegrounds.com/community/",

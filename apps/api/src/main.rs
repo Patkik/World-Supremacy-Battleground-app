@@ -1,17 +1,30 @@
+pub mod access;
 pub mod auth;
 pub mod domain;
 pub mod event_ops;
 pub mod finance;
+pub mod inquiries;
 pub mod judging;
+#[cfg(feature = "local-testing")]
+pub mod local_identity;
+pub mod paymongo;
 pub mod registration;
+#[cfg(feature = "firestore")]
+pub mod repository;
 pub mod store;
+pub mod verification;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
 use axum::{
+    extract::Request,
+    middleware::{self, Next},
+    response::Response,
+};
+use axum::{
     extract::{DefaultBodyLimit, Path, State},
-    http::{header, HeaderMap, HeaderValue, Method, StatusCode},
+    http::{header, HeaderMap, HeaderName, HeaderValue, Method, StatusCode},
     routing::{get, post, put},
     Json, Router,
 };
@@ -22,7 +35,33 @@ use registration::AppState;
 use store::RegistrationStore;
 
 pub fn router(state: AppState, origin: HeaderValue) -> Router {
-    Router::new()
+    let router = Router::new();
+    #[cfg(feature = "firestore")]
+    let router = router
+        .route("/v1/contact/chapters", get(inquiries::http::chapters))
+        .route(
+            "/v1/chapters/{chapter_id}/contact",
+            post(inquiries::http::create_contact),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/contact/{inquiry_id}",
+            get(inquiries::http::contact_thread).post(inquiries::http::update_contact),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/support",
+            get(inquiries::http::list_support).post(inquiries::http::create_support),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/support/{inquiry_id}",
+            get(inquiries::http::support_thread).post(inquiries::http::update_support),
+        );
+    #[cfg(feature = "local-testing")]
+    let router = if state.local_identity.is_some() {
+        router.route("/local/session", post(local_identity::sign_in))
+    } else {
+        router
+    };
+    router
         .route(
             "/healthz",
             get(|| async { Json(json!({"status":"ok","service":"wsb-api"})) }),
@@ -58,6 +97,10 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
             post(registration::join_crew),
         )
         .route(
+            "/v1/chapters/{chapter_id}/crews/{crew_id}/members/{member_uid}/consent",
+            post(registration::submit_guardian_consent),
+        )
+        .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/entries",
             get(registration::list_entries).post(registration::create_entry),
         )
@@ -68,6 +111,14 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/roster",
             put(registration::update_entry_roster),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/audio",
+            post(registration::update_entry_audio),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/dj-export",
+            get(registration::export_dj_playlist),
         )
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/submit",
@@ -94,7 +145,23 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
             get(finance::get_payment_quote),
         )
         .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/local-checkout",
+            get(finance::list_local_checkouts).post(finance::start_local_checkout),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/local-checkout-simulate",
+            post(finance::simulate_local_payment),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/local-checkout-cancel",
+            post(finance::cancel_local_checkout),
+        )
+        .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/pay",
+            post(finance::process_payment),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/payments",
             post(finance::process_payment),
         )
         .route(
@@ -110,12 +177,28 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
             get(finance::get_finance_summary),
         )
         .route(
+            "/v1/chapters/{chapter_id}/finance/webhook",
+            post(finance::handle_synthetic_webhook),
+        )
+        .route(
+            "/v1/local/paymongo/webhook",
+            post(finance::local_paymongo_webhook),
+        )
+        .route(
+            "/v1/webhooks/payments",
+            post(finance::handle_synthetic_webhook),
+        )
+        .route(
             "/v1/chapters/{chapter_id}/verification",
-            get(finance::list_verification_cases).post(finance::submit_verification_case),
+            get(verification::list).post(verification::create),
         )
         .route(
             "/v1/chapters/{chapter_id}/verification/{case_id}/review",
-            post(finance::review_verification_case),
+            post(verification::review),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/verification/{case_id}/submit",
+            post(verification::submit),
         )
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/check-in",
@@ -126,27 +209,129 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
             get(event_ops::list_check_ins),
         )
         .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stage-commands",
+            post(event_ops::update_stage_position),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stages",
+            get(event_ops::list_stages),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stages/{stage_id}",
+            get(event_ops::get_stage),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stage-lineup",
+            post(event_ops::save_stage_lineup),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stages/{stage_id}/lineup",
+            get(event_ops::get_stage_lineup),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stage-configure",
+            post(event_ops::configure_stage),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stage-create",
+            post(event_ops::create_stage),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stage-marshals",
+            post(event_ops::set_stage_marshals),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stage-holds",
+            post(event_ops::set_stage_hold),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stages/{stage_id}/entries",
+            get(event_ops::list_stage_entries),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stages/{stage_id}/lineup-history",
+            get(event_ops::list_stage_lineup_history),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stages/{stage_id}/history",
+            get(event_ops::list_stage_history),
+        )
+        .route(
             "/v1/events/{event_id}/battles",
             get(event_ops::list_battles),
+        )
+        .route(
+            "/v1/events/{event_id}/battles/{match_id}",
+            get(event_ops::get_battle),
         )
         .route(
             "/v1/events/{event_id}/battles/{match_id}/vote",
             post(event_ops::vote_battle),
         )
         .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/battles",
+            get(event_ops::list_battles_chapter),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/battles/{match_id}",
+            get(event_ops::get_battle_chapter),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/battles/{match_id}/vote",
+            post(event_ops::vote_battle_chapter),
+        )
+        .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/publish",
             post(event_ops::publish_results),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/division-status",
+            get(registration::list_division_status),
         )
         .route(
             "/v1/events/{event_id}/divisions/{division_id}/published",
             get(event_ops::get_published_snapshot),
         )
+        .route(
+            "/v1/events/{event_id}/published",
+            get(event_ops::list_published_results),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/finance/payments/{payment_id}/reconcile",
+            post(finance::reconcile_payment),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/score-state",
+            get(judging::score_state),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/deductions",
+            put(judging::set_deductions),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/scorecard",
+            get(judging::score_assignment),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/judge-lineup",
+            get(judging::assigned_lineup),
+        )
+        .route("/readyz", get(readiness))
+        .layer(middleware::from_fn_with_state(
+            state.clone(),
+            durable_route_gate,
+        ))
+        .layer(middleware::from_fn(private_responses))
         .layer(DefaultBodyLimit::max(64 * 1024))
         .layer(
             CorsLayer::new()
                 .allow_origin(origin)
-                .allow_methods([Method::GET, Method::POST, Method::OPTIONS])
-                .allow_headers([header::AUTHORIZATION, header::CONTENT_TYPE]),
+                .allow_methods([Method::GET, Method::POST, Method::PUT, Method::OPTIONS])
+                .allow_headers([
+                    header::AUTHORIZATION,
+                    header::CONTENT_TYPE,
+                    HeaderName::from_static("x-firebase-id-token"),
+                ]),
         )
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -157,11 +342,31 @@ async fn session(
     Path(chapter): Path<String>,
     headers: HeaderMap,
 ) -> Result<([(header::HeaderName, &'static str); 1], Json<Value>), StatusCode> {
-    let claims = registration::authenticate(&state.verifier, &headers, &chapter).await?;
+    let claims = registration::authenticate(&state, &headers, &chapter).await?;
     Ok((
         [(header::CACHE_CONTROL, "no-store")],
         Json(json!({"uid":claims.sub,"chapter_id":chapter,"role":claims.role})),
     ))
+}
+
+async fn readiness(State(state): State<AppState>) -> (StatusCode, Json<Value>) {
+    #[cfg(feature = "firestore")]
+    if let Some(repository) = &state.durable {
+        let reachable = repository.readiness_probe().await.is_ok();
+        // Storage connectivity is distinct from completing every workflow migration.
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(
+                json!({"status":if reachable {"persistent_core_only"}else{"storage_unavailable"},"durable_storage":true,"database_reachable":reachable,"release_ready":false}),
+            ),
+        );
+    }
+    #[cfg(not(feature = "firestore"))]
+    let _ = state;
+    (
+        StatusCode::SERVICE_UNAVAILABLE,
+        Json(json!({"status":"synthetic_only","durable_storage":false,"release_ready":false})),
+    )
 }
 
 #[tokio::main]
@@ -180,12 +385,56 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "8088".into())
         .parse()?;
 
+    // The durable migration is incomplete. Keep real projects gated until verified.
+    if project != "demo-wsb" {
+        return Err(
+            "Business persistence is not configured; this build supports demo-wsb only".into(),
+        );
+    }
+    let storage_mode = std::env::var("WSB_STORAGE").unwrap_or_else(|_| "memory".into());
+    if !matches!(storage_mode.as_str(), "memory" | "firestore") {
+        return Err("Unknown WSB_STORAGE mode".into());
+    }
+    #[cfg(not(feature = "firestore"))]
+    if storage_mode == "firestore" {
+        return Err("Build with --features firestore to use persistent storage".into());
+    }
     #[cfg(feature = "firestore")]
-    let _db = firestore::FirestoreDb::new(&project).await?;
+    let durable = if storage_mode == "firestore" {
+        Some(Arc::new(
+            repository::FirestoreRepository::connect(&project).await?,
+        ))
+    } else {
+        None
+    };
 
+    let verifier = auth::Verifier::new(project.clone())?;
+    #[cfg(feature = "local-testing")]
+    let (verifier, local_identity) = if std::env::var("WSB_LOCAL_TESTING").as_deref() == Ok("true")
+    {
+        if durable.is_none() {
+            return Err("Local signed identity requires durable demo-wsb storage".into());
+        }
+        let (verifier, identity) = local_identity::LocalIdentity::from_env(&project)?;
+        (verifier, Some(Arc::new(identity)))
+    } else {
+        (verifier, None)
+    };
+    #[cfg(not(feature = "local-testing"))]
+    if std::env::var("WSB_LOCAL_TESTING").as_deref() == Ok("true") {
+        return Err("Local identity is not part of this build".into());
+    }
     let state = AppState {
-        verifier: auth::Verifier::new(project)?,
-        store: Arc::new(RwLock::new(RegistrationStore::new())),
+        #[cfg(feature = "local-testing")]
+        local_identity,
+        #[cfg(feature = "firestore")]
+        durable,
+        verifier,
+        store: Arc::new(RwLock::new(if storage_mode == "firestore" {
+            RegistrationStore::empty()
+        } else {
+            RegistrationStore::new()
+        })),
     };
 
     let app = router(state, origin);
@@ -216,355 +465,172 @@ async fn shutdown() {
     tracing::info!("Shutdown requested; draining connections");
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tower::ServiceExt;
-
-    #[tokio::test]
-    async fn health_is_public_but_session_requires_auth() {
-        let state = AppState {
-            verifier: auth::Verifier::new("demo-wsb".into()).unwrap(),
-            store: Arc::new(RwLock::new(RegistrationStore::new())),
-        };
-        let app = router(state, "http://localhost:3000".parse().unwrap());
-        for (path, status) in [
-            ("/healthz", StatusCode::OK),
-            ("/v1/chapters/ph/session", StatusCode::UNAUTHORIZED),
-            (
-                "/v1/chapters/ph/events/manila-session-2027/divisions",
-                StatusCode::OK,
-            ),
-        ] {
-            let response = app
-                .clone()
-                .oneshot(
-                    axum::http::Request::builder()
-                        .uri(path)
-                        .body(axum::body::Body::empty())
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(response.status(), status);
-        }
-    }
-
-    #[tokio::test]
-    async fn registration_flow_and_readiness_evaluation() {
-        let mut store = RegistrationStore::new();
-
-        // 1. Create crew
-        let crew = store
-            .create_crew("ph", "manager-1", "A-Team Manila", "Quezon City")
-            .expect("create crew");
-        assert_eq!(crew.chapter_id, "ph");
-        assert_eq!(crew.members.len(), 1);
-
-        // 2. Issue invitation and accept
-        let inv = store
-            .create_invitation("ph", &crew.id, "manager-1", domain::MemberRole::Dancer)
-            .expect("create invitation");
-        let crew_updated = store
-            .accept_invitation("ph", &inv.token, "dancer-1", "Carlos Dance", true)
-            .expect("accept invitation");
-        assert_eq!(crew_updated.members.len(), 2);
-        assert!(crew_updated.members[1].is_minor);
-        assert!(!crew_updated.members[1].consent_verified); // minor consent unverified
-
-        // 3. Create entry in open-crew division
-        let mut entry = store
-            .create_entry("ph", "manila-session-2027", &crew.id, "open-crew")
-            .expect("create entry");
-
-        // 4. Evaluate readiness: should fail (roster count 2 < min 5, no music, minor consent pending, no payment)
-        let readiness = store
-            .evaluate_readiness(&entry)
-            .expect("evaluate readiness");
-        assert!(!readiness.is_ready);
-        assert!(!readiness.roster_ready);
-        assert!(!readiness.music_ready);
-        assert!(!readiness.consent_ready);
-        assert!(!readiness.payment_ready);
-        assert!(readiness.diagnostics.len() >= 4);
-
-        // 5. Submit entry with incomplete prerequisites -> transitions to NeedsCorrection
-        let submitted = store.submit_entry("ph", &entry.id).expect("submit entry");
-        assert_eq!(submitted.status, domain::EntryStatus::NeedsCorrection);
-
-        // 6. Complete prerequisites on entry fixture
-        entry.paid_minor = 120_000 * 6;
-        entry.track_filename = Some("performance.mp3".into());
-        entry.track_duration_secs = Some(160);
-        entry.roster.clear();
-        for i in 1..=6 {
-            entry.roster.push(domain::CrewMember {
-                uid: format!("dancer-{}", i),
-                name: format!("Dancer {}", i),
-                role: domain::MemberRole::Dancer,
-                is_minor: false,
-                consent_verified: true,
-            });
-        }
-        store.entries.insert(entry.id.clone(), entry.clone());
-
-        // 7. Re-evaluate readiness -> now fully ready
-        let readiness_complete = store.evaluate_readiness(&entry).expect("evaluate complete");
-        assert!(readiness_complete.is_ready);
-        assert!(readiness_complete.roster_ready);
-        assert!(readiness_complete.music_ready);
-        assert!(readiness_complete.consent_ready);
-        assert!(readiness_complete.payment_ready);
-
-        // 8. Submit entry again -> transitions to Submitted
-        let submitted_ok = store.submit_entry("ph", &entry.id).expect("submit entry");
-        assert_eq!(submitted_ok.status, domain::EntryStatus::Submitted);
-    }
-
-    #[tokio::test]
-    async fn offline_judging_command_protocol_and_locking() {
-        let mut store = RegistrationStore::new();
-
-        let cmd = domain::SubmitScoreCommand {
-            operation_id: "op-score-1001".into(),
-            division_id: "open-crew".into(),
-            crew_id: "crew-sample".into(),
-            expected_revision: 0,
-            criteria: domain::ScoreCriteria {
-                choreography: 18.5,
-                musicality: 19.0,
-                execution: 18.0,
-                stage_presence: 17.5,
-                entertainment: 19.0,
-            },
-            deductions: vec![domain::Deduction {
-                code: "ded-fall".into(),
-                reason: "Minor fall on stage".into(),
-                points: 1.0,
-            }],
-        };
-
-        // 1. Submit score
-        let receipt1 = store
-            .submit_score("ph", "manila-session-2027", "judge-1", cmd.clone())
-            .expect("score submitted");
-        assert_eq!(receipt1.operation_id, "op-score-1001");
-        assert_eq!(receipt1.score_revision, 1);
-        assert_eq!(receipt1.net_score, 91.0); // 92.0 - 1.0 = 91.0
-
-        // 2. Idempotent re-submission returns identical receipt
-        let receipt_dup = store
-            .submit_score("ph", "manila-session-2027", "judge-1", cmd.clone())
-            .expect("duplicate submission");
-        assert_eq!(receipt_dup, receipt1);
-
-        // 3. Submitting next score with stale revision (expected 0 instead of 1) -> Conflict
-        let mut cmd2 = cmd.clone();
-        cmd2.operation_id = "op-score-1002".into();
-        cmd2.expected_revision = 0;
-        let err = store.submit_score("ph", "manila-session-2027", "judge-2", cmd2);
-        assert!(err.is_err());
-        assert!(err.unwrap_err().contains("revision mismatch"));
-
-        // 4. Submitting with correct revision 1 succeeds
-        let mut cmd3 = cmd.clone();
-        cmd3.operation_id = "op-score-1003".into();
-        cmd3.expected_revision = 1;
-        let receipt3 = store
-            .submit_score("ph", "manila-session-2027", "judge-2", cmd3)
-            .expect("score revision 1 accepted");
-        assert_eq!(receipt3.score_revision, 2);
-
-        // 5. Lock division
-        store
-            .lock_division("ph", "manila-session-2027", "open-crew")
-            .expect("lock division");
-
-        // 6. Submitting score after lock -> Conflict / Locked
-        let mut cmd4 = cmd.clone();
-        cmd4.operation_id = "op-score-1004".into();
-        cmd4.expected_revision = 2;
-        let err_locked = store.submit_score("ph", "manila-session-2027", "judge-3", cmd4);
-        assert!(err_locked.is_err());
-        assert!(err_locked.unwrap_err().contains("locked"));
-    }
-
-    #[tokio::test]
-    async fn cross_chapter_access_denials() {
-        let mut store = RegistrationStore::new();
-
-        // Cross chapter division query
-        let err_div = store.get_divisions("au", "manila-session-2027");
-        assert!(err_div.is_err());
-
-        // Cross chapter crew access
-        let crew = store
-            .create_crew("ph", "manager-ph", "Manila Stars", "Manila")
-            .unwrap();
-        let err_crew = store.get_crew("au", &crew.id);
-        assert!(err_crew.is_err());
-
-        // Cross chapter invitation redemption
-        let inv = store
-            .create_invitation("ph", &crew.id, "manager-ph", domain::MemberRole::Dancer)
-            .unwrap();
-        let err_join =
-            store.accept_invitation("au", &inv.token, "dancer-au", "Sydney Dancer", false);
-        assert!(err_join.is_err());
-    }
-
-    #[tokio::test]
-    async fn registrar_review_and_roster_updates() {
-        let mut store = RegistrationStore::new();
-
-        // 1. Seed crew exists
-        let crews = store.list_crews_by_chapter("ph");
-        assert!(!crews.is_empty());
-        assert_eq!(crews[0].name, "Afterhours Collective");
-
-        // 2. Entries exist for manila-session-2027
-        let entries = store.list_entries_by_event("ph", "manila-session-2027");
-        assert!(!entries.is_empty());
-        let entry_id = &entries[0].id;
-        assert_eq!(entries[0].status, domain::EntryStatus::Submitted);
-
-        // 3. Registrar review: request correction
-        let review_res = store.review_entry("ph", entry_id, domain::EntryStatus::NeedsCorrection);
-        assert!(review_res.is_ok());
-        assert_eq!(
-            review_res.unwrap().status,
-            domain::EntryStatus::NeedsCorrection
-        );
-
-        // 4. Update entry roster
-        let mut new_roster = entries[0].roster.clone();
-        new_roster.pop();
-        let update_roster_res = store.update_entry_roster("ph", entry_id, new_roster);
-        assert!(update_roster_res.is_ok());
-        assert_eq!(
-            update_roster_res.unwrap().roster.len(),
-            entries[0].roster.len() - 1
-        );
-
-        // 5. Registrar review: approve entry
-        let approved = store
-            .review_entry("ph", entry_id, domain::EntryStatus::Approved)
-            .unwrap();
-        assert_eq!(approved.status, domain::EntryStatus::Approved);
-
-        // 6. Cannot update roster once approved
-        let err_update = store.update_entry_roster("ph", entry_id, vec![]);
-        assert!(err_update.is_err());
-    }
-
-    #[tokio::test]
-    async fn financial_ledger_quotes_and_verification_cases() {
-        let mut store = RegistrationStore::new();
-
-        // 1. Quote calculation based on division fee * dancer count
-        let quote = store
-            .get_payment_quote("ph", "manila-session-2027", "entry-manila-open-1")
-            .expect("payment quote");
-        assert_eq!(quote.dancer_count, 6);
-        assert_eq!(quote.rate_per_dancer_minor, 120_000);
-        assert_eq!(quote.total_amount_minor, 720_000);
-        assert_eq!(quote.currency, "PHP");
-
-        // 2. Process payment settles and reconciles entry paid_minor
-        let payment = store
-            .process_payment("ph", "entry-manila-open-1", "manager-1", "ref-tx-9901")
-            .expect("process payment");
-        assert_eq!(payment.status, domain::PaymentStatus::Settled);
-        assert_eq!(payment.amount_minor, 720_000);
-
-        // 3. Finance summary tracks settled totals
-        let summary = store.get_finance_summary("ph");
-        assert!(summary.total_settled_minor >= 720_000);
-        assert_eq!(summary.currency, "PHP");
-
-        // 4. Refund payment transitions status to Refunded and deduces entry paid_minor
-        let refunded = store
-            .refund_payment("ph", &payment.payment_id)
-            .expect("refund payment");
-        assert_eq!(refunded.status, domain::PaymentStatus::Refunded);
-
-        // 5. Verification case submission & registrar review
-        let case = store.submit_verification_case(
-            "ph",
-            "dancer-new",
-            "New Dancer",
-            true,
-            "Passport & Parent Form",
-        );
-        assert_eq!(case.status, domain::VerificationStatus::Pending);
-
-        let reviewed = store
-            .review_verification_case(
-                "ph",
-                &case.case_id,
-                domain::VerificationStatus::Approved,
-                Some("Pass".into()),
+async fn durable_route_gate(
+    State(state): State<AppState>,
+    request: Request,
+    next: Next,
+) -> Response {
+    #[cfg(feature = "firestore")]
+    if state.durable.is_some() {
+        let path = request.uri().path();
+        let core = path == "/healthz"
+            || path == "/readyz"
+            || path.ends_with("/session")
+            || path.ends_with("/scores")
+            || path.ends_with("/score-state")
+            || path.ends_with("/lock")
+            || path.ends_with("/quote")
+            || path.ends_with("/pay")
+            || path.ends_with("/payments")
+            || path.ends_with("/reconcile")
+            || path.ends_with("/refund")
+            || path.ends_with("/webhook")
+            || path == "/v1/webhooks/payments"
+            || (cfg!(feature = "local-testing") && path == "/v1/local/paymongo/webhook")
+            || path == "/local/session"
+            || path.contains("/battles")
+            || path.ends_with("/results");
+        let parts: Vec<_> = path.trim_matches('/').split('/').collect();
+        let public_projection_read = parts.get(1) == Some(&"events")
+            && ((parts.len() == 4 && parts[3] == "published")
+                || (parts.len() == 6 && parts[3] == "divisions" && parts[5] == "published"));
+        let chapter_read = parts.get(1) == Some(&"chapters")
+            && ((parts.len() == 4 && parts[3] == "crews")
+                || (parts.len() == 5 && parts[3] == "crews")
+                || (parts.len() == 5
+                    && parts[3] == "finance"
+                    && matches!(parts[4], "payments" | "summary"))
+                || (parts.len() == 4 && parts[3] == "verification")
+                || (parts.len() == 6 && parts[3] == "events" && parts[5] == "judge-lineup")
+                || (parts.len() == 6 && parts[3] == "events" && parts[5] == "division-status")
+                || (parts.len() == 6 && parts[3] == "events" && parts[5] == "stages")
+                || (parts.len() == 7 && parts[3] == "events" && parts[5] == "stages")
+                || (parts.len() == 8
+                    && parts[3] == "events"
+                    && parts[5] == "stages"
+                    && matches!(
+                        parts[7],
+                        "entries" | "history" | "lineup" | "lineup-history"
+                    ))
+                || (parts.len() == 6
+                    && parts[3] == "events"
+                    && matches!(parts[5], "divisions" | "entries"))
+                || (parts.len() == 7 && parts[3] == "events" && parts[5] == "entries")
+                || (parts.len() == 8
+                    && parts[3] == "events"
+                    && parts[5] == "entries"
+                    && parts[7] == "scorecard")
+                || (parts.len() == 8
+                    && parts[3] == "events"
+                    && parts[5] == "divisions"
+                    && parts[7] == "results"));
+        let durable_read = request.method() == Method::GET
+            && parts.first() == Some(&"v1")
+            && (public_projection_read || chapter_read);
+        let registration_write = matches!(*request.method(), Method::POST | Method::PUT)
+            && parts.first() == Some(&"v1")
+            && parts.get(1) == Some(&"chapters")
+            && ((parts.len() == 4 && parts[3] == "crews")
+                || (parts.len() == 5 && parts[3] == "crews")
+                || (parts.len() == 6
+                    && parts[3] == "crews"
+                    && matches!(parts[5], "invitations" | "join"))
+                || (parts.len() == 6 && parts[3] == "events" && parts[5] == "entries")
+                || (parts.len() == 8
+                    && parts[3] == "events"
+                    && parts[5] == "entries"
+                    && matches!(parts[7], "roster" | "submit" | "review"))
+                || (parts.len() == 8
+                    && parts[3] == "events"
+                    && parts[5] == "divisions"
+                    && parts[7] == "deductions"));
+        let verification_write = request.method() == Method::POST
+            && parts.first() == Some(&"v1")
+            && parts.get(1) == Some(&"chapters")
+            && ((parts.len() == 4 && parts[3] == "verification")
+                || (parts.len() == 6
+                    && parts[3] == "verification"
+                    && matches!(parts[5], "submit" | "review")));
+        let inquiry_route = path == "/v1/contact/chapters"
+            || (parts.first() == Some(&"v1")
+                && parts.get(1) == Some(&"chapters")
+                && matches!(parts.len(), 4 | 5)
+                && matches!(parts[3], "contact" | "support"));
+        let check_in = request.method() == Method::POST
+            && parts.len() == 6
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && parts[5] == "check-in";
+        let check_in_list = request.method() == Method::GET
+            && parts.len() == 6
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && parts[5] == "check-ins";
+        let stage_command = request.method() == Method::POST
+            && parts.len() == 6
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && matches!(
+                parts[5],
+                "stage-commands"
+                    | "stage-holds"
+                    | "stage-marshals"
+                    | "stage-create"
+                    | "stage-configure"
+                    | "stage-lineup"
+            );
+        let local_checkout = cfg!(feature = "local-testing")
+            && matches!(*request.method(), Method::GET | Method::POST)
+            && parts.len() == 8
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && parts[5] == "entries"
+            && matches!(
+                parts[7],
+                "local-checkout" | "local-checkout-cancel" | "local-checkout-simulate"
+            );
+        let publication_write = request.method() == Method::POST
+            && parts.len() == 8
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && parts[5] == "divisions"
+            && parts[7] == "publish";
+        if !core
+            && !durable_read
+            && !registration_write
+            && !verification_write
+            && !inquiry_route
+            && !check_in
+            && !check_in_list
+            && !stage_command
+            && !local_checkout
+            && !publication_write
+        {
+            use axum::response::IntoResponse;
+            return (
+                StatusCode::NOT_IMPLEMENTED,
+                Json(json!({"error":"This workflow has not yet been migrated to durable storage"})),
             )
-            .expect("review verification");
-        assert_eq!(reviewed.status, domain::VerificationStatus::Approved);
+                .into_response();
+        }
     }
-
-    #[tokio::test]
-    async fn venue_check_ins_battles_and_publication() {
-        let mut store = RegistrationStore::new();
-
-        // 1. Venue check-in creates pass
-        let check_in =
-            store.check_in_dancer("ph", "manila-session-2027", "dancer-1", "marshal-scanner");
-        assert_eq!(check_in.dancer_uid, "dancer-1");
-
-        let list = store.list_check_ins("ph", "manila-session-2027");
-        assert!(!list.is_empty());
-
-        // 2. Battle match voting
-        let battles = store.list_battle_matches("manila-session-2027");
-        assert!(!battles.is_empty());
-        let match_id = battles[0].match_id.clone();
-
-        // Cast 3 votes for red corner to achieve majority
-        store
-            .vote_battle("manila-session-2027", &match_id, "red")
-            .unwrap();
-        store
-            .vote_battle("manila-session-2027", &match_id, "red")
-            .unwrap();
-        let voted = store
-            .vote_battle("manila-session-2027", &match_id, "red")
-            .unwrap();
-        assert_eq!(voted.status, "completed");
-        assert!(voted.winner_corner.unwrap().contains("Red Corner"));
-
-        // 3. Score entry and publish division results
-        let cmd = domain::SubmitScoreCommand {
-            operation_id: "op-pub-1".into(),
-            division_id: "open-crew".into(),
-            crew_id: "crew-afterhours".into(),
-            expected_revision: 0,
-            criteria: domain::ScoreCriteria {
-                choreography: 19.0,
-                musicality: 19.0,
-                execution: 19.0,
-                stage_presence: 19.0,
-                entertainment: 19.0,
-            },
-            deductions: vec![],
-        };
-        store
-            .submit_score("ph", "manila-session-2027", "judge-1", cmd)
-            .unwrap();
-
-        let pub_snapshot = store
-            .publish_division_results("ph", "manila-session-2027", "open-crew")
-            .expect("publish results");
-        assert!(!pub_snapshot.results.is_empty());
-        assert_eq!(pub_snapshot.results[0].final_score, 95.0);
-
-        let retrieved = store.get_published_snapshot("manila-session-2027", "open-crew");
-        assert!(retrieved.is_some());
-    }
+    #[cfg(not(feature = "firestore"))]
+    let _ = state;
+    next.run(request).await
 }
+
+async fn private_responses(request: Request, next: Next) -> Response {
+    let mut response = next.run(request).await;
+    response
+        .headers_mut()
+        .insert(header::CACHE_CONTROL, HeaderValue::from_static("no-store"));
+    response
+}
+
+#[cfg(test)]
+mod tests;

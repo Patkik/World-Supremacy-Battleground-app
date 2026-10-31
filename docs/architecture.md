@@ -1,4 +1,32 @@
-# WSB architecture — 2026-10-29
+# Current architecture status — 2026-10-30
+
+See [durable core](firestore-repositories.md) and the
+[implementation audit](implementation-audit-2026-10-30.md). Rust's optional
+Firestore mode now persists scoring/receipts/audits, division locks, manual
+payments/reservations and membership reads. Other routes are being migrated and
+return 501 in that mode. The default mode remains synthetic in-memory development.
+Only demo-wsb + an explicit emulator is enabled; readiness is 503 until the full
+migration and production identity integration are verified. No production readiness
+or complete event rehearsal is claimed. [Docker local testing](local-docker.md)
+now supplies a separately compiled signed-test identity, persistent emulators,
+scoped core reads and positive browser/API checks. Unsigned tokens remain rejected.
+
+[Native registration](persistent-registration.md) and
+[contact/account support](native-inquiries.md) also use transactional repositories.
+Anonymous contact keys authorize only a single public inquiry; signed account
+support rechecks current chapter membership. Neither path grants business authority
+to support staff. Next.js renders these forms; Rust owns validation, receipts,
+revision conflicts, quotas, chapter isolation and audit commits. Remaining
+configuration/private-media/venue migrations keep release readiness closed.
+Locked results now publish through an immutable Firestore projection; tie and
+correction policies still gate those outcomes.
+
+The original foundation design below is historical context; statements that a
+command/outbox does not yet exist are superseded by the audit.
+
+---
+
+# WSB architecture â€” 2026-10-29
 
 ## Selected stack
 
