@@ -15,7 +15,7 @@ export default function ErrorPage() {
           </span>
           <h1 className="text-2xl font-bold text-chrome">Something Went Wrong</h1>
           <p className="text-sm text-titanium leading-relaxed">
-            An unexpected error occurred while communicating with the chapter services. Your offline data remains preserved locally.
+            This page could not be opened. If you were submitting a change, check its saved status before submitting again.
           </p>
         </div>
 

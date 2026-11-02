@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import "./theme.css";
-import "./hero-motion.css";
 import "@fontsource/archivo-black/latin-400.css";
 import "@fontsource-variable/geist";
 import "@fontsource-variable/jetbrains-mono";

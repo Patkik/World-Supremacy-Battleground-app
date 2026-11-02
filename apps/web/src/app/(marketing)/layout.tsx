@@ -1,4 +1,5 @@
 import { PublicNav } from "@/components/public-nav";
+import "../hero-motion.css";
 import { PublicFooter } from "@/components/public-footer";
 import Link from "next/link";
 export default function PublicLayout({children}:{children:React.ReactNode}) {
