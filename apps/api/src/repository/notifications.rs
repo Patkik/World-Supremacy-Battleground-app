@@ -279,6 +279,11 @@ pub(super) fn queue_publication_notice(
     put(db, tx, &format!("publicationNoticeJobs/{id}"), &job)
 }
 
+// Keep recipient, transaction scope and notification content explicit at this boundary.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "explicit transaction and recipient scope"
+)]
 pub(super) fn queue_roster_notice(
     db: &FirestoreDb,
     tx: &mut FirestoreTransaction<'_>,
@@ -345,6 +350,11 @@ fn summary_path(chapter: &str, uid: &str) -> Result<String> {
     ))
 }
 
+// Keep recipient, transaction scope and notification content explicit at this boundary.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "explicit transaction and recipient scope"
+)]
 pub(super) async fn enqueue(
     db: &FirestoreDb,
     tx: &mut FirestoreTransaction<'_>,
@@ -372,6 +382,11 @@ pub(super) async fn enqueue(
     .await
 }
 
+// Keep recipient, transaction scope and notification content explicit at this boundary.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "explicit transaction and recipient scope"
+)]
 pub(super) async fn enqueue_payment_transition(
     db: &FirestoreDb,
     tx: &mut FirestoreTransaction<'_>,

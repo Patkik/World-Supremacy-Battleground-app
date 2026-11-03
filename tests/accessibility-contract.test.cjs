@@ -18,7 +18,9 @@ test('shared accessibility and recovery contracts remain present', () => {
   assert.match(rootLayout, /<SkipLink\s*\/>/);
   assert.match(skipLink, /href="#main-content"/);
   assert.doesNotMatch(skipLink, /"use client"/);
-  assert.match(read('apps/web/src/app/(marketing)/page.tsx'), /id="main-content"\s+tabIndex=\{-1\}/);
+  const main = read('apps/web/src/app/(marketing)/page.tsx').match(/<main\b[^>]*>/)?.[0] || '';
+  assert.match(main, /\bid="main-content"/);
+  assert.match(main, /\btabIndex=\{-1\}/);
   assert.match(theme, /:focus-visible\{outline:2px solid var\(--accent-volt\)/);
   assert.match(theme, /\.skip-link:focus\{transform:translateY\(0\)/);
   assert.match(theme, /\.button\{[^}]*min-height:56px/);

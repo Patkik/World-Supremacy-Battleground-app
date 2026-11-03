@@ -4243,3 +4243,15 @@ functional coverage or ISO conformity is claimed. No application tests executed.
 Document-only uniqueness/link/fence checks passed. Supplied US-EVT-004 conflicts
 (participant role, filter, login/API path, duplicate semantics and TC IDs) are
 explicitly documented. Normative standards were not reviewed in full.
+
+
+## GitHub workflow repair — 2026-11-03
+Run 41635373010 failed in four jobs. Fixed attribute-order-sensitive main landmark
+contract, generated WSB_PAYMONGO_LOCAL_SECRET in isolated CI settings, factored DJ
+stream future type and corrected Clippy conversions/empty comparison. Scoped lint
+expectations document existing explicit transaction/audit argument boundaries.
+Invitation race assertion now expects forbidden for the losing nonmember, matching
+existing authorization without weakening it. Fifteen focused web tests, all-feature
+all-target strict Clippy, formatting and Compose configuration checks passed.
+Local integration execution remains unavailable without the demo-wsb emulator;
+Docker daemon is not running. Hosted verification required after push.

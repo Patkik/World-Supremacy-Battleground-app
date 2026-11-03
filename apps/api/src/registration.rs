@@ -1722,22 +1722,21 @@ pub async fn export_dj_playlist(
 }
 
 #[cfg(all(feature = "firestore", feature = "local-testing"))]
+type DJZipPermitFuture = std::pin::Pin<
+    Box<
+        dyn std::future::Future<
+                Output = Result<
+                    tokio::sync::mpsc::OwnedPermit<Result<axum::body::Bytes, std::io::Error>>,
+                    tokio::sync::mpsc::error::SendError<()>,
+                >,
+            > + Send,
+    >,
+>;
+
+#[cfg(all(feature = "firestore", feature = "local-testing"))]
 struct DJZipChannelWriter {
     sender: tokio::sync::mpsc::Sender<Result<axum::body::Bytes, std::io::Error>>,
-    pending: Option<
-        std::pin::Pin<
-            Box<
-                dyn std::future::Future<
-                        Output = Result<
-                            tokio::sync::mpsc::OwnedPermit<
-                                Result<axum::body::Bytes, std::io::Error>,
-                            >,
-                            tokio::sync::mpsc::error::SendError<()>,
-                        >,
-                    > + Send,
-            >,
-        >,
-    >,
+    pending: Option<DJZipPermitFuture>,
 }
 
 #[cfg(all(feature = "firestore", feature = "local-testing"))]

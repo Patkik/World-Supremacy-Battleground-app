@@ -64,7 +64,7 @@ jobs:
       - name: Create isolated local settings
         run: |
           cp .env.docker.example .env.docker
-          printf '\nWSB_TEST_PASSWORD=%s\n' "$(openssl rand -hex 24)" >> .env.docker
+          printf '\nWSB_TEST_PASSWORD=%s\nWSB_PAYMONGO_LOCAL_SECRET=%s\n' "$(openssl rand -hex 24)" "$(openssl rand -hex 32)" >> .env.docker
       - run: docker compose --env-file .env.docker up --build -d --wait --wait-timeout 1200
       - run: docker compose --env-file .env.docker run --rm --no-deps seed node infra/docker/test-local.cjs
       - name: Build and exercise signed production browser workflows

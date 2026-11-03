@@ -224,6 +224,11 @@ fn audit(
 ) -> Result<()> {
     audit_with_reason(db, tx, chapter, actor, action, resource, id, None)
 }
+// Audit scope and actor are explicit rather than inferred from mutable context.
+#[expect(
+    clippy::too_many_arguments,
+    reason = "explicit audit scope and attribution"
+)]
 fn audit_with_reason(
     db: &FirestoreDb,
     tx: &mut FirestoreTransaction<'_>,

@@ -538,6 +538,11 @@ impl FirestoreRepository {
     }
 
     #[cfg(feature = "local-testing")]
+    // Explicit scope, actor and version fields form this transactional command boundary.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit transaction scope and command fields"
+    )]
     pub async fn save_draft_music_policy(
         &self,
         claims: &Claims,
@@ -653,6 +658,11 @@ impl FirestoreRepository {
             .map_err(transaction_error)
     }
     #[cfg(feature = "local-testing")]
+    // Explicit scope, actor and version fields form this transactional command boundary.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit transaction scope and command fields"
+    )]
     pub async fn review_music(
         &self,
         claims: &Claims,
@@ -871,9 +881,7 @@ impl FirestoreRepository {
             ),
         )
         .await?
-        .ok_or_else(|| {
-            RepositoryError::Denied(StatusCode::NOT_FOUND, "No music submission".into())
-        })?;
+        .ok_or_else(|| RepositoryError::Denied(StatusCode::NOT_FOUND, "No music submission"))?;
         if submission.malware_scan_status.as_deref() != Some("clean") {
             return Err(conflict("Music submission has no clean scan receipt"));
         }
@@ -975,6 +983,11 @@ impl FirestoreRepository {
         Ok(submission.filter(|value| value.malware_scan_status.as_deref() == Some("clean")))
     }
 
+    // Explicit scope, actor and version fields form this transactional command boundary.
+    #[expect(
+        clippy::too_many_arguments,
+        reason = "explicit transaction scope and command fields"
+    )]
     pub async fn submit_music(
         &self,
         claims: &Claims,

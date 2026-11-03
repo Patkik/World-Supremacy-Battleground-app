@@ -256,11 +256,11 @@ async fn registration_replay_invitation_races_versions_and_approval_lock_barrier
     assert_eq!(usize::from(one.is_ok()) + usize::from(two.is_ok()), 1);
     let (winner, loser, accepted) = match (one, two) {
         (Ok(crew), Err(error)) => {
-            assert_eq!(StatusCode::from(error), StatusCode::CONFLICT);
+            assert_eq!(StatusCode::from(error), StatusCode::FORBIDDEN);
             (dancer_a.clone(), dancer_b.clone(), crew)
         }
         (Err(error), Ok(crew)) => {
-            assert_eq!(StatusCode::from(error), StatusCode::CONFLICT);
+            assert_eq!(StatusCode::from(error), StatusCode::FORBIDDEN);
             (dancer_b.clone(), dancer_a.clone(), crew)
         }
         _ => panic!("one invitation winner"),

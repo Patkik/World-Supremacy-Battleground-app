@@ -834,7 +834,7 @@ async fn durable_route_gate(
                 || (parts.len() == 6
                     && parts[3] == "content"
                     && parts[4] == "drafts"
-                    && parts[5] != "")
+                    && !parts[5].is_empty())
                 || (parts.len() == 7
                     && parts[3] == "content"
                     && parts[4] == "drafts"
