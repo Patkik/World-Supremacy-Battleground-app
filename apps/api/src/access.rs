@@ -26,8 +26,36 @@ pub fn require_membership(
         && member.uid == claims.sub
         && claims.role.as_deref() == Some(&member.role)
         && claims.auth_time >= member.valid_after
+        && member
+            .expires_at
+            .is_none_or(|expiry| expiry > crate::store::now_secs())
     {
         Ok(())
+    } else {
+        Err(StatusCode::FORBIDDEN)
+    }
+}
+
+/// Resolve the actor's current chapter role from server-managed membership state.
+/// Signed token role and chapter claims are intentionally not authorization inputs.
+pub fn current_membership_role(
+    store: &RegistrationStore,
+    claims: &Claims,
+    chapter: &str,
+) -> Result<String, StatusCode> {
+    let member = store
+        .memberships
+        .get(&format!("{chapter}/{}", claims.sub))
+        .ok_or(StatusCode::FORBIDDEN)?;
+    if member.active
+        && member.chapter_id == chapter
+        && member.uid == claims.sub
+        && claims.auth_time >= member.valid_after
+        && member
+            .expires_at
+            .is_none_or(|expiry| expiry > crate::store::now_secs())
+    {
+        Ok(member.role.clone())
     } else {
         Err(StatusCode::FORBIDDEN)
     }

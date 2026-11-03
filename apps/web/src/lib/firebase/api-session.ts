@@ -18,12 +18,16 @@ export async function establishApiSession(user: User, email: string, password: s
   clearLocalSessionUnless();
   const result = await user.getIdTokenResult();
   const chapter = result.claims.chapterId;
-  // Newly registered accounts still need membership approval.
-  if (typeof chapter !== "string" || !chapter) return;
-  const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8088"}/local/session`, {
+  const role = result.claims.role;
+  // New chapter accounts need membership approval; HQ accounts are checked against globalMembers by Rust.
+  if ((typeof chapter !== "string" || !chapter) && role !== "hq_admin") return;
+  const apiOrigin = typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1"
+    ? ""
+    : (process.env.NEXT_PUBLIC_API_URL || "http://localhost:8088");
+  const response = await fetch(`${apiOrigin}/local/session`, {
     method: "POST", cache: "no-store", signal: AbortSignal.timeout(12000),
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, chapter_id: chapter }),
+    body: JSON.stringify({ email, password, ...(typeof chapter === "string" && chapter ? { chapter_id: chapter } : {}) }),
   });
   if (!response.ok) throw new Error("Local test session could not be verified.");
   const session = await response.json() as LocalSession;

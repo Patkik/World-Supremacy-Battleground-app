@@ -69,3 +69,18 @@ test('changed retry payloads and mismatched receipts are preserved for review', 
   await flushOutbox(store, row.owner, async value => ({ ...receipt(value), judge_uid: 'another-judge' }));
   assert.equal((await store.list(row.owner))[0].state, 'conflict');
 });
+test('a null server receipt is held for review rather than retried', async () => {
+  const store = new MemoryStore(); const row = operation(); await queueOperation(store, row);
+  let calls = 0;
+  await flushOutbox(store, row.owner, async () => { calls++; return null; }, 1000);
+  await flushOutbox(store, row.owner, async () => { calls++; return null; }, 100000);
+  const saved = (await store.list(row.owner))[0];
+  assert.equal(calls, 1); assert.equal(saved.state, 'conflict');
+  assert.deepEqual(saved.command, row.command);
+});
+test('invalid retry timing is held for review even when it appears far in the future', async () => {
+  const store = new MemoryStore(); const row = operation(); await queueOperation(store, row);
+  const damaged = (await store.list(row.owner))[0]; damaged.nextAttemptAt = Infinity; await store.put(damaged);
+  await flushOutbox(store, row.owner, async () => { assert.fail('invalid score must not be sent'); }, 1000);
+  assert.equal((await store.list(row.owner))[0].state, 'rejected');
+});

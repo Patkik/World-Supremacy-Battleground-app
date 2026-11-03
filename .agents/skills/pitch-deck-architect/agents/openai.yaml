@@ -1,0 +1,6 @@
+interface:
+  display_name: "Pitch Deck Architect"
+  short_description: "Build pitch decks, speaker scripts, and demo flows"
+  default_prompt: "Use $pitch-deck-architect to create a visual pitch or defense deck with speaker notes and a 90-second demo."
+policy:
+  allow_implicit_invocation: true

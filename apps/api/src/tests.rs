@@ -31,6 +31,7 @@ fn fixture() -> RegistrationStore {
                 role: role.into(),
                 active: true,
                 valid_after: 0,
+                expires_at: None,
             },
         );
     }
@@ -171,6 +172,7 @@ fn authoritative_membership_revocation_role_and_ownership() {
             role: "crew_manager".into(),
             active: true,
             valid_after: 0,
+            expires_at: None,
         },
     );
     assert!(access::require_membership(&store, &manager, "ph").is_ok());
@@ -611,16 +613,54 @@ fn payment_requests_need_staff_reconciliation_and_replays_are_safe() {
         .process_payment("ph", ENTRY, "dev-manager-1", "bank-ref-2")
         .is_err());
     let settled = store
-        .reconcile_payment("ph", &pending.payment_id, true)
+        .reconcile_payment(
+            "ph",
+            &pending.payment_id,
+            true,
+            "finance-approve-one",
+            "finance-1",
+            "Verified against receipt 123",
+        )
         .unwrap();
     assert_eq!(settled.status, PaymentStatus::Settled);
     store
-        .reconcile_payment("ph", &pending.payment_id, true)
+        .reconcile_payment(
+            "ph",
+            &pending.payment_id,
+            true,
+            "finance-approve-one",
+            "finance-1",
+            "Verified against receipt 123",
+        )
         .unwrap();
     assert_eq!(store.entries[ENTRY].paid_minor, 720_000);
-    assert!(store.refund_payment("hk", &pending.payment_id).is_err());
-    store.refund_payment("ph", &pending.payment_id).unwrap();
-    store.refund_payment("ph", &pending.payment_id).unwrap();
+    assert!(store
+        .refund_payment(
+            "hk",
+            &pending.payment_id,
+            "finance-1",
+            "finance-refund-hk",
+            "Wrong chapter attempt"
+        )
+        .is_err());
+    store
+        .refund_payment(
+            "ph",
+            &pending.payment_id,
+            "finance-1",
+            "finance-refund-one",
+            "External reversal confirmed",
+        )
+        .unwrap();
+    store
+        .refund_payment(
+            "ph",
+            &pending.payment_id,
+            "finance-1",
+            "finance-refund-one",
+            "External reversal confirmed",
+        )
+        .unwrap();
     assert_eq!(store.entries[ENTRY].paid_minor, 0);
 }
 
@@ -699,10 +739,24 @@ fn split_payment_reservations_prevent_overallocation_and_changed_references() {
     assert_eq!(quote.pending_amount_minor, 240_000);
     assert_eq!(quote.available_amount_minor, 480_000);
     store
-        .reconcile_payment("ph", &first.payment_id, true)
+        .reconcile_payment(
+            "ph",
+            &first.payment_id,
+            true,
+            "finance-approve-first",
+            "finance-1",
+            "Verified against receipt 124",
+        )
         .unwrap();
     store
-        .reconcile_payment("ph", &second.payment_id, false)
+        .reconcile_payment(
+            "ph",
+            &second.payment_id,
+            false,
+            "finance-reject-second",
+            "finance-1",
+            "Receipt amount did not match",
+        )
         .unwrap();
     let quote = store.get_payment_quote("ph", EVENT, ENTRY).unwrap();
     assert_eq!(quote.paid_amount_minor, 120_000);
@@ -1453,9 +1507,7 @@ async fn adversarial_m2_consent_route_http_matrix() {
         .oneshot(
             axum::http::Request::builder()
                 .method("GET")
-                .uri(format!(
-                    "/v1/chapters/ph/events/{EVENT}/divisions/open-crew/dj-export"
-                ))
+                .uri(format!("/v1/chapters/ph/events/{EVENT}/dj-export"))
                 .body(axum::body::Body::empty())
                 .unwrap(),
         )
@@ -2041,6 +2093,7 @@ async fn test_chapter_battle_http_endpoints_security_matrix() {
             role: "chapter_director".into(),
             active: true,
             valid_after: 0,
+            expires_at: None,
         },
     );
     // Seed dancer membership in ph
@@ -2052,6 +2105,7 @@ async fn test_chapter_battle_http_endpoints_security_matrix() {
             role: "dancer".into(),
             active: true,
             valid_after: 0,
+            expires_at: None,
         },
     );
 
@@ -2149,7 +2203,8 @@ async fn test_chapter_battle_http_endpoints_security_matrix() {
     let body = axum::body::to_bytes(res.into_body(), 64 * 1024)
         .await
         .unwrap();
-    let battles: Vec<serde_json::Value> = serde_json::from_slice(&body).unwrap();
+    let page: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    let battles = page["items"].as_array().unwrap();
     assert!(battles.iter().any(|b| b["match_id"] == "match-101"));
 
     // --- 2. GET /v1/chapters/{chapter}/events/{event}/battles/{match_id} ---
@@ -2744,6 +2799,7 @@ async fn test_paymongo_webhook_http_matrix_and_idempotency() {
                     "type": "checkout_session",
                     "attributes": {
                         "status": "paid",
+                        "livemode": false,
                         "reference_number": payment.payment_id,
                         "payments": [
                             {
@@ -2877,7 +2933,7 @@ async fn test_paymongo_webhook_http_matrix_and_idempotency() {
         .unwrap();
     assert_eq!(res_alias.status(), StatusCode::OK);
 
-    // 7. Refund event -> 200 OK and transitions to Refunded
+    // 7. Refund event -> 503 Service Unavailable (fail-closed gate until provider reconciliation is released)
     let refund_payload = serde_json::json!({
         "data": {
             "id": "evt_ref_98765",
@@ -2887,7 +2943,7 @@ async fn test_paymongo_webhook_http_matrix_and_idempotency() {
                 "livemode": false,
                 "created_at": now + 10,
                 "data": {
-                    "id": "cs_test_session_001",
+                    "id": "pay_test_001",
                     "type": "payment",
                     "attributes": {
                         "amount": 120_000,
@@ -2896,8 +2952,14 @@ async fn test_paymongo_webhook_http_matrix_and_idempotency() {
                         "refunds": [
                             {
                                 "id": "ref_999",
-                                "amount": 120_000,
-                                "status": "succeeded"
+                                "type": "refund",
+                                "attributes": {
+                                    "payment_id": "pay_test_001",
+                                    "amount": 120_000,
+                                    "currency": "PHP",
+                                    "livemode": false,
+                                    "status": "succeeded"
+                                }
                             }
                         ]
                     }
@@ -2927,7 +2989,7 @@ async fn test_paymongo_webhook_http_matrix_and_idempotency() {
         )
         .await
         .unwrap();
-    assert_eq!(res_refund.status(), StatusCode::OK);
+    assert_eq!(res_refund.status(), StatusCode::SERVICE_UNAVAILABLE);
 
     std::env::remove_var("PAYMONGO_WEBHOOK_SECRET");
 }

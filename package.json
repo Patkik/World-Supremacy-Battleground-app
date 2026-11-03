@@ -8,21 +8,30 @@
     "node": ">=24 <25"
   },
   "scripts": {
+    "demo:roles": "node tests/role-demo-browser.cjs",
     "dev": "npm run dev --workspace @wsb/web",
     "build": "npm run build --workspace @wsb/web",
     "typecheck": "npm run typecheck --workspace @wsb/web",
     "emulators": "firebase emulators:start --project demo-wsb",
     "test:rules": "firebase emulators:exec --project demo-wsb --only firestore \"node --test tests/firestore.test.mjs\"",
     "test:storage-rules": "firebase emulators:exec --project demo-wsb --only firestore,storage \"node --test tests/storage.test.mjs\"",
+    "test:music-storage-sdk": "node tests/music-storage-sdk-integration.cjs",
+    "test:music-policy": "node tests/music-policy-integration.cjs",
+    "test:music-workflow": "node tests/music-workflow-integration.cjs",
+    "test:content-integrity": "node tests/content-integrity.cjs",
     "test:verification-browser": "node tests/verification-browser.cjs",
     "test:applications-browser": "node tests/applications-browser.cjs",
     "test:outbox": "node --test tests/judging-outbox.test.cjs",
     "test:browser-connected": "node tests/connected-browser.cjs",
+    "test:audit-browser": "node tests/audit-browser.cjs",
+    "measure:public-performance": "node tools/run-public-performance.cjs",
     "test:identity": "firebase emulators:exec --project demo-wsb --only auth \"node tests/identity-browser.cjs\"",
     "test:persistence": "node tests/run-persistence-emulator.cjs"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
     "@firebase/rules-unit-testing": "6.0.0",
-    "firebase-tools": "15.34.2"
+    "firebase-tools": "15.34.2",
+    "playwright": "1.60.0"
   }
 }

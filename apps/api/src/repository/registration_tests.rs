@@ -25,6 +25,7 @@ async fn member(
                             role,
                             active,
                             valid_after: 0,
+                            expires_at: None,
                         },
                     )?;
                     Ok(())
@@ -569,8 +570,15 @@ async fn registration_replay_invitation_races_versions_and_approval_lock_barrier
         .await,
         StatusCode::CONFLICT,
     );
-    a.reconcile_payment(&finance, &chapter, &payment.payment_id, true)
-        .await?;
+    a.reconcile_payment(
+        &finance,
+        &chapter,
+        &payment.payment_id,
+        true,
+        "registration-settle",
+        "Receipt checked",
+    )
+    .await?;
     // Server-only synthetic audio fixture. There is no client duration/consent bypass.
     let input = (chapter.clone(), event.clone(), entry.id.clone());
     a.db.run_transaction(|db, tx| {
@@ -719,6 +727,17 @@ async fn registration_replay_invitation_races_versions_and_approval_lock_barrier
         let (chapter, event, late) = input.clone();
         Box::pin(async move {
             async {
+                let mut late_crew =
+                    crate::store::RegistrationStore::new().crews["crew-afterhours"].clone();
+                late_crew.id = late.crew_id.clone();
+                late_crew.chapter_id = chapter.clone();
+                late_crew.manager_uid = "manager".into();
+                put(
+                    &db,
+                    tx,
+                    &format!("chapters/{chapter}/crews/{}", late_crew.id),
+                    &late_crew,
+                )?;
                 put(
                     &db,
                     tx,

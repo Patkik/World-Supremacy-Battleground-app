@@ -90,6 +90,8 @@ impl FirestoreRepository {
                             reviewed_at: None,
                             reviewer_uid: None,
                             reviewer_note: None,
+                            malware_scan_status: None,
+                            file_sha256: None,
                         };
                         put(&db, tx, &case_path(&chapter, &case_id)?, &value)?;
                         put(&db, tx, &intent_path, &CreateIntent { purpose, case_id })?;
@@ -193,10 +195,13 @@ impl FirestoreRepository {
         case_id: &str,
         content_type: &str,
         size_bytes: u64,
+        file_sha256: &str,
     ) -> Result<VerificationCase> {
         if !matches!(content_type, "application/pdf" | "image/jpeg" | "image/png")
             || size_bytes == 0
             || size_bytes > 10 * 1024 * 1024
+            || file_sha256.len() != 64
+            || !file_sha256.bytes().all(|byte| byte.is_ascii_hexdigit())
         {
             return Err(invalid("Unsupported or oversized verification document"));
         }
@@ -206,10 +211,12 @@ impl FirestoreRepository {
             case_id.to_owned(),
             content_type.to_owned(),
             size_bytes,
+            file_sha256.to_owned(),
         );
         self.db
             .run_transaction(|db, tx| {
-                let (claims, chapter, case_id, content_type, size_bytes) = input.clone();
+                let (claims, chapter, case_id, content_type, size_bytes, file_sha256) =
+                    input.clone();
                 Box::pin(async move {
                     async {
                         membership(&db, &claims, &chapter).await?;
@@ -224,6 +231,8 @@ impl FirestoreRepository {
                         if value.status == VerificationStatus::Pending
                             && value.content_type.as_deref() == Some(&content_type)
                             && value.size_bytes == Some(size_bytes)
+                            && value.file_sha256.as_deref() == Some(&file_sha256)
+                            && value.malware_scan_status.as_deref() == Some("clean")
                         {
                             return Ok(value);
                         }
@@ -233,6 +242,8 @@ impl FirestoreRepository {
                         value.status = VerificationStatus::Pending;
                         value.content_type = Some(content_type);
                         value.size_bytes = Some(size_bytes);
+                        value.file_sha256 = Some(file_sha256);
+                        value.malware_scan_status = Some("clean".into());
                         value.submitted_at = Some(now_secs());
                         put(&db, tx, &case_path(&chapter, &case_id)?, &value)?;
                         audit(
@@ -283,7 +294,9 @@ impl FirestoreRepository {
                         .await?;
                         result.items.retain(|value| {
                             value.chapter_id == chapter
-                                && (is_reviewer(&claims) || value.dancer_uid == claims.sub)
+                                && (is_reviewer(&claims)
+                                    && value.malware_scan_status.as_deref() == Some("clean")
+                                    || value.dancer_uid == claims.sub)
                         });
                         Ok(result)
                     }
@@ -356,10 +369,32 @@ impl FirestoreRepository {
                         if value.status != VerificationStatus::Pending {
                             return Err(conflict("Only submitted verification can be reviewed"));
                         }
+                        if value.malware_scan_status.as_deref() != Some("clean")
+                            || value.file_sha256.as_ref().is_none_or(|digest| {
+                                digest.len() != 64
+                                    || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+                            })
+                        {
+                            return Err(conflict(
+                                "Verification file has not passed a current scan",
+                            ));
+                        }
                         value.status = status.clone();
                         value.reviewed_at = Some(now_secs());
                         value.reviewer_uid = Some(claims.sub.clone());
                         value.reviewer_note = note.clone();
+                        super::notifications::enqueue(
+                            &db,
+                            tx,
+                            &chapter,
+                            &value.dancer_uid,
+                            key(&["verification-reviewed", &case_id]),
+                            "verification_reviewed",
+                            "Verification review updated",
+                            "Your verification review has an update. Open your verification workspace to see it.",
+                            "/app/verification",
+                        )
+                        .await?;
                         put(&db, tx, &case_path(&chapter, &case_id)?, &value)?;
                         put(
                             &db,

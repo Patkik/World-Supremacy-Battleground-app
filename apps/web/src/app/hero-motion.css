@@ -6,7 +6,7 @@
 .hero-player{position:absolute;inset:0;opacity:0;transition:opacity .75s;pointer-events:none;z-index:1}
 .hero-player iframe{position:absolute;inset:0;width:100%;height:100%;border:0;min-height:200px}
 .hero-highlights.is-playing .hero-player{opacity:1}.hero-highlights.is-playing .highlights-poster{opacity:0}
-.motion-tape{overflow:hidden;background:var(--accent-volt);color:var(--bg-obsidian);padding:17px 0;border-block:1px solid var(--accent-volt);margin-top:8px}
+.motion-tape{overflow:clip;background:var(--accent-volt);color:var(--bg-obsidian);padding:17px 0;border-block:1px solid var(--accent-volt);margin-top:8px}
 .motion-tape-track{display:flex;width:max-content;animation:wsb-tape 25s linear infinite;will-change:transform}
 .motion-tape-group{display:flex;align-items:center;gap:50px;padding-right:50px;flex-shrink:0;font-family:var(--font-display);font-size:clamp(18px,2.4vw,34px);line-height:1.2;letter-spacing:-.04em}
 .motion-tape-group i{font-style:normal;font-size:27px;font-family:var(--font-sans);line-height:1}
@@ -26,3 +26,35 @@
 html[data-theme="dark"] .brand-mark-white{background:transparent;filter:brightness(0) invert(1)}
 
 .hero-player iframe{pointer-events:none!important}.hero-video-surface{position:absolute;inset:0;z-index:3;pointer-events:auto;cursor:default;user-select:none}
+
+/* Conversion content shares the campaign's type and accessible surfaces. */
+.hero .landing-reassurance{font-size:12px;line-height:1.6;color:var(--text-titanium);margin-top:16px;max-width:36ch}
+.hero h1{font-size:clamp(38px,6.8vw,108px)}
+.landing-proof{display:grid;grid-template-columns:1fr 1fr;gap:48px;border-block:1px solid var(--border-subtle);padding-block:40px}
+.landing-proof h2{font-size:clamp(26px,3vw,42px);line-height:1.1}
+.landing-proof p:not(.eyebrow){color:var(--text-titanium);line-height:1.8;max-width:60ch}
+.landing-proof-links{display:flex;flex-wrap:wrap;gap:12px 28px;margin-top:16px}
+.landing-proof-links a,.landing-final-secondary{display:inline-flex;align-items:center;min-height:44px}
+.landing-details{margin-top:16px;color:var(--text-titanium);font-size:14px}
+.landing-details summary{min-height:44px;align-content:center;cursor:pointer;color:var(--text-chrome)}
+.landing-details p{margin-bottom:12px}
+.landing-faq .faq{padding:0}.landing-faq details{border-bottom:1px solid var(--border-subtle);padding:16px 0}
+.landing-faq summary{min-height:44px;align-content:center;line-height:1.6}
+.landing-faq .faq p{margin:12px 0 16px}.landing-faq .faq p a{text-decoration:underline;text-underline-offset:4px}
+.final-cta .landing-final-secondary{color:var(--bg-obsidian);text-decoration:underline;text-underline-offset:5px;font-size:14px;gap:12px}
+.final-cta .landing-reassurance{margin-top:20px;color:var(--bg-obsidian);font-size:12px}
+@media(max-width:767px){.hero h1{font-size:clamp(30px,8.3vw,62px)}.landing-proof{grid-template-columns:1fr;gap:22px}.landing-proof-links{flex-direction:column;align-items:start}.landing-faq summary{font-size:16px}.landing-final-actions{flex-direction:column;align-items:center}}
+
+.entry-walkthrough{margin-top:28px;border:1px solid var(--border-subtle);background:var(--bg-carbon);max-width:520px}
+.walkthrough-caption{padding:16px 20px;color:var(--text-titanium);font-size:12px;line-height:1.5}
+.walkthrough-controls{display:flex;border-block:1px solid var(--border-subtle)}
+.walkthrough-controls button{flex:1;min-height:48px;padding:12px 8px;background:transparent;color:var(--text-chrome);border:0;font:inherit;font-size:14px;cursor:pointer}
+.walkthrough-controls button[aria-pressed=true]{background:var(--accent-volt);color:var(--bg-obsidian);font-weight:600}
+.walkthrough-panel{padding:24px 20px;min-height:420px}
+.walkthrough-panel h3{font-family:var(--font-sans);font-size:20px;line-height:1.3;letter-spacing:-.02em}
+.walkthrough-panel>p{font-size:14px;line-height:1.7;color:var(--text-titanium);margin-top:12px}
+.walkthrough-panel dl{margin-top:24px;font-size:13px}
+.walkthrough-panel dl>div{display:flex;justify-content:space-between;gap:16px;padding:12px 0;border-top:1px solid var(--border-subtle)}
+.walkthrough-panel dt{color:var(--text-titanium)}.walkthrough-panel dd{text-align:right;max-width:55%;margin:0}
+.landing-journey{column-gap:6%}
+@media(max-width:767px){.walkthrough-panel{min-height:460px}.landing-proof{padding-block:28px}.landing-faq{padding-top:48px}}

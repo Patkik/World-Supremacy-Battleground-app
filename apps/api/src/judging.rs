@@ -246,9 +246,36 @@ pub async fn assigned_lineup(
 
 #[derive(serde::Deserialize)]
 pub struct DeductionPayload {
+    pub operation_id: Option<String>,
     pub crew_id: String,
     pub expected_revision: u64,
     pub deductions: Vec<crate::domain::Deduction>,
+}
+
+pub async fn division_review(
+    State(state): State<AppState>,
+    Path((chapter, event, division)): Path<(String, String, String)>,
+    axum::extract::Query(query): axum::extract::Query<crate::registration::PageQuery>,
+    headers: HeaderMap,
+) -> Result<Json<Value>, StatusCode> {
+    let claims = authenticate(&state, &headers, &chapter).await?;
+    #[cfg(feature = "firestore")]
+    if let Some(repository) = &state.durable {
+        return repository
+            .division_review(
+                &claims,
+                &chapter,
+                &event,
+                &division,
+                query.cursor,
+                query.limit.unwrap_or(30),
+            )
+            .await
+            .map(Json)
+            .map_err(StatusCode::from);
+    }
+    let _ = (claims, event, division, query);
+    Err(StatusCode::NOT_IMPLEMENTED)
 }
 
 pub async fn set_deductions(
@@ -260,20 +287,22 @@ pub async fn set_deductions(
     let claims = authenticate(&state, &headers, &chapter).await?;
     #[cfg(feature = "firestore")]
     if let Some(repository) = &state.durable {
-        let revision = repository
-            .set_deductions(
-                &claims,
-                &chapter,
-                &event,
-                crate::repository::DeductionUpdate {
-                    division_id: division.clone(),
-                    crew_id: payload.crew_id.clone(),
-                    expected_revision: payload.expected_revision,
-                    deductions: payload.deductions.clone(),
-                },
-            )
-            .await
-            .map_err(StatusCode::from)?;
+        let command = crate::repository::DeductionUpdate {
+            division_id: division.clone(),
+            crew_id: payload.crew_id.clone(),
+            expected_revision: payload.expected_revision,
+            deductions: payload.deductions.clone(),
+        };
+        let revision = if let Some(operation) = payload.operation_id.as_deref() {
+            repository
+                .set_deductions_with_operation(&claims, &chapter, &event, command, operation)
+                .await
+        } else {
+            repository
+                .set_deductions(&claims, &chapter, &event, command)
+                .await
+        }
+        .map_err(StatusCode::from)?;
         return Ok(Json(json!({"revision":revision})));
     }
     access::require_role(&claims, &["head_judge"])?;

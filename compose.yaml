@@ -25,6 +25,7 @@ services:
       - "127.0.0.1:${WSB_FIRESTORE_WS_PORT:-9288}:${WSB_FIRESTORE_WS_PORT:-9288}"
     volumes:
       - firebase-data:/data
+      - ./infra/firebase:/workspace/infra/firebase:ro
     healthcheck:
       test: [CMD, node, /workspace/infra/docker/health.cjs, firebase]
       interval: 5s
@@ -33,6 +34,26 @@ services:
       start_period: 30s
     stop_grace_period: 45s
     mem_limit: 1536m
+
+  clamav:
+    image: clamav/clamav:1.5.4-debian13-slim
+    restart: unless-stopped
+    environment:
+      CLAMD_STARTUP_TIMEOUT: "1800"
+      CLAMD_CONF_StreamMaxLength: 32M
+      CLAMD_CONF_MaxFileSize: 32M
+      CLAMD_CONF_MaxScanSize: 128M
+    volumes:
+      - clamav-data:/var/lib/clamav
+    networks: [media-scan]
+    # clamd is deliberately not published to the host.
+    mem_limit: 4g
+    healthcheck:
+      test: [CMD, /usr/local/bin/clamdcheck.sh]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 6m
 
   paymongo-emulator:
     image: node:24-bookworm-slim@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c
@@ -71,6 +92,7 @@ services:
     volumes:
       - local-identity:/local-identity
       - ./infra/docker/seed.cjs:/workspace/infra/docker/seed.cjs:ro
+      - ./infra/docker/test-local.cjs:/workspace/infra/docker/test-local.cjs:ro
     restart: "no"
 
   api:
@@ -80,6 +102,9 @@ services:
     depends_on:
       seed:
         condition: service_completed_successfully
+      clamav:
+        condition: service_healthy
+    networks: [default, media-scan]
     environment:
       FIREBASE_PROJECT_ID: demo-wsb
       FIREBASE_STORAGE_BUCKET: demo-wsb.appspot.com
@@ -87,6 +112,7 @@ services:
       FIRESTORE_EMULATOR_HOST: firebase:${WSB_FIRESTORE_PORT:-8188}
       FIREBASE_AUTH_EMULATOR_HOST: firebase:${WSB_AUTH_PORT:-9099}
       WSB_STORAGE: firestore
+      WSB_CLAMD_ADDRESS: clamav:3310
       WSB_LOCAL_TESTING: "true"
       WSB_PAYMONGO_LOCAL_SECRET: ${WSB_PAYMONGO_LOCAL_SECRET:?Run tools/local.ps1 up}
       WSB_LOCAL_KEY_DIR: /local-identity
@@ -137,6 +163,14 @@ services:
       NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT: ${WSB_FIRESTORE_PORT:-8188}
       NEXT_PUBLIC_STORAGE_EMULATOR_HOST: localhost
       NEXT_PUBLIC_STORAGE_EMULATOR_PORT: ${WSB_STORAGE_PORT:-9199}
+      FIREBASE_AUTH_EMULATOR_HOST: firebase:${WSB_AUTH_PORT:-9099}
+      WEB_ORIGIN: http://localhost:${WSB_WEB_PORT:-3100}
+      WSB_SMTP_HOST: ${WSB_SMTP_HOST:-}
+      WSB_SMTP_PORT: ${WSB_SMTP_PORT:-}
+      WSB_SMTP_USER: ${WSB_SMTP_USER:-}
+      WSB_SMTP_PASS: ${WSB_SMTP_PASS:-}
+      WSB_SMTP_FROM: ${WSB_SMTP_FROM:-}
+      INTERNAL_API_URL: http://api:8088
     ports:
       - "127.0.0.1:${WSB_WEB_PORT:-3100}:3000"
     volumes:
@@ -150,7 +184,28 @@ services:
       retries: 30
       start_period: 30s
 
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    profiles:
+      - tunnel
+      - ngrok
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+      NGROK_DOMAIN: ${NGROK_DOMAIN:-backless-cuddle-endowment.ngrok-free.dev}
+    command:
+      - "http"
+      - "web:3000"
+      - "--url=https://${NGROK_DOMAIN:-backless-cuddle-endowment.ngrok-free.dev}"
+      - "--log=stdout"
+    ports:
+      - "127.0.0.1:4040:4040"
+
 volumes:
+  clamav-data:
   paymongo-data:
   firebase-data:
   local-identity:
@@ -161,3 +216,7 @@ volumes:
     name: wsb-cargo-registry
   rustup:
     name: wsb-rustup
+
+networks:
+  default: {}
+  media-scan:

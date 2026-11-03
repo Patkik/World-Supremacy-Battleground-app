@@ -1,4 +1,10 @@
 import Link from "next/link";
 import {PageHeading,Arrow} from "./ui";
 import {WSB} from "@/lib/public-content";
-export function ChapterDirectory(){return <main id="main-content" className="section-wrap"><PageHeading eyebrow="A worldwide movement" title="Local roots. Global stages." description="Explore the regions represented in the WSB community and send a partnership proposal to a chapter team."/><div className="chapter-list">{[["Philippines","ph"],["Australia","au"],["New Zealand","nz"],["South Africa","za"]].map(([name,id])=><div className="chapter-directory-row" id={id} key={id}><span className="mono">{id.toUpperCase()}</span><div><h2>{name}</h2><p>Share a local chapter proposal with a regional WSB team.</p></div><Link href="/community/apply?type=chapter" className="text-link">Propose a partnership <Arrow/></Link></div>)}</div><Link href="/community/apply?type=chapter" className="text-link spaced-link">Propose a WSB chapter partnership <Arrow/></Link><a href={WSB.countries} className="text-link spaced-link" rel="noreferrer">Official country directory (reference) <Arrow diagonal/></a></main>}
+export function ChapterDirectory(){return <main id="main-content" className="section-wrap">
+  <PageHeading eyebrow="World Supremacy Battlegrounds" title="Find your WSB chapter" description="Use WSB’s official country directory for current listings. This site does not yet maintain a verified chapter directory."/>
+  <div className="chapter-list">
+    <div className="chapter-directory-row"><span className="mono" aria-hidden="true">↗</span><div><h2>Official country directory</h2><p>Open the organization’s current chapter and country reference.</p></div><a href={WSB.countries} className="text-link" rel="noreferrer">Visit WSB directory <Arrow diagonal/></a></div>
+    <div className="chapter-directory-row"><span className="mono" aria-hidden="true">WSB</span><div><h2>Propose a chapter partnership</h2><p>Send a private proposal through the WSB-owned intake form.</p></div><Link href="/community/apply?type=chapter" className="text-link">Start a proposal <Arrow/></Link></div>
+  </div>
+</main>}

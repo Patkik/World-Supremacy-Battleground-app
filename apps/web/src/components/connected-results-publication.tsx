@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { useAccount } from "@/lib/account";
+import { useWorkspaceSession } from "@/lib/account";
+import { resolveApiBase } from "@/lib/api";
 import { connectedPage, connectedRequest, segment } from "@/lib/connected-api";
 import { Arrow, Button, PageHeading, Status } from "./ui";
 
@@ -20,14 +21,33 @@ type Division = {
 
 type PublishedSnapshot = {
   publication_id: string;
+  chapter_id: string;
+  event_id: string;
   division_id: string;
   published_at: number;
   digest: string;
-  results: { entry_id: string; crew_id: string; final_score: number; rank: number }[];
+  results: { entry_id: string; crew_id: string; raw_average: number; total_deductions: number; final_score: number; rank: number }[];
 };
 
 function publicationConflictMessage() {
   return "Publication did not complete. Check the division lock, panel scores, unresolved ties, and public event ID before retrying.";
+}
+
+function validPublicationCollection(value: unknown, chapterId: string, eventId: string): value is PublishedSnapshot[] {
+  if (!Array.isArray(value) || value.some(item => item.event_id !== eventId || item.chapter_id !== chapterId || typeof item.publication_id !== "string" || !item.publication_id || typeof item.division_id !== "string" || !item.division_id || typeof item.digest !== "string" || !/^[a-f0-9]{64}$/i.test(item.digest) || !Number.isSafeInteger(item.published_at) || !Array.isArray(item.results) || item.results.some((result: PublishedSnapshot["results"][number]) => !result || typeof result.entry_id !== "string" || !result.entry_id || typeof result.crew_id !== "string" || !result.crew_id || ![result.final_score, result.raw_average, result.total_deductions].every(Number.isFinite) || result.raw_average < 0 || result.raw_average > 100 || result.total_deductions < 0 || result.final_score < 0 || result.final_score > 100 || !Number.isSafeInteger(result.rank) || result.rank < 1))) return false;
+  const divisions = new Set<string>();
+  const publicationIds = new Set<string>();
+  const entryIds = new Set<string>();
+  for (const item of value) {
+    if (divisions.has(item.division_id) || publicationIds.has(item.publication_id)) return false;
+    divisions.add(item.division_id);
+    publicationIds.add(item.publication_id);
+    for (const result of item.results) {
+      if (entryIds.has(result.entry_id)) return false;
+      entryIds.add(result.entry_id);
+    }
+  }
+  return true;
 }
 
 export function ConnectedResultsPublication({
@@ -37,7 +57,14 @@ export function ConnectedResultsPublication({
   chapterId: string;
   eventId: string;
 }) {
-  const { user, loading, error: accountError } = useAccount();
+  const { session, loading, error: accountError } = useWorkspaceSession(chapterId);
+  if (loading) return <main id="main-content" className="section-wrap space-y-8"><PageHeading title="Results publication" description="Check current chapter access before reviewing publication status."/><p role="status">Checking your chapter access…</p></main>;
+  if (!session) return <main id="main-content" className="section-wrap space-y-8"><PageHeading title="Results publication" description="Review locked event divisions and publish results."/><p role="alert" className="form-error">{accountError || "Sign in with an authorized chapter account to continue."}</p></main>;
+  if (session.chapter_id !== chapterId || !["head_judge", "chapter_director"].includes(session.role)) return <main id="main-content" className="section-wrap space-y-8"><PageHeading title="Results publication" description="Review locked event divisions and publish results."/><p role="alert" className="form-error">An active head judge or chapter director membership is required for this chapter.</p></main>;
+  return <PublicationWorkspace key={`${session.uid}:${chapterId}:${eventId}`} chapterId={chapterId} eventId={eventId} uid={session.uid}/>;
+}
+
+function PublicationWorkspace({ chapterId, eventId, uid }: { chapterId: string; eventId: string; uid: string }) {
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [snapshots, setSnapshots] = useState<PublishedSnapshot[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -50,13 +77,13 @@ export function ConnectedResultsPublication({
 
   const base = `/v1/chapters/${segment(chapterId)}/events/${segment(eventId)}`;
   const load = useCallback(async (nextCursor?: string | null) => {
-    if (!user) return;
+    if (!uid) return;
     setBusy(true);
     setError("");
     try {
       const [divisionPage, published] = await Promise.all([
-        connectedPage<Division>(`${base}/division-status`, nextCursor),
-        fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8088"}/v1/events/${segment(eventId)}/published`, {
+        connectedPage<Division>(`${base}/division-status`, nextCursor, uid),
+        fetch(`${resolveApiBase()}/v1/events/${segment(eventId)}/published`, {
           cache: "no-store",
           signal: AbortSignal.timeout(8000),
         }).then(async response => {
@@ -64,6 +91,8 @@ export function ConnectedResultsPublication({
           return response.json() as Promise<PublishedSnapshot[]>;
         }),
       ]);
+      if (!Array.isArray(divisionPage.items) || divisionPage.items.some(item => typeof item.id !== "string" || !item.id || typeof item.name !== "string" || typeof item.locked !== "boolean" || (item.publication_id !== null && typeof item.publication_id !== "string") || !Number.isSafeInteger(item.approved_entries) || item.approved_entries < 0 || !Number.isSafeInteger(item.unready_entries) || item.unready_entries < 0) || (divisionPage.next_page !== null && typeof divisionPage.next_page !== "string")) throw new Error("Division publication status could not be verified for this event.");
+      if (!validPublicationCollection(published, chapterId, eventId)) throw new Error("Published result receipts could not be verified for this event and chapter.");
       setDivisions(current => nextCursor ? [...current, ...divisionPage.items] : divisionPage.items);
       setSnapshots(published);
       setCursor(divisionPage.next_page);
@@ -76,12 +105,12 @@ export function ConnectedResultsPublication({
     } finally {
       setBusy(false);
     }
-  }, [base, eventId, user]);
+  }, [base, eventId, uid]);
 
   useEffect(() => {
-    if (!user) return;
+    if (!uid) return;
     void load();
-  }, [user, load]);
+  }, [uid, load]);
 
   useEffect(() => {
     const update = () => setOnline(navigator.onLine);
@@ -96,13 +125,14 @@ export function ConnectedResultsPublication({
 
   const snapshotByDivision = new Map(snapshots.map(snapshot => [snapshot.division_id, snapshot]));
   async function publish(division: Division) {
-    if (!user || busy || !online || !division.locked || division.publication_id) return;
+    if (!uid || busy || !online || !division.locked || division.publication_id) return;
     setBusy(true);
     setBusyId(division.id);
     setError("");
     setNotice("");
     try {
-      const snapshot = await connectedRequest<PublishedSnapshot>(`${base}/divisions/${segment(division.id)}/publish`, {});
+      const snapshot = await connectedRequest<PublishedSnapshot>(`${base}/divisions/${segment(division.id)}/publish`, {}, "POST", uid);
+      if (!validPublicationCollection([snapshot], chapterId, eventId) || snapshot.division_id !== division.id) throw new Error("The publication receipt could not be verified for this chapter, event and division.");
       setSnapshots(current => [...current.filter(item => item.division_id !== division.id), snapshot]);
       setDivisions(current => current.map(item => item.id === division.id
         ? { ...item, publication_id: snapshot.publication_id }
@@ -142,17 +172,11 @@ export function ConnectedResultsPublication({
         </Link>
       </div>
 
-      {accountError && <p className="form-error" role="alert">{accountError}</p>}
       {error && <div className="form-error" role="alert">{error}</div>}
       {notice && <p className="info-note" role="status">{notice}</p>}
       {!online && <p className="info-note" role="status">You are offline. Publication and refresh need a connection; saved results remain unchanged.</p>}
 
-      {loading ? <p role="status">Checking your account…</p> : !user ? (
-        <div className="panel p-6 space-y-4">
-          <p>Sign in with an authorized head judge or chapter director account to review publication status.</p>
-          <Link href={`/sign-in?returnTo=${encodeURIComponent(`/admin/${chapterId}/events/${eventId}/results`)}`} className="button button-volt">Sign in</Link>
-        </div>
-      ) : (
+      {(
         <>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {[

@@ -1,15 +1,21 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
-import { useWorkspaceSession } from "@/lib/account";
-import { connectedRequest, segment } from "@/lib/connected-api";
+import { useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
+import { selectedChapterFor, useWorkspaceSession } from "@/lib/account";
+import { ApiError, connectedRequest, segment } from "@/lib/connected-api";
 import type { PaymentQuote, PaymentRecord } from "@/lib/api";
+import { firebaseClient } from "@/lib/firebase/client";
+import { currencyMinorDigits, formatMinorCurrency, parseMajorCurrencyAmount } from "@/lib/money";
 import { LocalPaymongoCheckout } from "./local-paymongo-checkout";
 import { PageHeading } from "./ui";
 
 export function ConnectedCheckout({ entryId, eventId }: { entryId: string; eventId: string | null }) {
   const { session, loading, error: sessionError } = useWorkspaceSession();
   const scope = session && eventId ? JSON.stringify([session.uid, session.chapter_id, eventId, entryId]) : "";
+  const actionGeneration = useRef(0);
+  const priorScope = useRef(scope);
+  const renderedScope = useRef(scope);
+  renderedScope.current = scope;
   const [refreshVersion, setRefreshVersion] = useState(0);
   const [quoteState, setQuote] = useState<{ scope: string; value: PaymentQuote } | null>(null);
   const quote = scope && quoteState?.scope === scope ? quoteState.value : null;
@@ -21,6 +27,46 @@ export function ConnectedCheckout({ entryId, eventId }: { entryId: string; event
   const [error, setError] = useState("");
   const [paymentState, setPayment] = useState<{ scope: string; value: PaymentRecord } | null>(null);
   const payment = scope && paymentState?.scope === scope ? paymentState.value : null;
+
+  function scopeIsCurrent(expectedScope: string, expectedUid: string, expectedChapter: string) {
+    if (priorScope.current !== expectedScope || renderedScope.current !== expectedScope) return false;
+    if (firebaseClient().auth.currentUser?.uid !== expectedUid) return false;
+    const selected = selectedChapterFor(expectedUid);
+    return !selected || selected === expectedChapter;
+  }
+
+  useLayoutEffect(() => {
+    if (priorScope.current === scope) return;
+    priorScope.current = scope;
+    ++actionGeneration.current;
+    setBusy(false); setOnlineBusy(false); setError(""); setOnlineNotice("");
+    setAmount(""); setReference(""); setPayment(null);
+  }, [scope]);
+
+  function checkoutKind(urlValue: unknown, sessionId: unknown): "provider" | "local" {
+    if (typeof sessionId !== "string" || !/^cs_[A-Za-z0-9_-]{1,125}$/.test(sessionId) || typeof urlValue !== "string") {
+      throw new ApiError(502, "The checkout response was incomplete. The reservation remains pending; retry the same amount or contact finance.");
+    }
+    let url: URL;
+    try { url = new URL(urlValue); }
+    catch { throw new ApiError(502, "The checkout response did not contain a valid payment URL."); }
+    if (url.origin !== "https://checkout.paymongo.com" || url.username || url.password) {
+      throw new ApiError(502, "The checkout response did not contain an approved payment URL.");
+    }
+    if (url.pathname === "/local" && url.searchParams.get("session") === sessionId && !url.hash) return "local";
+    if (/^\/cs_[A-Za-z0-9_-]{1,200}$/.test(url.pathname) && !!url.hash) return "provider";
+    throw new ApiError(502, "The checkout URL did not match the saved session. The reservation remains pending; retry the same amount or contact finance.");
+  }
+
+  function checkoutError(reason: unknown) {
+    if (reason instanceof ApiError && reason.status === 409) {
+      return "This checkout is already reserved or needs reconciliation. Do not start another payment. Refresh your payment status, then contact chapter finance if the reservation remains unresolved.";
+    }
+    if (reason instanceof ApiError && (reason.status === 502 || reason.status === 503)) {
+      return "The checkout result could not be confirmed. Your reservation may still be pending. Retry only with the same amount so the saved operation can be recovered; contact chapter finance if it remains unresolved.";
+    }
+    return reason instanceof Error ? reason.message : "PayMongo checkout unavailable.";
+  }
 
   useEffect(() => {
     if (!session || !eventId) return;
@@ -50,21 +96,14 @@ export function ConnectedCheckout({ entryId, eventId }: { entryId: string; event
   const balanceKnown = Number.isSafeInteger(available) && available! >= 0;
 
   function parseRequestedAmount(): number | undefined {
-    if (!amount.trim()) return undefined;
-    if (!/^(0|[1-9]\d*)(\.\d{1,2})?$/.test(amount.trim())) {
-      throw new Error("Enter an amount with up to two decimal places.");
-    }
-    const [whole, fraction = ""] = amount.trim().split(".");
-    const requested = Number(whole) * 100 + Number(fraction.padEnd(2, "0"));
-    if (!Number.isSafeInteger(requested) || requested <= 0) {
-      throw new Error("Enter a valid positive payment amount.");
-    }
-    return requested;
+    if (!quote) return undefined;
+    return parseMajorCurrencyAmount(amount, quote.currency);
   }
 
   async function submit(event: FormEvent) {
     event.preventDefault();
-    if (!session || !eventId || !balanceKnown || available === 0) return;
+    if (!session || !eventId || !balanceKnown || available === 0 || !scopeIsCurrent(scope, session.uid, session.chapter_id)) return;
+    const generation = actionGeneration.current;
     setBusy(true);
     setError("");
     try {
@@ -75,42 +114,78 @@ export function ConnectedCheckout({ entryId, eventId }: { entryId: string; event
         "POST",
         session.uid
       );
+      if (generation !== actionGeneration.current || !scopeIsCurrent(scope, session.uid, session.chapter_id)) return;
       setPayment({ scope, value });
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Unable to submit payment reference.");
+      if (generation === actionGeneration.current && scopeIsCurrent(scope, session.uid, session.chapter_id)) setError(reason instanceof Error ? reason.message : "Unable to submit payment reference.");
     } finally {
-      setBusy(false);
+      if (generation === actionGeneration.current && scopeIsCurrent(scope, session.uid, session.chapter_id)) setBusy(false);
     }
   }
 
   async function startOnlinePaymongo() {
-    if (!session || !eventId || !balanceKnown || available === 0) return;
+    if (!session || !eventId || !balanceKnown || available === 0 || !scopeIsCurrent(scope, session.uid, session.chapter_id)) return;
+    const generation = actionGeneration.current;
     setOnlineBusy(true);
     setError("");
     setOnlineNotice("");
     try {
       const requestedAmount = parseRequestedAmount();
-      const opId = crypto.randomUUID();
+      const opKey = [
+        "wsb.checkout.operation.v1",
+        session.uid,
+        session.chapter_id,
+        eventId,
+        entryId,
+        requestedAmount ?? "remaining",
+      ].join(":");
+      let opId: string | null = null;
+      try {
+        opId = sessionStorage.getItem(opKey);
+      } catch {
+        // Continue with an in-memory operation ID when browser storage is disabled.
+      }
+      if (!opId) {
+        opId = crypto.randomUUID();
+        try {
+          sessionStorage.setItem(opKey, opId);
+        } catch {
+          // A transient request failure can only be retried in this page session.
+        }
+      }
       const res = await connectedRequest<{
         checkout_url?: string;
         session_id?: string;
         reference_number?: string;
+        amount_minor?: number;
+        currency?: string;
       }>(
         `/v1/chapters/${segment(session.chapter_id)}/events/${segment(eventId)}/entries/${segment(entryId)}/paymongo/checkout`,
         { operation_id: opId, amount_minor: requestedAmount },
         "POST",
         session.uid
       );
-      if (res.checkout_url && !res.checkout_url.includes("/local")) {
-        window.location.href = res.checkout_url;
+      if (generation !== actionGeneration.current || !scopeIsCurrent(scope, session.uid, session.chapter_id)) return;
+      const kind = checkoutKind(res.checkout_url, res.session_id);
+      const expectedAmount = requestedAmount ?? available;
+      if (!Number.isSafeInteger(expectedAmount) || res.amount_minor !== expectedAmount || res.currency !== quote?.currency || typeof res.reference_number !== "string" || !res.reference_number) {
+        throw new ApiError(502, "The checkout response did not match the reserved amount and currency. The reservation remains pending; retry the same amount or contact finance.");
+      }
+      try {
+        sessionStorage.removeItem(opKey);
+      } catch {
+        // The successful server response is authoritative even if cleanup fails.
+      }
+      if (kind === "provider") {
+        window.location.href = res.checkout_url!;
       } else {
         setOnlineNotice("Test session initialized. Use the simulation panel below to settle or cancel.");
         setRefreshVersion((v) => v + 1);
       }
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "PayMongo checkout unavailable.");
+      if (generation === actionGeneration.current && scopeIsCurrent(scope, session.uid, session.chapter_id)) setError(checkoutError(reason));
     } finally {
-      setOnlineBusy(false);
+      if (generation === actionGeneration.current && scopeIsCurrent(scope, session.uid, session.chapter_id)) setOnlineBusy(false);
     }
   }
 
@@ -138,20 +213,14 @@ export function ConnectedCheckout({ entryId, eventId }: { entryId: string; event
               <p>
                 Full entry fee:{" "}
                 <strong className="mono">
-                  {new Intl.NumberFormat(undefined, {
-                    style: "currency",
-                    currency: quote.currency,
-                  }).format(quote.total_amount_minor / 100)}
+                  {formatMinorCurrency(quote.total_amount_minor, quote.currency)}
                 </strong>
               </p>
               <p>
                 Available balance for a new payment:{" "}
                 <strong className="mono">
                   {balanceKnown
-                    ? new Intl.NumberFormat(undefined, {
-                        style: "currency",
-                        currency: quote.currency,
-                      }).format(available! / 100)
+                    ? formatMinorCurrency(available!, quote.currency)
                     : "Unavailable"}
                 </strong>
               </p>
@@ -164,12 +233,18 @@ export function ConnectedCheckout({ entryId, eventId }: { entryId: string; event
                     Your share ({quote.currency}, optional)
                     <input
                       id="payment-amount-online"
-                      inputMode="decimal"
+                      inputMode={currencyMinorDigits(quote.currency) === 0 ? "numeric" : "decimal"}
+                      aria-describedby="payment-amount-help"
                       value={amount}
                       onChange={(e) => setAmount(e.target.value)}
                       placeholder="Leave blank for the full available balance"
                     />
                   </label>
+                  <p id="payment-amount-help" className="fineprint">
+                    {currencyMinorDigits(quote.currency) === 0
+                      ? "Enter a whole amount in this currency."
+                      : `Enter up to ${currencyMinorDigits(quote.currency) ?? 2} decimal places, using a decimal point.`}
+                  </p>
                   <button
                     type="button"
                     className="button button-volt"

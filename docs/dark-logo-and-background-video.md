@@ -58,3 +58,15 @@ The final production build passed with TypeScript validation and all 14 pages
 generated. The earlier 54-case responsive suite was not repeated for this change.
 
 Source footage and content provenance remain in `docs/public-site-media.md`.
+
+
+## Player initialization recovery - 2 November 2026
+
+Playback commands wait for the player ready event instead of assuming a
+constructed object already has play/pause methods. A delayed-method fixture
+exercises early visibility and motion events without a crash, then checks that
+playback is requested immediately at readiness. A connection hint warms the
+privacy-enhanced embed origin while the API loads. Real desktop playback was
+observed after about 4.3 seconds from DOM readiness in one check; YouTube loading,
+buffering and browser restrictions remain outside the page's timing guarantees.
+Typecheck, production build and controlled playback/fallback browser checks passed.

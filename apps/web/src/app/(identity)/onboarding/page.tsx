@@ -1,96 +1,50 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
-import { Arrow, Brand } from "@/components/ui";
+import { useEffect, useState, type FormEvent } from "react";
+import { updateProfile, type User } from "firebase/auth";
+import { Brand } from "@/components/ui";
+import { useAccount } from "@/lib/account";
+import { firebaseClient } from "@/lib/firebase/client";
 
 export default function OnboardingPage() {
-  const [alias, setAlias] = useState("");
-  const [birthYear, setBirthYear] = useState("2004");
-  const [discipline, setDiscipline] = useState("Hip Hop / Street");
-  const [saved, setSaved] = useState(false);
+  const { user, loading, error } = useAccount();
+  if (loading) return <main id="main-content" className="system-page"><Brand /><p role="status">Checking your account…</p></main>;
+  if (!user) return <main id="main-content" className="system-page"><Brand /><div className="account-form"><h1>Set up your account</h1><p>{error || "Sign in to continue."}</p><Link className="button button-volt" href="/sign-in?next=%2Fonboarding">Sign in</Link></div></main>;
+  return <AccountSetup key={user.uid} user={user} />;
+}
 
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaved(true);
+function AccountSetup({ user }: { user: User }) {
+  const [name, setName] = useState(user.displayName || "");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => { setName(user.displayName || ""); }, [user.uid, user.displayName]);
+  async function save(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const value = name.trim();
+    if (!value || value.length > 80) { setError("Enter a display name of up to 80 characters."); return; }
+    setBusy(true); setError(""); setMessage("");
+    try {
+      if (firebaseClient().auth.currentUser?.uid !== user.uid) throw new Error("Your account changed. Sign in again.");
+      await updateProfile(user, { displayName: value });
+      if (firebaseClient().auth.currentUser?.uid !== user.uid) return;
+      setName(user.displayName || value);
+      setMessage("Display name saved to your account.");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to save your display name."); }
+    finally { setBusy(false); }
   }
-
-  if (saved) {
-    return (
-      <div className="system-page">
-        <Brand />
-        <div style={{ maxWidth: 460, width: "100%", marginTop: 24 }}>
-          <span className="check-disc complete" style={{ width: 44, height: 44, fontSize: 18, marginBottom: 18 }}>✓</span>
-          <p className="eyebrow" style={{ color: "var(--accent-volt)" }}>Profile Configured</p>
-          <h1 style={{ fontSize: "clamp(32px, 4vw, 48px)", margin: "8px 0 16px" }}>Ready to Step Up</h1>
-          <p className="muted" style={{ lineHeight: 1.8, marginBottom: 28 }}>
-            Your dancer profile <strong>{alias || "Dancer"}</strong> has been established. You can now join crews, enter battles, or create an entry.
-          </p>
-          <Link href="/workspaces" className="button button-volt">
-            Choose your workspace <Arrow />
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="system-page">
-      <Brand />
-      <div style={{ maxWidth: 460, width: "100%", marginTop: 24 }}>
-        <p className="eyebrow">Profile Onboarding · P1</p>
-        <h1 style={{ fontSize: "clamp(32px, 4vw, 48px)", margin: "8px 0 16px" }}>Your Dancer Identity</h1>
-        <p className="muted" style={{ marginBottom: 24 }}>
-          Tell the battlegrounds who is stepping onto the stage.
-        </p>
-
-        <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <div>
-            <label htmlFor="alias" style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
-              Dancer / Stage alias
-            </label>
-            <input
-              id="alias"
-              type="text"
-              value={alias}
-              onChange={(e) => setAlias(e.target.value)}
-              placeholder="e.g. B-Boy Kinetic"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="birthYear" style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
-              Birth year (for division age validation)
-            </label>
-            <input
-              id="birthYear"
-              type="number"
-              min={1970}
-              max={2022}
-              value={birthYear}
-              onChange={(e) => setBirthYear(e.target.value)}
-            />
-          </div>
-
-          <div>
-            <label htmlFor="discipline" style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
-              Primary dance style / discipline
-            </label>
-            <select id="discipline" value={discipline} onChange={(e) => setDiscipline(e.target.value)}>
-              <option>Hip Hop / Street</option>
-              <option>Breaking</option>
-              <option>Popping / Locking</option>
-              <option>Krump</option>
-              <option>Waacking / Voguing</option>
-              <option>All Styles / Fusion</option>
-            </select>
-          </div>
-
-          <button type="submit" className="button button-volt" style={{ marginTop: 12 }}>
-            Complete profile <Arrow />
-          </button>
-        </form>
-      </div>
-    </div>
-  );
+  return <main id="main-content" className="system-page"><Brand /><div className="account-form">
+    <p className="eyebrow">Account setup</p><h1>Set up your account</h1>
+    <p>Choose the name shown on your account. Your chapter membership and competition eligibility are checked separately.</p>
+    <form onSubmit={save} className="connected-stack">
+      <label htmlFor="onboarding-name">Display name</label>
+      <input id="onboarding-name" autoComplete="name" required maxLength={80} value={name} disabled={busy} onChange={event => setName(event.target.value)} />
+      <p className="fineprint">This is an account label; it does not change a verified identity or crew roster.</p>
+      <button type="submit" className="button button-volt" disabled={busy}>{busy ? "Saving…" : "Save display name"}</button>
+    </form>
+    {message && <p role="status" className="info-note">{message}</p>}{error && <p role="alert" className="form-error">{error}</p>}
+    {!user.emailVerified && <p>Verify your email before entering a chapter workspace. <Link href="/verify-email?next=%2Fonboarding" className="text-link">Verify email</Link></p>}
+    <p><Link className="button button-outline" href="/workspaces">Choose a chapter workspace</Link></p>
+  </div></main>;
 }

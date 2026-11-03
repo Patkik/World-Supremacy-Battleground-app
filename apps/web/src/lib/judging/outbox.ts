@@ -33,17 +33,55 @@ function statusOf(error: unknown): number | undefined {
   return typeof error === "object" && error !== null && "status" in error ? Number(error.status) : undefined;
 }
 
+function validStoredOperation(record: ScoreOperation, owner: string) {
+  const command = record.command;
+  const criteria = command?.criteria;
+  return record.owner === owner
+    && !!record.chapter && !!record.event
+    && record.key === operationKey(owner, record.chapter, record.event, command?.operation_id ?? "")
+    && command?.schema_version === 1
+    && typeof command.operation_id === "string" && command.operation_id.length > 0 && command.operation_id.length <= 128
+    && typeof command.division_id === "string" && command.division_id.length > 0
+    && typeof command.crew_id === "string" && command.crew_id.length > 0
+    && Number.isSafeInteger(command.expected_revision) && command.expected_revision >= 0 && command.expected_revision < Number.MAX_SAFE_INTEGER
+    && Array.isArray(command.deductions) && command.deductions.length === 0
+    && !!criteria && [criteria.choreography, criteria.musicality, criteria.execution, criteria.stage_presence, criteria.entertainment]
+      .every(value => Number.isFinite(value) && value >= 0 && value <= 20)
+    && Number.isSafeInteger(record.createdAt) && record.createdAt >= 0
+    && Number.isSafeInteger(record.attempts) && record.attempts >= 0
+    && Number.isSafeInteger(record.nextAttemptAt) && record.nextAttemptAt >= 0;
+}
+
+function validReceipt(receipt: ScoreReceipt, record: ScoreOperation, owner: string) {
+  return !!receipt && typeof receipt === "object"
+    && receipt.operation_id === record.command.operation_id
+    && receipt.judge_uid === owner
+    && receipt.event_id === record.event
+    && receipt.crew_id === record.command.crew_id
+    && receipt.division_id === record.command.division_id
+    && Number.isSafeInteger(receipt.score_revision)
+    && receipt.score_revision === record.command.expected_revision + 1
+    && Number.isFinite(receipt.net_score) && receipt.net_score >= 0 && receipt.net_score <= 100
+    && Number.isSafeInteger(receipt.recorded_at) && receipt.recorded_at >= 0
+    && typeof receipt.receipt_id === "string" && receipt.receipt_id.length > 0 && receipt.receipt_id.length <= 128;
+}
+
 // Caller must serialize this operation using Web Locks across tabs. Sending rows
 // are retried with the same operation ID after a crash or a lost acknowledgement.
 export async function flushOutbox(store: ScoreStore, owner: string, send: (operation: ScoreOperation) => Promise<ScoreReceipt>, now = Date.now()) {
   const records = (await store.list(owner)).sort((a, b) => a.createdAt - b.createdAt);
   for (const record of records) {
-    if (!["queued", "sending"].includes(record.state) || record.nextAttemptAt > now) continue;
+    if (!["queued", "sending"].includes(record.state)) continue;
+    if (!validStoredOperation(record, owner)) {
+      await store.put({ ...record, state: "rejected", message: "Saved score data failed local integrity checks. Keep it for review; it was not sent." });
+      continue;
+    }
+    if (record.nextAttemptAt > now) continue;
     const sending: ScoreOperation = { ...record, state: "sending", attempts: record.attempts + 1, message: undefined };
     await store.put(sending);
     try {
       const receipt = await send(sending);
-      if (receipt.operation_id !== record.command.operation_id || receipt.judge_uid !== owner || receipt.event_id !== record.event || receipt.crew_id !== record.command.crew_id || receipt.division_id !== record.command.division_id || receipt.score_revision !== record.command.expected_revision + 1 || !receipt.receipt_id) {
+      if (!validReceipt(receipt, record, owner)) {
         throw Object.assign(new Error("The server receipt does not match this score. Ask the head judge to review it."), { status: 409 });
       }
       await store.put({ ...sending, state: "acknowledged", receipt, message: "Accepted by server" });

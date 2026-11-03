@@ -36,14 +36,16 @@ by stage, so a page can be empty while a continuation remains; their order is no
 a performance lineup. Non-durable mode returns 501. The marshal desk reads these
 pages and sends revisioned commands, reusing the operation ID if a response is
 lost. It reports conflicts and asks the operator to refresh before retrying.
-No client can provision stages. Docker creates a synthetic `local-main` stage
-once for the local rehearsal; edits and deletions are preserved afterward.
+Directors can provision stages through the authenticated native form described
+below. Docker creates a synthetic `local-main` stage once for the local rehearsal;
+edits and deletions are preserved afterward.
 
 The normal progression is a proposed operational workflow, not an approved
-competition rule. Marshal authority requires event and stage assignment; stage-specific
-assignment management is not implemented. Exceptional states, roster-change and correction
-policy, stage configuration management, ordered lineup, holds, staff calls and notifications,
-offline reconciliation and an end-to-end event rehearsal remain unfinished.
+competition rule. Marshal authority requires event and stage assignment; the
+director assignment form, stage configuration, ordered lineup drafts and holds
+are implemented in later sections. Exceptional-state and roster-change policy,
+crew-facing lineup publication, staff calls beyond connected notices, offline
+reconciliation and an end-to-end event rehearsal remain unfinished.
 
 The demo-wsb repository scenario covers checked-in roster prerequisites,
 chapter/role denial, exact and altered replay, invalid transitions, completion
@@ -67,8 +69,11 @@ performance starts; completing an existing performance remains available.
 Legacy local stage documents default to no hold at revision zero.
 
 The marshal desk reads individual stage status and refreshes it periodically.
-This is an in-app coordination control; it does not notify audio, lighting or
-other operators. Stage communications and production release remain unfinished.
+Each hold change atomically queues one generic inbox notice for other active,
+unexpired marshals assigned to that stage. The initiating operator is excluded;
+an exact command retry returns its receipt without another notice. This notice
+does not reach audio/lighting staff outside the assigned marshal list or any
+external channel. Crew-facing stage communications and production release remain unfinished.
 
 ## Ordered stage history
 
@@ -109,8 +114,8 @@ be listed on the stage for detail, entries, history, moves and holds; chapter
 directors retain oversight. A missing or empty list denies marshals, including
 receipt retries. Stage lists filter out unassigned stages. Local setup migrates
 only the synthetic `local-main` fixture once; older ad hoc synthetic stages stay
-accessible to directors until explicitly assigned. Assignment management UI and
-production provisioning remain unfinished.
+accessible to directors until explicitly assigned. The connected director form manages
+these lists; production provisioning remains unfinished.
 
 Stage-list revocation verification removes a marshal while retaining event
 membership: reads, history continuation, prior move/hold replay are denied and
@@ -124,7 +129,7 @@ It validates proposed UIDs as active chapter marshals with active event
 assignments, bounds the list to 100, rejects duplicates and commits the stage,
 operation receipt and audit atomically. An empty list revokes marshal access.
 A repeated operation returns the original result; changed input conflicts.
-The API route and director form are not connected yet.
+The authenticated API route and director form are connected below.
 
 ## Connected director assignment workflow — 2026-10-31
 
@@ -134,8 +139,13 @@ shows directors a stage-specific assignment form, saved access revision and UID
 list. Drafts do not grant access. Saves re-read current authority after the
 receipt, so a historical replay is not displayed as the current state. Empty
 lists explicitly remove all marshal access; the server still validates every
-nonempty proposed UID against current chapter/event assignments. This form uses
-account IDs; an eligible-marshal directory picker is not implemented.
+nonempty proposed UID against current chapter/event assignments. The form offers a paged list of currently eligible event marshals by account ID,
+with manual ID entry available. The list is advisory; the save rechecks current
+membership and event assignment. Each saved
+change queues one generic inbox notice for each added or removed marshal other than
+the acting director. Notices use the access revision for replay deduplication and
+recheck current active, unexpired chapter membership. Removed marshals can open
+their inbox without retaining stage access.
 
 Signed API checks cover anonymous, manager and marshal denial; director revoke,
 restore, invalid target role, stale revisions, exact and changed replay; marshal
@@ -146,9 +156,49 @@ and all-feature/all-target Rust Clippy passed. Saved assignment, stage and hold
 receipts replayed after an API restart. This adds assignment restart evidence;
 it does not claim new full-container-recreation coverage.
 
-Stage provisioning, lineup ordering, notifications, broader venue recovery and
-production identity remain unfinished. Assignment changes use the private audit;
+Stage assignment changes now notify the changed marshals through the durable
+inbox; stage provisioning, lineup ordering, broader venue recovery and production
+identity remain unfinished. Assignment changes use the private audit;
 they are not appended to the operator stage-position/hold timeline.
+
+## Director-published public stage projection
+
+The director can publish one active stage to an event's public display from the
+stage configuration form. Publishing and unpublishing require the existing
+8–1000 character reason, expected configuration revision, held stage and no
+active performance; the stage change, event selector, replay receipt and audit
+commit in one Firestore transaction. The event ID must resolve to its globally
+reserved chapter directory entry. At most one stage can be selected per event.
+The local seed includes that mapping for new fixtures; an additive migration
+adds it to the existing synthetic rehearsal event only after verifying that the
+event still belongs to `ph`, and it refuses to overwrite a different owner.
+
+`GET /v1/events/{event}/live` is an unauthenticated, no-store endpoint. It
+returns only event and chapter names, held state, current crew/division labels,
+and the latest stage-position time. It excludes entry and dancer IDs, rosters,
+scores, payment fields and lineup order. The arena display polls this endpoint
+and retains its last confirmed factual state during a connection failure. The
+bracket view remains empty until seeding/advancement policy and an authorized
+published bracket exist. Sponsor tickers, scene switching and physical LED/stream
+delivery remain unconnected; a browser preview does not claim those actions ran.
+The public event schedule and livestream routes show that no timetable or video
+feed is connected; private lineup drafts are not presented as a public schedule.
+
+The director's display workflow is not yet rehearsed. Later role verification
+must confirm publish/unpublish, concurrent stage-selection conflict, rejection
+of inactive/performing stages, public field allowlisting, chapter scoping,
+receipt replay, and connection-loss freshness. It must also confirm that
+unpublished results and draft lineup do not appear in the public response.
+
+## Reasoned director stage configuration — 2026-11-01
+
+Stage creation, configuration changes and marshal-access changes require a
+director-entered reason of 8–1000 characters. Rust stores it with the stage
+change, replay receipt and audit correlation ID in one transaction. Proposed
+marshal UIDs must be active, unexpired chapter marshals with active event
+assignments. Routine stage position and hold commands remain reasonless for
+venue speed; their actor, action, resource and correlation ID are still audited.
+This is an initial PAGE-085 reason policy, not full reason coverage.
 
 ## Native stage provisioning — 2026-10-31
 
@@ -231,8 +281,8 @@ provides directors an ordered-ID/reason form, refresh and conflict recovery.
 Current state is re-read after an accepted receipt. Future publication must use
 a distinct authorized projection/version, approved seeding/randomization policy
 and traceable notifications; this internal draft does not satisfy those gates.
-Historical draft snapshots are stored under stage lineupRevisions; a staff
-history viewer is not implemented yet.
+Historical draft snapshots are stored under stage lineupRevisions and shown in
+the private staff history viewer described below.
 
 Demo-wsb repository checks passed concurrent identical draft commands, exact and
 changed replay, duplicate rejection, stale edits, clear/reorder with two entries,
@@ -244,7 +294,8 @@ unassigned-stage read denial. Browser and restart evidence is tracked in status.
 
 Authorized staff can page through stored lineup revisions with order, edit reason,
 actor and timestamp in the stage desk. GET `stages/{stage}/lineup-history`
-rechecks stage access for each bounded page. Demo-wsb repository pagination and
+rechecks stage access for each bounded page and rejects snapshots whose chapter,
+event or stage fields do not match the requested scope. Demo-wsb repository pagination and
 denial, signed API access denials, and mobile/desktop browser revision/reason
 checks passed. This remains private draft history, not publication or notification.
 

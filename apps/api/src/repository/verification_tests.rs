@@ -36,6 +36,7 @@ async fn verification_uploads_are_private_scoped_versioned_and_reviewed() {
                                 role,
                                 active: true,
                                 valid_after: 0,
+                                expires_at: None,
                             },
                         )?;
                     }
@@ -83,8 +84,16 @@ async fn verification_uploads_are_private_scoped_versioned_and_reviewed() {
         .verification_upload_case(&manager, &chapter, &case.case_id)
         .await
         .is_err());
+    let file_hash = "a".repeat(64);
     assert!(repo
-        .submit_verification_case(&dancer, &chapter, &case.case_id, "text/plain", 4)
+        .submit_verification_case(
+            &dancer,
+            &chapter,
+            &case.case_id,
+            "text/plain",
+            4,
+            &file_hash
+        )
         .await
         .is_err());
     assert!(repo
@@ -93,7 +102,8 @@ async fn verification_uploads_are_private_scoped_versioned_and_reviewed() {
             &chapter,
             &case.case_id,
             "application/pdf",
-            10 * 1024 * 1024 + 1
+            10 * 1024 * 1024 + 1,
+            &file_hash
         )
         .await
         .is_err());
@@ -108,11 +118,25 @@ async fn verification_uploads_are_private_scoped_versioned_and_reviewed() {
         .is_err());
 
     let pending = repo
-        .submit_verification_case(&dancer, &chapter, &case.case_id, "application/pdf", 128)
+        .submit_verification_case(
+            &dancer,
+            &chapter,
+            &case.case_id,
+            "application/pdf",
+            128,
+            &file_hash,
+        )
         .await
         .unwrap();
     let replay = repo
-        .submit_verification_case(&dancer, &chapter, &case.case_id, "application/pdf", 128)
+        .submit_verification_case(
+            &dancer,
+            &chapter,
+            &case.case_id,
+            "application/pdf",
+            128,
+            &file_hash,
+        )
         .await
         .unwrap();
     assert_eq!(pending, replay);
@@ -244,6 +268,7 @@ async fn verification_uploads_are_private_scoped_versioned_and_reviewed() {
                             role: "verifier".into(),
                             active: false,
                             valid_after: 0,
+                            expires_at: None,
                         },
                     )?;
                     Ok::<(), RepositoryError>(())

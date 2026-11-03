@@ -67,12 +67,15 @@ The Microsoft C++ build tools and Windows SDK provide the native linker.
 
 ## Connected workflow checks — 2026-10-30
 
-The business API is currently synthetic and volatile. It refuses non-demo project
-startup, and `/readyz` reports 503. The optional adapter is not a business repository.
-The Firebase Auth emulator can exercise real browser account actions, but its
-unsigned tokens are intentionally rejected by the Rust API. Do not use fake
-persona/demo-token credentials to bypass this boundary. See the implementation
-audit for persistence and signed-token integration still required.
+The default business API mode is synthetic and volatile, and `/readyz` reports
+503. For isolated persistence, use `demo-wsb` with an explicit emulator. An
+intentional non-demo runtime requires the `firestore` build,
+`WSB_STORAGE=firestore`, `WSB_ENABLE_PRODUCTION_STORAGE=true`, a matching
+configured Firebase project ID, ADC and no emulator endpoint; release readiness
+remains 503 until migration and release verification are complete. The Firebase Auth emulator can exercise real browser account
+actions, but its unsigned tokens are intentionally rejected by the Rust API. Do
+not use fake persona/demo-token credentials to bypass this boundary. See the
+implementation audit for remaining migration and signed-token rehearsal needs.
 
 - `npm run test:outbox`: isolated synthetic queue state/recovery tests.
 - `npm run test:rules`: Firestore authorization tests, only demo-wsb.

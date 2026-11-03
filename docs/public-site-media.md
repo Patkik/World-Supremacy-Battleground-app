@@ -9,6 +9,11 @@ website using organization footage, presented as the actual organization.
   Championship, 15–18 April 2027, Queen Elizabeth Stadium; registration,
   official rules/guide, contact and linked WSBstreet channel.
 - [Championship announcement](https://worldsupremacybattlegrounds.com/wsb-world-championship-2027-save-the-dates-april-15-18/).
+- [WSB community page](https://worldsupremacybattlegrounds.com/community/),
+  checked 1 November 2026: WSB says the Battlegrounds Championship launched in
+  July 2004 in Melbourne, and describes the Hong Kong 2027 event. Do not use the
+  old sample claims about Sydney origins, annual dancer counts, certified judges,
+  global rubric or stadium production as verified facts.
 - [Official WSBstreet channel](https://www.youtube.com/maspresentshd).
 - [AMK Rocknation, WSB Asia 2024](https://www.youtube.com/watch?v=fP2RcSnRYMo).
 - [Kenyo Street Fam, WSB 2019](https://www.youtube.com/watch?v=JmN8I9OJjYk).
@@ -35,6 +40,12 @@ help and results use public-facing copy and official destinations. Added
 WSB form; it does not imply the new Rust/Firebase registration backend is complete.
 Internal development tools retain accurate sample labels and remain unlinked
 from marketing navigation.
+
+The homepage and public chapter page do not enumerate country names as active
+WSB chapters. They link to the official country directory as the current
+reference and keep the native private chapter-partnership proposal form. A
+first-party public chapter listing requires an approved publisher and verified
+records.
 
 ## Motion and recovery
 
@@ -79,3 +90,11 @@ YouTube/browser availability, autoplay restrictions and platform branding remain
 external constraints and are not bypassed. Physical-device, full accessibility
 and field-performance audits remain release work. No cloud deployment or real
 backend transaction was performed for this presentation change.
+
+
+## Account-entry artwork - 2026-11-02
+
+Sign-in, account creation and password reset reuse the existing generated
+`/images/dance-hero.png` as decorative artwork with an empty image alternative.
+It is not captioned as a real dancer, endorsement or WSB event photograph.
+The marketing homepage continues to use its official-media presentation.

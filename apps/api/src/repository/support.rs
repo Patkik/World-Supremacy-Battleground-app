@@ -5,6 +5,7 @@ use crate::inquiries::*;
 pub enum InquiryActor {
     Member(Claims),
     Contact(String),
+    GlobalHQ(Claims),
 }
 #[derive(Serialize)]
 pub struct InquiryThread {
@@ -19,6 +20,31 @@ struct InquiryIntent {
 #[derive(Clone, Serialize, serde::Deserialize)]
 struct Quota {
     count: u32,
+}
+#[derive(Clone, Serialize, serde::Deserialize)]
+pub struct GlobalApplicationIndex {
+    pub id: String,
+    pub chapter_id: String,
+    pub category: String,
+    pub created_at: u64,
+    pub updated_at: u64,
+    pub revision: u64,
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ApplicationIndexBackfillSummary {
+    pub scanned: u64,
+    pub inserted: u64,
+    pub refreshed: u64,
+    pub unchanged: u64,
+}
+
+#[derive(Clone, Copy)]
+enum IndexBackfillOutcome {
+    Inserted,
+    Refreshed,
+    Unchanged,
+    NotApplication,
 }
 fn path(chapter: &str, id: &str) -> Result<String> {
     Ok(format!(
@@ -51,11 +77,18 @@ fn is_staff(claims: &Claims) -> bool {
 fn actor_key(actor: &InquiryActor) -> Result<String> {
     match actor {
         InquiryActor::Member(c) => Ok(format!("member:{}", c.sub)),
+        InquiryActor::GlobalHQ(c) => Ok(format!("global-hq:{}", c.sub)),
         InquiryActor::Contact(key) => {
             secret(key)?;
             Ok(format!("contact:{}", super::key(&[key])))
         }
     }
+}
+fn is_application(category: &str) -> bool {
+    matches!(
+        category,
+        "chapter_application" | "studio_application" | "partner_application"
+    )
 }
 async fn authority(
     db: &FirestoreDb,
@@ -88,6 +121,14 @@ async fn authority(
                 Err(missing())
             }
         }
+        InquiryActor::GlobalHQ(claims) => {
+            super::hq::global_membership(db, claims).await?;
+            if is_application(&record.summary.category) {
+                Ok(true)
+            } else {
+                Err(forbidden())
+            }
+        }
     }
 }
 async fn quota(
@@ -112,6 +153,127 @@ async fn quota(
     Ok((path, quota))
 }
 impl FirestoreRepository {
+    /// Rebuilds the metadata-only Global HQ proposal index from chapter inquiry
+    /// records. The caller is an offline migration command; connect() restricts
+    /// this repository to the demo project and an explicit Firestore emulator.
+    pub async fn backfill_global_application_indexes(
+        &self,
+    ) -> Result<ApplicationIndexBackfillSummary> {
+        let mut summary = ApplicationIndexBackfillSummary::default();
+        let mut chapter_cursor = None;
+        loop {
+            let chapters = self
+                .page::<Chapter>("", "chapters", chapter_cursor, 100)
+                .await?;
+            for chapter in chapters.items {
+                segment(&chapter.id)?;
+                let parent = format!("chapters/{}", segment(&chapter.id)?);
+                let mut inquiry_cursor = None;
+                loop {
+                    let inquiries = self
+                        .page::<Inquiry>(&parent, "inquiries", inquiry_cursor, 100)
+                        .await?;
+                    for inquiry in inquiries.items {
+                        if !is_application(&inquiry.summary.category) {
+                            continue;
+                        }
+                        summary.scanned = summary
+                            .scanned
+                            .checked_add(1)
+                            .ok_or_else(|| invalid("Backfill count overflow"))?;
+                        segment(&inquiry.summary.id)?;
+                        if inquiry.summary.chapter_id != chapter.id {
+                            return Err(forbidden());
+                        }
+                        match self
+                            .backfill_application_index(&chapter.id, &inquiry.summary.id)
+                            .await?
+                        {
+                            IndexBackfillOutcome::Inserted => summary.inserted += 1,
+                            IndexBackfillOutcome::Refreshed => summary.refreshed += 1,
+                            IndexBackfillOutcome::Unchanged => summary.unchanged += 1,
+                            IndexBackfillOutcome::NotApplication => {
+                                return Err(conflict(
+                                    "Application category changed during index backfill",
+                                ));
+                            }
+                        }
+                    }
+                    inquiry_cursor = inquiries.next_page;
+                    if inquiry_cursor.is_none() {
+                        break;
+                    }
+                }
+            }
+            chapter_cursor = chapters.next_page;
+            if chapter_cursor.is_none() {
+                break;
+            }
+        }
+        Ok(summary)
+    }
+
+    async fn backfill_application_index(
+        &self,
+        chapter: &str,
+        id: &str,
+    ) -> Result<IndexBackfillOutcome> {
+        let chapter = chapter.to_owned();
+        let id = id.to_owned();
+        self.db
+            .run_transaction(|db, tx| {
+                let (chapter, id) = (chapter.clone(), id.clone());
+                Box::pin(async move {
+                    async {
+                        let record: Inquiry = required(&db, &path(&chapter, &id)?).await?;
+                        if record.summary.id != id || record.summary.chapter_id != chapter {
+                            return Err(forbidden());
+                        }
+                        if !is_application(&record.summary.category) {
+                            return Ok(IndexBackfillOutcome::NotApplication);
+                        }
+                        let index_path = format!("globalApplications/{}", segment(&id)?);
+                        let expected = GlobalApplicationIndex {
+                            id: id.clone(),
+                            chapter_id: chapter.clone(),
+                            category: record.summary.category.clone(),
+                            created_at: record.summary.created_at,
+                            updated_at: record.summary.updated_at,
+                            revision: record.summary.revision,
+                        };
+                        let existing = get::<GlobalApplicationIndex>(&db, &index_path).await?;
+                        if let Some(existing) = &existing {
+                            if existing.id != id
+                                || existing.chapter_id != chapter
+                                || !is_application(&existing.category)
+                            {
+                                return Err(conflict(
+                                    "Global application index belongs to another inquiry",
+                                ));
+                            }
+                            if existing.category == expected.category
+                                && existing.created_at == expected.created_at
+                                && existing.updated_at == expected.updated_at
+                                && existing.revision == expected.revision
+                            {
+                                return Ok(IndexBackfillOutcome::Unchanged);
+                            }
+                        }
+                        put(&db, tx, &index_path, &expected)?;
+                        Ok(if existing.is_some() {
+                            IndexBackfillOutcome::Refreshed
+                        } else {
+                            IndexBackfillOutcome::Inserted
+                        })
+                    }
+                    .await
+                    .map_err(backoff)
+                })
+            })
+            .await
+            .map_err(transaction_error)
+    }
+
     pub async fn contact_chapters(
         &self,
         cursor: Option<String>,
@@ -129,6 +291,9 @@ impl FirestoreRepository {
         actor: InquiryActor,
         body: CreateInquiry,
     ) -> Result<InquirySummary> {
+        if matches!(&actor, InquiryActor::GlobalHQ(_)) {
+            return Err(forbidden());
+        }
         segment(&body.operation_id)?;
         let input = (chapter.to_owned(), actor, body);
         self.db
@@ -186,6 +351,7 @@ impl FirestoreRepository {
                         let message = text(&body.message, 4000, true)?;
                         let actor_bucket = match &actor {
                             InquiryActor::Member(c) => format!("member:{}", c.sub),
+                            InquiryActor::GlobalHQ(c) => format!("global-hq:{}", c.sub),
                             InquiryActor::Contact(_) => {
                                 format!("email:{}", key(&[&email.to_lowercase()]))
                             }
@@ -208,6 +374,7 @@ impl FirestoreRepository {
                         };
                         let (owner, capability_hash) = match &actor {
                             InquiryActor::Member(c) => (Some(c.sub.clone()), None),
+                            InquiryActor::GlobalHQ(_) => return Err(forbidden()),
                             InquiryActor::Contact(token) => {
                                 (None, Some(key(&[&chapter, &id, token])))
                             }
@@ -233,6 +400,21 @@ impl FirestoreRepository {
                             &format!("{}/messages/{:020}", path(&chapter, &id)?, 1),
                             &message,
                         )?;
+                        if is_application(&summary.category) {
+                            put(
+                                &db,
+                                tx,
+                                &format!("globalApplications/{}", segment(&id)?),
+                                &GlobalApplicationIndex {
+                                    id: id.clone(),
+                                    chapter_id: chapter.clone(),
+                                    category: summary.category.clone(),
+                                    created_at: now,
+                                    updated_at: now,
+                                    revision: summary.revision,
+                                },
+                            )?;
+                        }
                         put(
                             &db,
                             tx,
@@ -246,6 +428,7 @@ impl FirestoreRepository {
                         put(&db, tx, &global_quota, &global_value)?;
                         let audit_actor = match &actor {
                             InquiryActor::Member(c) => c.sub.as_str(),
+                            InquiryActor::GlobalHQ(c) => c.sub.as_str(),
                             InquiryActor::Contact(_) => "public-contact",
                         };
                         audit(
@@ -353,6 +536,111 @@ impl FirestoreRepository {
             .await
             .map_err(transaction_error)
     }
+
+    pub async fn list_hq_applications(
+        &self,
+        claims: &Claims,
+        cursor: Option<String>,
+        limit: usize,
+    ) -> Result<Page<InquiryStaffView>> {
+        if cursor.as_ref().is_some_and(|value| value.len() > 4096) {
+            return Err(invalid("Invalid page request"));
+        }
+        let input = (claims.clone(), cursor);
+        self.db
+            .run_transaction(|db, _tx| {
+                let (claims, cursor) = input.clone();
+                Box::pin(async move {
+                    async {
+                        super::hq::global_membership(&db, &claims).await?;
+                        let indexes = super::reads::page::<GlobalApplicationIndex>(
+                            &db,
+                            "",
+                            "globalApplications",
+                            cursor,
+                            limit,
+                        )
+                        .await?;
+                        let mut items = Vec::with_capacity(indexes.items.len());
+                        for index in indexes.items {
+                            if !is_application(&index.category)
+                                || segment(&index.id).is_err()
+                                || segment(&index.chapter_id).is_err()
+                            {
+                                return Err(forbidden());
+                            }
+                            let record: Inquiry =
+                                required(&db, &path(&index.chapter_id, &index.id)?).await?;
+                            if record.summary.id != index.id
+                                || record.summary.chapter_id != index.chapter_id
+                                || record.summary.category != index.category
+                            {
+                                return Err(forbidden());
+                            }
+                            items.push(InquiryStaffView {
+                                summary: record.summary,
+                                requester_name: record.requester_name,
+                                email: record.email,
+                            });
+                        }
+                        Ok(Page {
+                            items,
+                            next_page: indexes.next_page,
+                        })
+                    }
+                    .await
+                    .map_err(backoff)
+                })
+            })
+            .await
+            .map_err(transaction_error)
+    }
+
+    pub async fn hq_application_thread(
+        &self,
+        claims: &Claims,
+        id: &str,
+        cursor: Option<String>,
+        limit: usize,
+    ) -> Result<InquiryThread> {
+        segment(id)?;
+        super::hq::global_membership(&self.db, claims).await?;
+        let index: GlobalApplicationIndex =
+            required(&self.db, &format!("globalApplications/{}", segment(id)?)).await?;
+        if index.id != id || !is_application(&index.category) {
+            return Err(missing());
+        }
+        self.inquiry_thread(
+            &index.chapter_id,
+            id,
+            InquiryActor::GlobalHQ(claims.clone()),
+            cursor,
+            limit,
+        )
+        .await
+    }
+
+    pub async fn update_hq_application(
+        &self,
+        claims: &Claims,
+        id: &str,
+        body: InquiryUpdate,
+    ) -> Result<InquirySummary> {
+        segment(id)?;
+        super::hq::global_membership(&self.db, claims).await?;
+        let index: GlobalApplicationIndex =
+            required(&self.db, &format!("globalApplications/{}", segment(id)?)).await?;
+        if index.id != id || !is_application(&index.category) {
+            return Err(missing());
+        }
+        self.update_inquiry(
+            &index.chapter_id,
+            id,
+            InquiryActor::GlobalHQ(claims.clone()),
+            body,
+        )
+        .await
+    }
     pub async fn update_inquiry(
         &self,
         chapter: &str,
@@ -392,6 +680,21 @@ impl FirestoreRepository {
                             return Err(conflict("Inquiry changed; reload before replying"));
                         }
                         let message = text(&body.message, 4000, !staff || body.status.is_none())?;
+                        let application_index = if is_application(&record.summary.category) {
+                            let index: GlobalApplicationIndex =
+                                required(&db, &format!("globalApplications/{}", segment(&id)?))
+                                    .await?;
+                            if index.id != id
+                                || index.chapter_id != chapter
+                                || index.category != record.summary.category
+                                || index.revision != record.summary.revision
+                            {
+                                return Err(conflict("Application index is out of date"));
+                            }
+                            Some(index)
+                        } else {
+                            None
+                        };
                         record.summary.status = if staff {
                             body.status.unwrap_or(record.summary.status)
                         } else {
@@ -405,7 +708,9 @@ impl FirestoreRepository {
                         record.summary.updated_at = now_secs();
                         let row = InquiryMessage {
                             sequence: record.summary.revision,
-                            source: if staff {
+                            source: if matches!(&actor, InquiryActor::GlobalHQ(_)) {
+                                "global_hq"
+                            } else if staff {
                                 "chapter_support"
                             } else {
                                 "requester"
@@ -415,6 +720,29 @@ impl FirestoreRepository {
                             status: record.summary.status.clone(),
                             created_at: record.summary.updated_at,
                         };
+                        if staff {
+                            if let Some(requester_uid) = record.requester_uid.as_deref() {
+                                let same_actor = matches!(&actor, InquiryActor::Member(claims) | InquiryActor::GlobalHQ(claims) if claims.sub == requester_uid);
+                                if !same_actor {
+                                    let href = super::notifications::destination(
+                                        &["app", "support"],
+                                        &[("chapter", &chapter), ("inquiry", &id)],
+                                    )?;
+                                    super::notifications::enqueue(
+                                        &db,
+                                        tx,
+                                        &chapter,
+                                        requester_uid,
+                                        key(&["inquiry-update", &id, &row.sequence.to_string()]),
+                                        "support_updated",
+                                        "Support request updated",
+                                        "Your support request has an update. Open account support to view it.",
+                                        &href,
+                                    )
+                                    .await?;
+                                }
+                            }
+                        }
                         put(
                             &db,
                             tx,
@@ -422,6 +750,16 @@ impl FirestoreRepository {
                             &row,
                         )?;
                         put(&db, tx, &path(&chapter, &id)?, &record)?;
+                        if let Some(mut index) = application_index {
+                            index.updated_at = record.summary.updated_at;
+                            index.revision = record.summary.revision;
+                            put(
+                                &db,
+                                tx,
+                                &format!("globalApplications/{}", segment(&id)?),
+                                &index,
+                            )?;
+                        }
                         put(
                             &db,
                             tx,
@@ -433,6 +771,7 @@ impl FirestoreRepository {
                         )?;
                         let audit_actor = match &actor {
                             InquiryActor::Member(c) => c.sub.as_str(),
+                            InquiryActor::GlobalHQ(c) => c.sub.as_str(),
                             InquiryActor::Contact(_) => "public-contact",
                         };
                         audit(

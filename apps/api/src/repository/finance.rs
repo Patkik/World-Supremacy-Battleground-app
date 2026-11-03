@@ -3,6 +3,13 @@ use crate::domain::{
     EntryStatus, FinanceSummary, PaymentQuote, PaymentRecord, PaymentStatus,
     SyntheticWebhookPayload, WebhookReceipt,
 };
+use serde::Deserialize;
+
+#[derive(Clone, Serialize, Deserialize)]
+struct PaymentTransitionReceipt {
+    command_hash: String,
+    result: PaymentRecord,
+}
 
 pub(super) fn quote(
     chapter: &Chapter,
@@ -36,6 +43,48 @@ pub(super) fn quote(
 }
 
 impl FirestoreRepository {
+    pub async fn authorized_payment(
+        &self,
+        claims: &Claims,
+        chapter: &str,
+        payment_id: &str,
+    ) -> Result<PaymentRecord> {
+        segment(chapter)?;
+        segment(payment_id)?;
+        let input = (claims.clone(), chapter.to_owned(), payment_id.to_owned());
+        self.db
+            .run_transaction(|db, _tx| {
+                let (claims, chapter, payment_id) = input.clone();
+                Box::pin(async move {
+                    async {
+                        membership(&db, &claims, &chapter).await?;
+                        let payment: PaymentRecord = required(
+                            &db,
+                            &format!(
+                                "chapters/{}/payments/{}",
+                                segment(&chapter)?,
+                                segment(&payment_id)?
+                            ),
+                        )
+                        .await?;
+                        if payment.chapter_id != chapter || payment.payment_id != payment_id {
+                            return Err(missing());
+                        }
+                        if !matches!(claims.role.as_deref(), Some("finance" | "chapter_director"))
+                            && payment.payer_uid != claims.sub
+                        {
+                            return Err(forbidden());
+                        }
+                        Ok(payment)
+                    }
+                    .await
+                    .map_err(backoff)
+                })
+            })
+            .await
+            .map_err(transaction_error)
+    }
+
     pub async fn payment_quote(
         &self,
         claims: &Claims,
@@ -227,6 +276,8 @@ impl FirestoreRepository {
         chapter: &str,
         payment_id: &str,
         approve: bool,
+        operation_id: &str,
+        reason: &str,
     ) -> Result<PaymentRecord> {
         self.payment_transition(
             claims,
@@ -237,6 +288,8 @@ impl FirestoreRepository {
             } else {
                 PaymentStatus::Failed
             },
+            operation_id,
+            reason,
         )
         .await
     }
@@ -245,9 +298,18 @@ impl FirestoreRepository {
         claims: &Claims,
         chapter: &str,
         payment_id: &str,
+        operation_id: &str,
+        reason: &str,
     ) -> Result<PaymentRecord> {
-        self.payment_transition(claims, chapter, payment_id, PaymentStatus::Refunded)
-            .await
+        self.payment_transition(
+            claims,
+            chapter,
+            payment_id,
+            PaymentStatus::Refunded,
+            operation_id,
+            reason,
+        )
+        .await
     }
     async fn payment_transition(
         &self,
@@ -255,11 +317,34 @@ impl FirestoreRepository {
         chapter: &str,
         payment_id: &str,
         target: PaymentStatus,
+        operation_id: &str,
+        reason: &str,
     ) -> Result<PaymentRecord> {
-        let input = (claims.clone(), chapter.to_owned(), payment_id.to_owned());
+        let reason = reason.trim();
+        if operation_id.is_empty()
+            || operation_id.len() > 128
+            || reason.chars().count() < 8
+            || reason.chars().count() > 1000
+            || reason.chars().any(char::is_control)
+        {
+            return Err(invalid(
+                "A valid operation ID and an 8–1000 character reason are required",
+            ));
+        }
+        let command_hash = key(&[&serde_json::to_string(&(payment_id, &target, reason))
+            .map_err(|_| invalid("Invalid payment decision"))?]);
+        let input = (
+            claims.clone(),
+            chapter.to_owned(),
+            payment_id.to_owned(),
+            operation_id.to_owned(),
+            reason.to_owned(),
+            command_hash,
+        );
         self.db
             .run_transaction(|db, tx| {
-                let (claims, chapter, payment_id) = input.clone();
+                let (claims, chapter, payment_id, operation_id, reason, command_hash) =
+                    input.clone();
                 let target = target.clone();
                 Box::pin(async move {
                     let claims = &claims;
@@ -270,6 +355,22 @@ impl FirestoreRepository {
                         if !matches!(claims.role.as_deref(), Some("finance" | "chapter_director")) {
                             return Err(forbidden());
                         }
+                        let receipt_id = key(&[&claims.sub, &operation_id]);
+                        let receipt_path = format!(
+                            "chapters/{}/paymentOperations/{receipt_id}",
+                            segment(chapter)?
+                        );
+                        if let Some(receipt) =
+                            get::<PaymentTransitionReceipt>(&db, &receipt_path).await?
+                        {
+                            return if receipt.command_hash == command_hash {
+                                Ok(receipt.result)
+                            } else {
+                                Err(conflict(
+                                    "Payment operation ID already used with different input",
+                                ))
+                            };
+                        }
                         let path = format!(
                             "chapters/{}/payments/{}",
                             segment(chapter)?,
@@ -278,6 +379,22 @@ impl FirestoreRepository {
                         let mut payment: PaymentRecord = required(&db, &path).await?;
                         if payment.chapter_id != chapter || payment.payment_id != payment_id {
                             return Err(forbidden());
+                        }
+                        if target == PaymentStatus::Refunded {
+                            let reservation_path = format!(
+                                "chapters/{}/localCheckoutReservations/{}",
+                                segment(chapter)?,
+                                segment(payment_id)?
+                            );
+                            let provider_reservation =
+                                get::<serde_json::Value>(&db, &reservation_path).await?;
+                            if provider_reservation.is_some()
+                                || crate::domain::is_provider_payment_reference(
+                                    &payment.provider_reference,
+                                )
+                            {
+                                return Err(conflict("Provider refunds require reconciliation"));
+                            }
                         }
                         let scope: PaymentLocation = required(
                             &db,
@@ -299,9 +416,6 @@ impl FirestoreRepository {
                         .await?;
                         if payment.entry_id != entry.entry.id {
                             return Err(forbidden());
-                        }
-                        if payment.status == target {
-                            return Ok(payment);
                         }
                         let mut division: DivisionDocument = required(
                             &db,
@@ -348,6 +462,38 @@ impl FirestoreRepository {
                         if entry.entry.status == EntryStatus::Approved {
                             adjust_readiness(&mut division, before, after)?;
                         }
+                        let (kind, message) = match &payment.status {
+                            PaymentStatus::Settled => (
+                                "payment_reconciled",
+                                "Your payment reference was reconciled. Open payment details to review the recorded status.",
+                            ),
+                            PaymentStatus::Failed => (
+                                "payment_declined",
+                                "Your payment reference was declined. Open payment details to review the recorded status.",
+                            ),
+                            PaymentStatus::Refunded => (
+                                "payment_ledger_reversed",
+                                "A payment ledger reversal was recorded. Open payment details to review the record.",
+                            ),
+                            PaymentStatus::Pending => {
+                                unreachable!("Payment transitions cannot produce pending status")
+                            }
+                        };
+                        super::notifications::enqueue_payment_transition(
+                            &db,
+                            tx,
+                            chapter,
+                            &scope.event_id,
+                            &entry.entry.id,
+                            &entry.entry.crew_id,
+                            payment_id,
+                            &payment.payer_uid,
+                            key(&["payment-transition", payment_id, &operation_id]),
+                            kind,
+                            message,
+                            "Payment status for your crew's event entry changed. Open the entry workspace to review its current balance.",
+                        )
+                        .await?;
                         put(
                             &db,
                             tx,
@@ -361,7 +507,7 @@ impl FirestoreRepository {
                             &division,
                         )?;
                         put(&db, tx, &path, &payment)?;
-                        audit(
+                        audit_with_reason(
                             &db,
                             tx,
                             chapter,
@@ -372,7 +518,17 @@ impl FirestoreRepository {
                                 "payment_reconciled"
                             },
                             payment_id,
-                            &new_id("finance"),
+                            &receipt_id,
+                            Some(&reason),
+                        )?;
+                        put(
+                            &db,
+                            tx,
+                            &receipt_path,
+                            &PaymentTransitionReceipt {
+                                command_hash,
+                                result: payment.clone(),
+                            },
                         )?;
                         Ok(payment)
                     }

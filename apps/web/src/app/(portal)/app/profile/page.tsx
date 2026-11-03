@@ -1,73 +1,61 @@
 "use client";
 
-import { useState } from "react";
-import { Arrow, PageHeading } from "@/components/ui";
+import { useEffect, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { updateProfile } from "firebase/auth";
+import { Arrow, PageHeading, Status } from "@/components/ui";
+import { useAccount } from "@/lib/account";
 
 export default function ProfilePage() {
-  const [name, setName] = useState("Marcus Santos");
-  const [alias, setAlias] = useState("B-Boy Kinetic");
-  const [email, setEmail] = useState("marcus@ateam-ph.com");
-  const [phone, setPhone] = useState("+63 917 555 0192");
-  const [saved, setSaved] = useState(false);
+  const { user, loading, error: accountError } = useAccount();
+  const [displayName, setDisplayName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
-  function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  useEffect(() => { setDisplayName(user?.displayName || ""); }, [user?.uid, user?.displayName]);
+
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!user) return;
+    const value = displayName.trim();
+    if (value.length > 80) {
+      setError("Display name must be 80 characters or fewer.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    setMessage("");
+    try {
+      await updateProfile(user, { displayName: value || null });
+      setDisplayName(user.displayName || "");
+      setMessage("Firebase account display name saved.");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Account display name could not be saved.");
+    } finally {
+      setSaving(false);
+    }
   }
 
-  return (
-    <main id="main-content" className="workspace-main">
-      <PageHeading
-        eyebrow="Account Settings · P1"
-        title="Dancer Profile"
-        description="Your personal information, stage identity, and contact details across WSB."
-      />
+  if (loading) return <main id="main-content" className="workspace-main"><PageHeading eyebrow="Account profile" title="Loading profile" description="Checking your signed-in Firebase account." /><p role="status">Loading account profile…</p></main>;
+  if (!user) return <main id="main-content" className="workspace-main"><PageHeading eyebrow="Account profile" title="Sign in required" description="Sign in before editing account settings." /><p role="alert" className="form-error">{accountError || "Your signed-in account could not be loaded."}</p><Link href="/sign-in?next=%2Fapp%2Fprofile" className="button button-volt">Sign in</Link></main>;
 
-      {saved && (
-        <div className="info-note" style={{ color: "var(--accent-volt)", borderColor: "var(--border-active)", marginBottom: 20 }}>
-          Profile changes saved successfully.
-        </div>
-      )}
-
-      <div style={{ maxWidth: 640 }}>
-        <form onSubmit={handleSave} className="panel" style={{ padding: 32, display: "flex", flexDirection: "column", gap: 20 }}>
-          <div>
-            <label htmlFor="name" style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
-              Full legal name (verified against ID)
-            </label>
-            <input id="name" value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-
-          <div>
-            <label htmlFor="alias" style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
-              Dancer / Stage alias
-            </label>
-            <input id="alias" value={alias} onChange={(e) => setAlias(e.target.value)} />
-          </div>
-
-          <div>
-            <label htmlFor="email" style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
-              Email address
-            </label>
-            <input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-          </div>
-
-          <div>
-            <label htmlFor="phone" style={{ display: "block", fontSize: 12, marginBottom: 6 }}>
-              Contact phone number
-            </label>
-            <input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
-          </div>
-
-          <div style={{ borderTop: "1px solid var(--border-subtle)", paddingTop: 20, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--text-titanium)" }}>Chapter: WSB Philippines</span>
-            <button type="submit" className="button button-volt">
-              Save changes <Arrow />
-            </button>
-          </div>
-        </form>
-      </div>
-    </main>
-  );
+  return <main id="main-content" className="workspace-main">
+    <PageHeading eyebrow="Account settings" title="Profile" description="Update the display name saved to your Firebase account." />
+    {message && <p role="status" className="info-note">{message}</p>}
+    {error && <p role="alert" className="form-error">{error}</p>}
+    <div className="max-w-2xl">
+      <form onSubmit={saveProfile} className="panel connected-stack">
+        <div className="panel-heading"><div><h2>Account identity</h2><p>These values come from your signed-in account.</p></div><Status tone={user.emailVerified ? "volt" : "amber"}>{user.emailVerified ? "Email verified" : "Email not verified"}</Status></div>
+        <label htmlFor="account-display-name">Display name</label>
+        <input id="account-display-name" autoComplete="name" maxLength={80} value={displayName} onChange={event => setDisplayName(event.target.value)} disabled={saving} />
+        <label htmlFor="account-email">Email</label>
+        <input id="account-email" type="email" value={user.email || ""} disabled readOnly />
+        <p><Link href="/change-email" className="text-link">Change email address <Arrow /></Link></p>
+        {!user.emailVerified && user.email && <p className="info-note" role="status">This email address has not been verified. <Link href="/verify-email" className="text-link">Request a verification link <Arrow /></Link></p>}
+        <p className="fineprint">Display name is an account label only. This form does not change a verified legal name, crew roster name, stage alias, phone number or chapter membership.</p>
+        <div className="flex flex-wrap gap-3"><button className="button button-volt" type="submit" disabled={saving}>{saving ? "Saving…" : "Save display name"} <Arrow /></button><Link href="/app/security" className="button button-outline">Account security</Link></div>
+      </form>
+    </div>
+  </main>;
 }

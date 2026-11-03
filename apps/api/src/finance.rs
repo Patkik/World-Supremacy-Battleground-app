@@ -6,6 +6,15 @@ use axum::{
 };
 use serde::Deserialize;
 use serde_json::json;
+use sha2::{Digest, Sha256};
+
+#[allow(dead_code)]
+fn webhook_digest(body: &[u8]) -> String {
+    Sha256::digest(body)
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect()
+}
 
 use crate::domain::{
     FinanceSummary, PaymentQuote, PaymentRecord, PaymentStatus, SyntheticWebhookPayload,
@@ -79,10 +88,18 @@ pub async fn local_paymongo_webhook(
             amount_minor: paid[0]["attributes"]["amount"]
                 .as_u64()
                 .ok_or(StatusCode::BAD_REQUEST)?,
+            provider_payment_id: Some(
+                paid[0]["id"]
+                    .as_str()
+                    .filter(|value| value.starts_with("pay_"))
+                    .ok_or(StatusCode::BAD_REQUEST)?
+                    .to_owned(),
+            ),
             currency: paid[0]["attributes"]["currency"]
                 .as_str()
                 .ok_or(StatusCode::BAD_REQUEST)?
                 .to_owned(),
+            payload_digest: Some(webhook_digest(&body)),
         };
         let repo = state
             .durable
@@ -135,7 +152,8 @@ pub async fn paymongo_webhook(
 
     let live_mode = std::env::var("PAYMONGO_LIVE_MODE").as_deref() == Ok("true");
     let now = crate::store::now_secs();
-    if !crate::paymongo::verify_signature(signature, &body, secret.as_bytes(), live_mode, now, 300) {
+    if !crate::paymongo::verify_signature(signature, &body, secret.as_bytes(), live_mode, now, 300)
+    {
         return Err((
             StatusCode::UNAUTHORIZED,
             Json(json!({"error": "Invalid webhook HMAC signature or timestamp expired"})),
@@ -149,13 +167,41 @@ pub async fn paymongo_webhook(
         )
     })?;
 
-    #[cfg(feature = "firestore")]
+    if event.livemode != live_mode {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"error": "Webhook mode mismatch"})),
+        ));
+    }
+    #[cfg(all(feature = "firestore", not(feature = "local-testing")))]
+    if state.durable.is_some() {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error":"Provider settlement is not enabled"})),
+        ));
+    }
+    #[cfg(feature = "local-testing")]
     if let Some(repository) = &state.durable {
         return repository
-            .settle_paymongo_event(&event)
+            .settle_paymongo_event(&event, &webhook_digest(&body))
             .await
             .map(|_| Json(json!({"received": true})))
-            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))));
+            .map_err(|err| {
+                (
+                    StatusCode::from(&err),
+                    Json(json!({"error": err.to_string()})),
+                )
+            });
+    }
+
+    if matches!(
+        event.event_type,
+        crate::paymongo::PaymongoEventType::PaymentRefunded
+    ) {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": "Durable provider refund reconciliation is unavailable"})),
+        ));
     }
 
     let mut store = state.store.write().await;
@@ -169,6 +215,59 @@ pub async fn paymongo_webhook(
 pub struct PaymongoCheckoutPayload {
     pub operation_id: String,
     pub amount_minor: Option<u64>,
+}
+
+fn configured_paymongo_live_mode() -> Result<bool, String> {
+    match std::env::var("PAYMONGO_LIVE_MODE").as_deref() {
+        Ok("true") => Ok(true),
+        Ok("false") => Ok(false),
+        _ => Err("PAYMONGO_LIVE_MODE must be explicitly set to true or false".into()),
+    }
+}
+
+fn validate_paymongo_session(
+    session: &crate::paymongo::PaymongoCheckoutSession,
+    reference: &str,
+    amount_minor: u64,
+    currency: &str,
+    expected_live_mode: bool,
+) -> Result<(), String> {
+    if session.reference_number != reference
+        || session.amount_minor != amount_minor
+        || !session.currency.eq_ignore_ascii_case(currency)
+        || session.livemode != expected_live_mode
+        || !session.id.starts_with("cs_")
+        || session.status != "active"
+    {
+        return Err("PayMongo checkout response did not match the reserved payment".into());
+    }
+    Ok(())
+}
+
+fn configured_paymongo_payment_methods() -> Result<Vec<String>, String> {
+    let raw = std::env::var("PAYMONGO_PAYMENT_METHOD_TYPES").map_err(|_| {
+        "Configure PAYMONGO_PAYMENT_METHOD_TYPES from the methods enabled on the PayMongo account before enabling hosted checkout.".to_string()
+    })?;
+    let values: Vec<String> = raw
+        .split(',')
+        .map(str::trim)
+        .map(str::to_ascii_lowercase)
+        .filter(|value| !value.is_empty())
+        .collect();
+    let unique: std::collections::HashSet<&str> = values.iter().map(String::as_str).collect();
+    if values.is_empty()
+        || values.len() > 20
+        || unique.len() != values.len()
+        || values.iter().any(|value| {
+            value.len() > 40
+                || !value
+                    .bytes()
+                    .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'_')
+        })
+    {
+        return Err("PAYMONGO_PAYMENT_METHOD_TYPES must be a comma-separated list of 1–20 distinct provider method identifiers.".into());
+    }
+    Ok(values)
 }
 
 pub async fn create_paymongo_checkout(
@@ -197,7 +296,12 @@ pub async fn create_paymongo_checkout(
                 payload.amount_minor,
             )
             .await
-            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))))?;
+            .map_err(|err| {
+                (
+                    StatusCode::from(&err),
+                    Json(json!({"error": err.to_string()})),
+                )
+            })?;
         let session_id = res.session_id.unwrap_or_default();
         return Ok(Json(json!({
             "checkout_url": format!("https://checkout.paymongo.com/local?session={session_id}"),
@@ -209,6 +313,13 @@ pub async fn create_paymongo_checkout(
         })));
     }
 
+    #[cfg(all(feature = "firestore", not(feature = "local-testing")))]
+    if state.durable.is_some() {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error":"Provider checkout is not enabled"})),
+        ));
+    }
     let client = crate::paymongo::PaymongoClient::from_env().ok_or_else(|| {
         (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -218,8 +329,20 @@ pub async fn create_paymongo_checkout(
         )
     })?;
 
-    #[cfg(feature = "firestore")]
+    #[cfg(feature = "local-testing")]
     if let Some(repo) = &state.durable {
+        let expected_live_mode = configured_paymongo_live_mode().map_err(|error| {
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"error": error})),
+            )
+        })?;
+        let payment_method_types = configured_paymongo_payment_methods().map_err(|error| {
+            (
+                StatusCode::SERVICE_UNAVAILABLE,
+                Json(json!({"error": error})),
+            )
+        })?;
         let reservation = repo
             .reserve_local_checkout(
                 &claims,
@@ -230,11 +353,34 @@ pub async fn create_paymongo_checkout(
                 payload.amount_minor,
             )
             .await
-            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))))?;
+            .map_err(|err| {
+                (
+                    StatusCode::from(&err),
+                    Json(json!({"error": err.to_string()})),
+                )
+            })?;
 
         if let Some(session_id) = &reservation.session_id {
+            if let Some(stored_mode) = reservation.provider_livemode {
+                if stored_mode != expected_live_mode {
+                    return Err((
+                        StatusCode::CONFLICT,
+                        Json(
+                            json!({"error": "Checkout session belongs to a different PayMongo mode"}),
+                        ),
+                    ));
+                }
+            }
+            let checkout_url = reservation.checkout_url.clone().ok_or_else(|| {
+                (
+                    StatusCode::SERVICE_UNAVAILABLE,
+                    Json(json!({
+                        "error": "The saved checkout URL is missing; reconcile this reservation before retrying."
+                    })),
+                )
+            })?;
             return Ok(Json(json!({
-                "checkout_url": format!("https://checkout.paymongo.com/{session_id}"),
+                "checkout_url": checkout_url,
                 "session_id": session_id,
                 "reference_number": reservation.id,
                 "amount_minor": reservation.amount_minor,
@@ -258,6 +404,15 @@ pub async fn create_paymongo_checkout(
             .await
             .map_err(|e| (StatusCode::from(&e), Json(json!({"error": e.to_string()}))))?;
 
+        let reservation = repo
+            .begin_paymongo_checkout_request(&claims, &reservation)
+            .await
+            .map_err(|err| {
+                (
+                    StatusCode::from(&err),
+                    Json(json!({"error": err.to_string()})),
+                )
+            })?;
         let session = client
             .create_checkout_session(&crate::paymongo::CreateCheckoutRequest {
                 reference_number: reservation.id.clone(),
@@ -270,23 +425,38 @@ pub async fn create_paymongo_checkout(
                 description: Some(format!("WSB {} entry registration", quote.division_name)),
                 success_url: Some(success_url),
                 cancel_url: Some(cancel_url),
-                payment_method_types: vec![
-                    "card".into(),
-                    "gcash".into(),
-                    "grab_pay".into(),
-                    "paymaya".into(),
-                ],
+                payment_method_types,
             })
             .await
             .map_err(|err| (StatusCode::BAD_GATEWAY, Json(json!({"error": err}))))?;
 
+        validate_paymongo_session(
+            &session,
+            &reservation.id,
+            reservation.amount_minor,
+            &reservation.currency,
+            expected_live_mode,
+        )
+        .map_err(|error| (StatusCode::BAD_GATEWAY, Json(json!({"error": error}))))?;
+
         let bound = repo
-            .bind_local_checkout_session(&claims, &reservation, &session.id)
+            .bind_local_checkout_session(
+                &claims,
+                &reservation,
+                &session.id,
+                Some(session.checkout_url.clone()),
+                Some(session.livemode),
+            )
             .await
-            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))))?;
+            .map_err(|err| {
+                (
+                    StatusCode::from(&err),
+                    Json(json!({"error": err.to_string()})),
+                )
+            })?;
 
         return Ok(Json(json!({
-            "checkout_url": session.checkout_url,
+            "checkout_url": bound.checkout_url.unwrap_or(session.checkout_url),
             "session_id": bound.session_id.unwrap_or(session.id),
             "reference_number": reservation.id,
             "amount_minor": bound.amount_minor,
@@ -300,7 +470,12 @@ pub async fn create_paymongo_checkout(
             .map_err(|s| (s, Json(json!({"error": "Access denied"}))))?;
         let q = store
             .get_payment_quote(&chapter, &event, &entry)
-            .map_err(|_| (StatusCode::NOT_FOUND, Json(json!({"error": "Quote not found"}))))?;
+            .map_err(|_| {
+                (
+                    StatusCode::NOT_FOUND,
+                    Json(json!({"error": "Quote not found"})),
+                )
+            })?;
         (q.available_amount_minor, q.division_name, q.currency)
     };
 
@@ -313,6 +488,18 @@ pub async fn create_paymongo_checkout(
     }
 
     let reference = format!("wsb_{}_{}_{}", chapter, entry, payload.operation_id);
+    let expected_live_mode = configured_paymongo_live_mode().map_err(|error| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": error})),
+        )
+    })?;
+    let payment_method_types = configured_paymongo_payment_methods().map_err(|error| {
+        (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": error})),
+        )
+    })?;
     let session = client
         .create_checkout_session(&crate::paymongo::CreateCheckoutRequest {
             reference_number: reference.clone(),
@@ -325,15 +512,13 @@ pub async fn create_paymongo_checkout(
             description: Some(format!("WSB {} entry registration", division_name)),
             success_url: None,
             cancel_url: None,
-            payment_method_types: vec![
-                "card".into(),
-                "gcash".into(),
-                "grab_pay".into(),
-                "paymaya".into(),
-            ],
+            payment_method_types,
         })
         .await
         .map_err(|err| (StatusCode::BAD_GATEWAY, Json(json!({"error": err}))))?;
+
+    validate_paymongo_session(&session, &reference, amount, &currency, expected_live_mode)
+        .map_err(|error| (StatusCode::BAD_GATEWAY, Json(json!({"error": error}))))?;
 
     {
         let mut store = state.store.write().await;
@@ -372,18 +557,24 @@ pub async fn cancel_paymongo_checkout(
         .await
         .map_err(|s| (s, Json(json!({"error": "Authentication required"}))))?;
 
-    #[cfg(feature = "firestore")]
+    #[cfg(all(feature = "firestore", not(feature = "local-testing")))]
+    if state.durable.is_some() {
+        return Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error":"Provider cancellation is not enabled"})),
+        ));
+    }
+    #[cfg(feature = "local-testing")]
     if let Some(repo) = &state.durable {
         let reservation = repo
             .cancel_local_checkout(&claims, &chapter, &event, &entry, &payload.operation_id)
             .await
-            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))))?;
-
-        if let Some(client) = crate::paymongo::PaymongoClient::from_env() {
-            if let Some(session_id) = &reservation.session_id {
-                let _ = client.expire_checkout_session(session_id).await;
-            }
-        }
+            .map_err(|err| {
+                (
+                    StatusCode::from(&err),
+                    Json(json!({"error": err.to_string()})),
+                )
+            })?;
 
         return Ok(Json(json!(reservation)));
     }
@@ -398,7 +589,12 @@ pub async fn cancel_paymongo_checkout(
             .cancel_local_checkout(&claims, &chapter, &event, &entry, &payload.operation_id)
             .await
             .map(|r| Json(json!(r)))
-            .map_err(|err| (StatusCode::from(&err), Json(json!({"error": err.to_string()}))));
+            .map_err(|err| {
+                (
+                    StatusCode::from(&err),
+                    Json(json!({"error": err.to_string()})),
+                )
+            });
     }
 
     let _ = (state, claims, event, entry, payload);
@@ -590,54 +786,48 @@ pub async fn process_payment(
     Ok(Json(payment))
 }
 
+#[derive(Deserialize)]
+pub struct RefundPaymentPayload {
+    pub operation_id: String,
+    pub reason: String,
+}
+
 pub async fn refund_payment(
     State(state): State<AppState>,
     Path((chapter_id, payment_id)): Path<(String, String)>,
     headers: HeaderMap,
+    body: axum::body::Bytes,
 ) -> Result<Json<PaymentRecord>, StatusCode> {
     let claims = authenticate(&state, &headers, &chapter_id).await?;
     access::require_role(&claims, &["finance", "chapter_director"])?;
+    let payload: RefundPaymentPayload =
+        serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST)?;
 
     #[cfg(feature = "firestore")]
     if let Some(repository) = &state.durable {
         let payment = repository
-            .refund_payment(&claims, &chapter_id, &payment_id)
+            .refund_payment(
+                &claims,
+                &chapter_id,
+                &payment_id,
+                &payload.operation_id,
+                &payload.reason,
+            )
             .await
             .map_err(StatusCode::from)?;
-        if let Some(client) = crate::paymongo::PaymongoClient::from_env() {
-            if payment.provider_reference.starts_with("pay_") {
-                let _ = client
-                    .create_refund(&crate::paymongo::CreateRefundRequest {
-                        payment_id: payment.provider_reference.clone(),
-                        amount_minor: payment.amount_minor,
-                        reason: "requested_by_customer".into(),
-                        notes: Some("WSB Finance Refund".into()),
-                    })
-                    .await
-                    .map_err(|_| StatusCode::BAD_GATEWAY)?;
-            }
-        }
         return Ok(Json(payment));
     }
 
     let mut store = state.store.write().await;
     let payment = store
-        .refund_payment(&chapter_id, &payment_id)
+        .refund_payment(
+            &chapter_id,
+            &payment_id,
+            &claims.sub,
+            &payload.operation_id,
+            &payload.reason,
+        )
         .map_err(|_| StatusCode::BAD_REQUEST)?;
-    store.record_audit(&chapter_id, &claims.sub, "payment_refunded", &payment_id);
-    if let Some(client) = crate::paymongo::PaymongoClient::from_env() {
-        if payment.provider_reference.starts_with("pay_") {
-            let _ = client
-                .create_refund(&crate::paymongo::CreateRefundRequest {
-                    payment_id: payment.provider_reference.clone(),
-                    amount_minor: payment.amount_minor,
-                    reason: "requested_by_customer".into(),
-                    notes: Some("WSB Finance Refund".into()),
-                })
-                .await
-                .map_err(|_| StatusCode::BAD_GATEWAY)?;
-        }
-    }
     Ok(Json(payment))
 }
 
@@ -675,6 +865,37 @@ pub async fn list_payments(
     Ok(Json(serde_json::json!(payments)))
 }
 
+pub async fn get_payment_record(
+    State(state): State<AppState>,
+    Path((chapter_id, payment_id)): Path<(String, String)>,
+    headers: HeaderMap,
+) -> Result<Json<PaymentRecord>, StatusCode> {
+    let claims = authenticate(&state, &headers, &chapter_id).await?;
+    #[cfg(feature = "firestore")]
+    if let Some(repository) = &state.durable {
+        return repository
+            .authorized_payment(&claims, &chapter_id, &payment_id)
+            .await
+            .map(Json)
+            .map_err(StatusCode::from);
+    }
+
+    let store = state.store.read().await;
+    let Some(payment) = store
+        .list_payments(&chapter_id)
+        .into_iter()
+        .find(|payment| payment.payment_id == payment_id)
+    else {
+        return Err(StatusCode::NOT_FOUND);
+    };
+    if !matches!(claims.role.as_deref(), Some("finance" | "chapter_director"))
+        && payment.payer_uid != claims.sub
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
+    Ok(Json(payment))
+}
+
 pub async fn get_finance_summary(
     State(state): State<AppState>,
     Path(chapter_id): Path<String>,
@@ -701,19 +922,31 @@ pub async fn get_finance_summary(
 #[derive(Deserialize)]
 pub struct ReconcilePaymentPayload {
     pub approve: bool,
+    pub operation_id: String,
+    pub reason: String,
 }
 
 pub async fn reconcile_payment(
     State(state): State<AppState>,
     Path((chapter_id, payment_id)): Path<(String, String)>,
     headers: HeaderMap,
-    Json(payload): Json<ReconcilePaymentPayload>,
+    body: axum::body::Bytes,
 ) -> Result<Json<PaymentRecord>, StatusCode> {
     let claims = authenticate(&state, &headers, &chapter_id).await?;
+    access::require_role(&claims, &["finance", "chapter_director"])?;
+    let payload: ReconcilePaymentPayload =
+        serde_json::from_slice(&body).map_err(|_| StatusCode::BAD_REQUEST)?;
     #[cfg(feature = "firestore")]
     if let Some(repository) = &state.durable {
         return repository
-            .reconcile_payment(&claims, &chapter_id, &payment_id, payload.approve)
+            .reconcile_payment(
+                &claims,
+                &chapter_id,
+                &payment_id,
+                payload.approve,
+                &payload.operation_id,
+                &payload.reason,
+            )
             .await
             .map(Json)
             .map_err(StatusCode::from);
@@ -721,9 +954,15 @@ pub async fn reconcile_payment(
     access::require_role(&claims, &["finance", "chapter_director"])?;
     let mut store = state.store.write().await;
     let payment = store
-        .reconcile_payment(&chapter_id, &payment_id, payload.approve)
+        .reconcile_payment(
+            &chapter_id,
+            &payment_id,
+            payload.approve,
+            &claims.sub,
+            &payload.operation_id,
+            &payload.reason,
+        )
         .map_err(|_| StatusCode::CONFLICT)?;
-    store.record_audit(&chapter_id, &claims.sub, "payment_reconciled", &payment_id);
     Ok(Json(payment))
 }
 

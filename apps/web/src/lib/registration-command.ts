@@ -4,7 +4,7 @@ import { firebaseClient } from "./firebase/client";
 
 // Store only an opaque intent hash and operation ID, never the form's identity data.
 // A lost response reuses the same operation ID, including after a page reload.
-export async function registrationCommand<T>(path: string, body: Record<string, unknown> = {}, method = "POST", includeFirebaseIdToken = false, expectedUid?: string): Promise<T> {
+export async function registrationCommand<T>(path: string, body: Record<string, unknown> = {}, method = "POST", includeFirebaseIdToken = false, expectedUid?: string, validate?: (result: T) => boolean): Promise<T> {
   const auth = firebaseClient().auth;
   await auth.authStateReady();
   const user = auth.currentUser;
@@ -17,6 +17,7 @@ export async function registrationCommand<T>(path: string, body: Record<string, 
   sessionStorage.setItem(key, id);
   try {
     const result = await connectedRequest<T>(path, { ...body, operation_id: id }, method, user.uid, includeFirebaseIdToken);
+    if (validate && !validate(result)) throw new Error("The server receipt could not be verified. Retry the same action.");
     sessionStorage.removeItem(key);
     return result;
   } catch (error) {

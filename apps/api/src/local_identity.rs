@@ -53,7 +53,7 @@ impl LocalIdentity {
 pub struct SignIn {
     email: String,
     password: String,
-    chapter_id: String,
+    chapter_id: Option<String>,
 }
 #[derive(Deserialize)]
 struct AuthResponse {
@@ -69,7 +69,8 @@ struct LocalClaims<'a> {
     exp: u64,
     auth_time: u64,
     #[serde(rename = "chapterId")]
-    chapter_id: &'a str,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    chapter_id: Option<&'a str>,
     role: &'a str,
 }
 #[derive(Serialize)]
@@ -92,8 +93,10 @@ pub async fn sign_in(
         || payload.email.len() > 254
         || payload.password.is_empty()
         || payload.password.len() > 4096
-        || payload.chapter_id.is_empty()
-        || payload.chapter_id.len() > 200
+        || payload
+            .chapter_id
+            .as_deref()
+            .is_some_and(|chapter| chapter.is_empty() || chapter.len() > 200)
     {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -109,15 +112,31 @@ pub async fn sign_in(
     if auth.uid.is_empty() || auth.uid.len() > 128 {
         return Err(StatusCode::UNAUTHORIZED);
     }
-    let member = repository
-        .local_identity_member(&auth.uid, &payload.chapter_id)
-        .await
-        .map_err(StatusCode::from)?;
     let now = now_secs();
     let expires_at = now + 3600;
-    if now < member.valid_after {
-        return Err(StatusCode::FORBIDDEN);
-    }
+    let (chapter_id, role) = if let Some(chapter) = payload.chapter_id.as_deref() {
+        let member = repository
+            .local_identity_member(&auth.uid, chapter)
+            .await
+            .map_err(StatusCode::from)?;
+        if now < member.valid_after {
+            return Err(StatusCode::FORBIDDEN);
+        }
+        (Some(member.chapter_id), member.role)
+    } else {
+        let claims = crate::auth::Claims {
+            sub: auth.uid.clone(),
+            iat: now,
+            auth_time: now,
+            chapter_id: None,
+            role: None,
+        };
+        let member = repository
+            .global_membership(&claims)
+            .await
+            .map_err(StatusCode::from)?;
+        (None, member.role)
+    };
     let claims = LocalClaims {
         iss: "urn:wsb:local-testing",
         aud: "demo-wsb",
@@ -125,8 +144,8 @@ pub async fn sign_in(
         iat: now,
         exp: expires_at,
         auth_time: now,
-        chapter_id: &member.chapter_id,
-        role: &member.role,
+        chapter_id: chapter_id.as_deref(),
+        role: &role,
     };
     let mut header = Header::new(Algorithm::RS256);
     header.kid = Some(identity.kid.clone());

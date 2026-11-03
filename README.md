@@ -13,6 +13,12 @@ For the complete local test environment, start Docker Desktop and run
 Firebase test services with synthetic accounts and persistent local data.
 See [Docker setup and test accounts](docs/local-docker.md).
 
+The [system manual](docs/system-manual/README.md) maps the introduced features to
+the original paperwork problem, with local setup, operator procedures, API
+reference, architecture and explicit remaining scope. The accompanying
+[presentation speaker guide](presentations/wsb-system/speaker-guide.md) provides
+the ten-slide core narrative, Q&A backups and a 90-second synthetic demo.
+
 The [complete website plan](docs/website-plan/README.md) specifies 116 pages and
 screen families, roles, features, landing-page direction, content and responsive
 behavior for the planned full platform.

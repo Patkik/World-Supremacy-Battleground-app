@@ -26,7 +26,11 @@ pub(super) async fn page<T: DeserializeOwned>(
         .fluent()
         .list()
         .from(collection)
-        .parent(format!("{}/{parent}", db.get_documents_path()))
+        .parent(if parent.is_empty() {
+            db.get_documents_path().to_owned()
+        } else {
+            format!("{}/{parent}", db.get_documents_path())
+        })
         .page_size(limit);
     let builder = if let Some(token) = token {
         builder.page_token(token)
@@ -121,6 +125,8 @@ impl FirestoreRepository {
                                 "publication_id": value.publication_id,
                                 "approved_entries": value.approved_entries,
                                 "unready_entries": value.unready_entries,
+                                "completed_scorecards": value.completed_scorecards,
+                                "panel_count": value.panel.len(),
                             })).collect(),
                             next_page: values.next_page,
                         }

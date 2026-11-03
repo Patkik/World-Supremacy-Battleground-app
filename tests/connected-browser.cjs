@@ -53,7 +53,11 @@ const script = (file, target) => `(function(exports){${ts.transpileModule(fs.rea
   });
   const accepted = await page.evaluate(async () => new window.testStore.IndexedScoreStore().list('synthetic-judge'));
   assert.equal(accepted[0].state, 'acknowledged');
-  const cachesUsed = await page.evaluate(async () => { const cache = await caches.open('wsb-offline-v1'); return (await cache.keys()).map(r => r.url); });
+  const cachesUsed = await page.evaluate(async () => {
+    const name = (await caches.keys()).find(key => key.startsWith('wsb-offline-'));
+    if (!name) throw new Error('The current offline shell cache is missing.');
+    return (await caches.open(name)).keys().then(requests => requests.map(request => request.url));
+  });
   assert.ok(cachesUsed.every(value => { const url = new URL(value); return url.pathname === '/offline' || url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/brand/') || (url.pathname === '/_next/image' && url.searchParams.get('url') === '/brand/wsb-logo.png'); }));
   assert.deepEqual(errors, []);
   await browser.close();

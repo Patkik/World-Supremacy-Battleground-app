@@ -1,9 +1,10 @@
 "use client";
 
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useState, useRef } from "react";
 import Link from "next/link";
 import { Arrow, Brand, PageHeading, Status, Button } from "@/components/ui";
-import { connectedRequest, segment } from "@/lib/connected-api";
+import { ApiError, connectedRequest, segment } from "@/lib/connected-api";
+import { useWorkspaceSession, type WorkspaceSession } from "@/lib/account";
 
 interface BattleMatch {
   match_id: string;
@@ -18,37 +19,59 @@ interface BattleMatch {
   status: string;
 }
 
+function validBattle(value: unknown, eventId: string, matchId: string): value is BattleMatch {
+  if (!value || typeof value !== "object") return false;
+  const record = value as Partial<BattleMatch>;
+  return record.event_id === eventId && record.match_id === matchId &&
+    [record.category, record.round, record.red_corner_name, record.blue_corner_name].every(v => typeof v === "string" && v.length > 0 && v.length <= 200) &&
+    Number.isSafeInteger(record.votes_red) && (record.votes_red as number) >= 0 && (record.votes_red as number) <= 5 &&
+    Number.isSafeInteger(record.votes_blue) && (record.votes_blue as number) >= 0 && (record.votes_blue as number) <= 5 &&
+    (record.votes_red as number) + (record.votes_blue as number) <= 5 &&
+    ["draft", "active", "live", "closed", "completed"].includes(record.status || "") &&
+    (record.winner_corner === null || record.winner_corner === "red" || record.winner_corner === "blue") &&
+    ((record.status === "closed" || record.status === "completed") ? record.winner_corner !== null : record.winner_corner === null);
+}
+
 export default function BattleJudgeVotePage({
   params,
 }: {
   params: Promise<{ eventId: string; matchId: string }>;
 }) {
   const { eventId, matchId } = use(params);
+  const { session, loading: sessionLoading } = useWorkspaceSession();
+  return <BattleVoteWorkspace key={JSON.stringify([session?.uid ?? null, session?.chapter_id ?? null, eventId, matchId, sessionLoading])} eventId={eventId} matchId={matchId} session={session} sessionLoading={sessionLoading} />;
+}
 
+function BattleVoteWorkspace({ eventId, matchId, session, sessionLoading }: { eventId: string; matchId: string; session: WorkspaceSession | null; sessionLoading: boolean }) {
+  const scope = useRef(0);
   const [battle, setBattle] = useState<BattleMatch | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [vote, setVote] = useState<"red" | "blue" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [pendingCorner, setPendingCorner] = useState<"red" | "blue" | null>(null);
 
   useEffect(() => {
-    let active = true;
+    let active = true; scope.current++;
     async function loadMatch() {
+      if (sessionLoading) return;
+      setSubmitted(false); setSubmitting(false); setVote(null); setPendingCorner(null); setBattle(null);
+      if (!session) { setError("Sign in with an assigned judge account."); setLoading(false); return; }
       try {
         setLoading(true);
         setError(null);
         const data = await connectedRequest<BattleMatch>(
-          `/v1/events/${segment(eventId)}/battles/${segment(matchId)}`
+          `/v1/chapters/${segment(session.chapter_id)}/events/${segment(eventId)}/battles/${segment(matchId)}`, undefined, "GET", session.uid
         );
+        if (!validBattle(data, eventId, matchId)) throw new Error("Match details could not be verified. Refresh before voting.");
+        const own = await connectedRequest<unknown>(`/v1/chapters/${segment(session.chapter_id)}/events/${segment(eventId)}/battles/${segment(matchId)}/my-ballot`, undefined, "GET", session.uid);
+        if (!own || typeof own !== "object") throw new Error("Your ballot state could not be verified. Refresh before voting.");
+        const ballot = own as { event_id?: unknown; match_id?: unknown; judge_uid?: unknown; corner?: unknown };
+        if (ballot.event_id !== eventId || ballot.match_id !== matchId || ballot.judge_uid !== session.uid || ![null, "red", "blue"].includes(ballot.corner as null | string)) throw new Error("Your ballot state could not be verified. Refresh before voting.");
         if (active) {
           setBattle(data);
-          if (data.status === "closed" || data.status === "completed") {
-            setSubmitted(true);
-            if (data.winner_corner === "red" || data.winner_corner === "blue") {
-              setVote(data.winner_corner);
-            }
-          }
+          if (ballot.corner === "red" || ballot.corner === "blue") { setVote(ballot.corner); setSubmitted(true); }
         }
       } catch (err) {
         if (active) {
@@ -62,31 +85,41 @@ export default function BattleJudgeVotePage({
     }
     void loadMatch();
     return () => {
-      active = false;
+      active = false; scope.current++;
     };
-  }, [eventId, matchId]);
+  }, [eventId, matchId, session, sessionLoading]);
 
   const handleCastVote = async (corner: "red" | "blue") => {
-    if (submitted || submitting) return;
+    if (!session || !battle || submitted || submitting || (pendingCorner && pendingCorner !== corner) || (!pendingCorner && !["active", "live"].includes(battle.status))) return;
+    const current = scope.current;
     setSubmitting(true);
+    setPendingCorner(corner);
     setError(null);
     try {
       const updated = await connectedRequest<BattleMatch>(
-        `/v1/events/${segment(eventId)}/battles/${segment(matchId)}/vote`,
+        `/v1/chapters/${segment(session?.chapter_id ?? "")}/events/${segment(eventId)}/battles/${segment(matchId)}/vote`,
         { winner_corner: corner },
-        "POST"
+        "POST", session?.uid
       );
+      if (!validBattle(updated, eventId, matchId) || updated.status === "draft" || (corner === "red" ? updated.votes_red : updated.votes_blue) < 1) throw new Error("The ballot response could not be verified.");
+      if (current !== scope.current) return;
+      setPendingCorner(null);
       setVote(corner);
       setBattle(updated);
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to record ballot");
+      if (current === scope.current) {
+        if (err instanceof ApiError && [400, 401, 403, 404, 409, 422].includes(err.status)) {
+          setPendingCorner(null); setBattle(null); setError("The ballot was not confirmed. Refresh the match and check your assignment before continuing.");
+        } else setError("The ballot result is uncertain. Retry the same corner to recover its receipt.");
+      }
     } finally {
-      setSubmitting(false);
+      if (current === scope.current) setSubmitting(false);
     }
   };
 
   const isClosed = battle?.status === "closed" || battle?.status === "completed";
+  const displayCorner = submitted ? vote : battle?.winner_corner;
   const redName = battle?.red_corner_name || "Red Corner";
   const blueName = battle?.blue_corner_name || "Blue Corner";
   const categoryRound = battle
@@ -103,7 +136,7 @@ export default function BattleJudgeVotePage({
             {matchId} · {categoryRound}
           </span>
         </div>
-        <Link href={`/console/${eventId}/battles`} className="text-link">
+        <Link href={`/console/${segment(eventId)}/battles`} className="text-link">
           Battle Desk <Arrow diagonal />
         </Link>
       </header>
@@ -127,21 +160,25 @@ export default function BattleJudgeVotePage({
           <div className="panel p-12 text-center text-titanium">
             Connecting to battle floor node…
           </div>
+        ) : !battle ? (
+          <div className="panel" role="status">Match details are unavailable. Refresh this page before voting.</div>
+        ) : pendingCorner && !submitted ? (
+          <div className="panel"><p>Your {pendingCorner} ballot is awaiting confirmation. Retry the same corner.</p><button type="button" className="button button-volt" disabled={submitting} onClick={() => void handleCastVote(pendingCorner)}>{submitting ? "Checking…" : "Retry ballot"}</button></div>
         ) : submitted || isClosed ? (
           <div className="panel p-8 bg-carbon border-2 border-volt text-center space-y-4 rounded-xl">
             <Status tone="volt">
               {isClosed ? "BATTLE CLOSED · MAJORITY REACHED" : "VOTE RECORDED & LOCKED"}
             </Status>
             <h2 className="text-3xl font-extrabold text-chrome">
-              Decision:{" "}
+              {submitted ? "Your recorded ballot:" : "Match outcome:"}{" "}
               <span
                 className={
-                  vote === "red" || battle?.winner_corner === "red"
+                  displayCorner === "red"
                     ? "text-crimson"
                     : "text-blue-400"
                 }
               >
-                {vote === "red" || battle?.winner_corner === "red"
+                {displayCorner === "red"
                   ? `RED CORNER (${redName})`
                   : `BLUE CORNER (${blueName})`}
               </span>
@@ -149,7 +186,7 @@ export default function BattleJudgeVotePage({
             {battle && (
               <div className="mono text-sm text-titanium space-y-1">
                 <p>
-                  Official Tally:{" "}
+                  Recorded tally:{" "}
                   <strong className="text-crimson">Red: {battle.votes_red}</strong> ·{" "}
                   <strong className="text-blue-400">Blue: {battle.votes_blue}</strong>
                 </p>
@@ -161,14 +198,16 @@ export default function BattleJudgeVotePage({
               </div>
             )}
             <p className="mono text-xs text-titanium">
-              MATCH_ID: {matchId} · BALLOT IMMUTABLE
+              MATCH_ID: {matchId} · {submitted ? "YOUR BALLOT ACKNOWLEDGED" : "VOTING CLOSED; YOUR BALLOT IS NOT CONFIRMED HERE"}
             </p>
             <div className="pt-2">
-              <Link href={`/console/${eventId}/battles`} className="button button-outline inline-flex items-center">
+              <Link href={`/console/${segment(eventId)}/battles`} className="button button-outline inline-flex items-center">
                 Return to Battle Desk
               </Link>
             </div>
           </div>
+        ) : !["active", "live"].includes(battle.status) ? (
+          <div className="panel" role="status">Voting has not opened for this match.</div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 my-auto">
             {/* RED CORNER BUTTON */}

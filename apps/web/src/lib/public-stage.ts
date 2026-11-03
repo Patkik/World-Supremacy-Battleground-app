@@ -32,6 +32,7 @@ export function pollStage(options: {
   visible: () => boolean;
   schedule?: (callback: () => void, delay: number) => ReturnType<typeof setTimeout>;
   cancel?: (timer: ReturnType<typeof setTimeout>) => void;
+  requestTimeoutMs?: number;
 }) {
   const schedule = options.schedule ?? setTimeout;
   const cancel = options.cancel ?? clearTimeout;
@@ -43,12 +44,23 @@ export function pollStage(options: {
     if (stopped) return;
     if (!options.visible()) { timer = schedule(() => void refresh(), 5000); return; }
     controller = new AbortController();
+    const requestController = controller;
+    let deadline: ReturnType<typeof setTimeout> | undefined;
     try {
-      const value = parseStageProjection(await options.load(controller.signal));
+      const value = parseStageProjection(await Promise.race([
+        options.load(requestController.signal),
+        new Promise<never>((_, reject) => {
+          deadline = setTimeout(() => {
+            requestController.abort();
+            reject(new Error("Stage request timed out"));
+          }, options.requestTimeoutMs ?? 8000);
+        }),
+      ]));
       if (!stopped) { options.accept(value); failures = 0; }
     } catch {
       if (!stopped) { failures++; options.fail(); }
     } finally {
+      if (deadline !== undefined) clearTimeout(deadline);
       if (!stopped) timer = schedule(() => void refresh(), Math.min(60000, 5000 * 2 ** Math.min(failures, 4)));
     }
   }

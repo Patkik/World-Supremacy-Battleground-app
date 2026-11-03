@@ -28,6 +28,7 @@ async fn online_checkin_is_scoped_idempotent_and_recovers() -> Result<()> {
                         role: "marshal".into(),
                         active: true,
                         valid_after: 0,
+                        expires_at: None,
                     },
                 )?;
                 put(

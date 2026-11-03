@@ -14,10 +14,15 @@ jobs:
           distribution: temurin
           java-version: '21'
       - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - run: npm run typecheck
       - run: npm run test:outbox
       - run: node --test tests/public-stage.test.cjs
+      - run: node --test tests/accessibility-contract.test.cjs
       - run: npm run build
+        env:
+          NEXT_PUBLIC_SITE_URL: https://wsb.invalid
+      - run: node tests/run-audit-browser.cjs
       - run: npm run test:rules
   rust:
     runs-on: ubuntu-latest
@@ -47,15 +52,60 @@ jobs:
       - run: npm run test:persistence
   local-stack:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 50
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
       - name: Create isolated local settings
         run: |
           cp .env.docker.example .env.docker
           printf '\nWSB_TEST_PASSWORD=%s\n' "$(openssl rand -hex 24)" >> .env.docker
       - run: docker compose --env-file .env.docker up --build -d --wait --wait-timeout 1200
       - run: docker compose --env-file .env.docker run --rm --no-deps seed node infra/docker/test-local.cjs
+      - name: Build and exercise signed production browser workflows
+        run: |
+          set -euo pipefail
+          docker compose --env-file .env.docker stop web
+          npm run build
+          standalone=apps/web/.next/standalone/apps/web
+          if [ ! -f "$standalone/server.js" ]; then standalone=apps/web/.next/standalone; fi
+          test -f "$standalone/server.js"
+          cp -R apps/web/public "$standalone/public"
+          mkdir -p "$standalone/.next"
+          cp -R apps/web/.next/static "$standalone/.next/static"
+          log_file="$(mktemp)"
+          (cd "$standalone" && exec env PORT=3100 HOSTNAME=0.0.0.0 node server.js) >"$log_file" 2>&1 &
+          server_pid=$!
+          cleanup() { kill "$server_pid" 2>/dev/null || true; }
+          trap cleanup EXIT
+          ready=false
+          for attempt in $(seq 1 120); do
+            if ! kill -0 "$server_pid" 2>/dev/null; then cat "$log_file"; exit 1; fi
+            if curl --silent --fail http://127.0.0.1:3100/build-id >/dev/null; then ready=true; break; fi
+            sleep 1
+          done
+          if [ "$ready" != true ]; then cat "$log_file"; exit 1; fi
+          WSB_DOCKER_BROWSER_VIEWPORT=390 node tests/docker-browser.cjs
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:8189
+          NEXT_PUBLIC_FIREBASE_PROJECT_ID: demo-wsb
+          NEXT_PUBLIC_FIREBASE_API_KEY: demo-key
+          NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: demo-wsb.firebaseapp.com
+          NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: demo-wsb.appspot.com
+          NEXT_PUBLIC_FIREBASE_APP_ID: demo-wsb-local
+          NEXT_PUBLIC_USE_FIREBASE_EMULATORS: 'true'
+          NEXT_PUBLIC_WSB_LOCAL_TESTING: 'true'
+          NEXT_PUBLIC_AUTH_EMULATOR_URL: http://localhost:9099
+          NEXT_PUBLIC_FIRESTORE_EMULATOR_HOST: localhost
+          NEXT_PUBLIC_FIRESTORE_EMULATOR_PORT: '8188'
+          NEXT_PUBLIC_STORAGE_EMULATOR_HOST: localhost
+          NEXT_PUBLIC_STORAGE_EMULATOR_PORT: '9199'
+          INTERNAL_API_URL: http://127.0.0.1:8189
       - run: docker compose --env-file .env.docker down
       - run: docker compose --env-file .env.docker up -d --wait --wait-timeout 300
       - run: docker compose --env-file .env.docker run --rm --no-deps seed node infra/docker/test-local.cjs --recover

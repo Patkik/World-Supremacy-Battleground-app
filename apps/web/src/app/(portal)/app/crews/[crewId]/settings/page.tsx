@@ -1,159 +1,121 @@
 "use client";
 
-import { useEffect, useState, use } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
-import { Arrow, PageHeading } from "@/components/ui";
-import { fetchCrew, updateCrew, Crew } from "@/lib/api";
+import { Arrow, PageHeading, Status } from "@/components/ui";
+import { ApiError, connectedRequest, segment } from "@/lib/connected-api";
+import { useWorkspaceSession } from "@/lib/account";
+import { registrationCommand } from "@/lib/registration-command";
+import type { Crew } from "@/lib/api";
 
-export default function CrewSettingsPage({
-  params,
-}: {
-  params: Promise<{ crewId: string }>;
-}) {
+function messageFor(error: unknown, saving: boolean) {
+  if (error instanceof ApiError && error.status === 401) return "Your session expired. Sign in again before continuing.";
+  if (error instanceof ApiError && error.status === 403) return "Only this crew’s active manager can update its profile.";
+  if (error instanceof ApiError && error.status === 404) return "This crew is not available in your current chapter.";
+  if (error instanceof ApiError && error.status === 409) return "The crew changed elsewhere. Reload the saved record before trying again.";
+  return error instanceof Error ? error.message : saving ? "Crew details could not be saved." : "Crew details could not be loaded.";
+}
+
+export default function CrewSettingsPage({ params }: { params: Promise<{ crewId: string }> }) {
   const { crewId } = use(params);
+  const { session, loading: sessionLoading, error: sessionError } = useWorkspaceSession();
   const [crew, setCrew] = useState<Crew | null>(null);
   const [name, setName] = useState("");
   const [city, setCity] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
   useEffect(() => {
+    let active = true;
     async function load() {
-      try {
-        const data = await fetchCrew("ph", crewId, "demo-token");
-        setCrew(data);
-        setName(data.name);
-        setCity(data.city);
-      } catch {
-        const fallback = {
-          id: crewId,
-          chapter_id: "ph",
-          name: "Afterhours Collective",
-          city: "Manila",
-          manager_uid: "dev-manager-1",
-          members: [],
-          created_at: 1700000000,
-        };
-        setCrew(fallback);
-        setName(fallback.name);
-        setCity(fallback.city);
-      } finally {
+      if (sessionLoading) return;
+      if (!session) {
+        setError(sessionError || "Sign in with your chapter account to continue.");
         setLoading(false);
+        return;
+      }
+      setLoading(true);
+      setError("");
+      try {
+        const path = `/v1/chapters/${segment(session.chapter_id)}/crews/${segment(crewId)}`;
+        const record = await connectedRequest<Crew>(path, undefined, "GET", session.uid);
+        if (!active) return;
+        setCrew(record);
+        setName(record.name);
+        setCity(record.city);
+      } catch (cause) {
+        if (active) setError(messageFor(cause, false));
+      } finally {
+        if (active) setLoading(false);
       }
     }
-    load();
-  }, [crewId]);
+    void load();
+    return () => { active = false; };
+  }, [crewId, session, sessionError, sessionLoading]);
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleSave(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!session || !crew || crew.manager_uid !== session.uid) return;
     setSaving(true);
-    setMessage(null);
+    setError("");
+    setMessage("");
     try {
-      const updated = await updateCrew("ph", "demo-token", crewId, name, city);
+      const path = `/v1/chapters/${segment(session.chapter_id)}/crews/${segment(crew.id)}`;
+      const updated = await registrationCommand<Crew>(path, {
+        expected_revision: crew.revision ?? 0,
+        name,
+        city,
+      }, "PUT", false, session.uid);
       setCrew(updated);
-      setMessage("Crew details updated successfully.");
-    } catch {
-      // Local preview update
-      if (crew) {
-        setCrew({ ...crew, name, city });
-      }
-      setMessage("Crew profile updated.");
+      setName(updated.name);
+      setCity(updated.city);
+      setMessage("Crew profile saved.");
+    } catch (cause) {
+      setError(messageFor(cause, true));
     } finally {
       setSaving(false);
     }
   }
 
-  if (loading) {
-    return (
-      <main className="workspace-main">
-        <PageHeading eyebrow="Crew Settings" title="Loading settings..." description="Retrieving crew configuration." />
-      </main>
-    );
-  }
+  if (sessionLoading || loading) return <main id="main-content" className="workspace-main"><PageHeading eyebrow="Crew settings" title="Loading settings" description="Checking your chapter session and saved crew record." /><p role="status">Loading saved crew details…</p></main>;
 
-  return (
-    <main id="main-content" className="workspace-main">
-      <PageHeading
-        eyebrow={`${crew?.name || "Crew"} / Configuration`}
-        title="Crew Settings"
-        description="Update your crew name, hometown representation, and manager contact credentials."
-        action={
-          <Link href={`/app/crews/${crewId}`} className="button button-outline">
-            ← Back to Overview
-          </Link>
-        }
-      />
+  if (error && !crew) return <main id="main-content" className="workspace-main"><PageHeading eyebrow="Crew settings" title="Crew settings unavailable" description="The saved crew could not be loaded." /><section className="panel" role="alert"><p className="form-error">{error}</p><Link href="/workspaces" className="button button-outline">Account access</Link></section></main>;
 
-      {message && <p className="info-note" role="status">{message}</p>}
+  const canEdit = !!session && crew?.manager_uid === session.uid;
 
-      <div className="max-w-xl">
-        <section className="panel mb-8">
-          <div className="panel-heading">
-            <h2>Identity & Profile</h2>
+  return <main id="main-content" className="workspace-main">
+    <PageHeading
+      eyebrow={`${crew?.name || "Crew"} / profile`}
+      title="Crew settings"
+      description="Update the saved crew name and hometown. Changes use the current chapter session and record revision."
+      action={<Link href={`/app/crews/${segment(crewId)}`} className="button button-outline">Back to overview <Arrow /></Link>}
+    />
+    {message && <p className="info-note" role="status">{message}</p>}
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <div className="max-w-xl">
+      <section className="panel mb-8">
+        <div className="panel-heading"><h2>Identity and profile</h2>{canEdit ? <Status tone="volt">Manager access</Status> : <Status tone="amber">Read only</Status>}</div>
+        <form onSubmit={handleSave} className="connected-stack">
+          <div>
+            <label htmlFor="crew-name">Crew name</label>
+            <input id="crew-name" type="text" value={name} onChange={event => setName(event.target.value)} required maxLength={120} disabled={!canEdit || saving} className="w-full p-3 rounded bg-tungsten border border-subtle text-chrome focus:border-volt" />
+            <span className="text-xs text-titanium mt-1 block">This name appears on the crew profile and connected event entries.</span>
           </div>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div>
-              <label htmlFor="crew-name" className="block text-sm font-semibold text-chrome mb-1">
-                Official Crew Name
-              </label>
-              <input
-                id="crew-name"
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                required
-                className="w-full p-3 rounded bg-tungsten border border-subtle text-chrome focus:border-volt"
-              />
-              <span className="text-xs text-titanium mt-1 block">
-                This exact name appears on stage lineups, live scoreboards, and winner certificates.
-              </span>
-            </div>
-
-            <div>
-              <label htmlFor="crew-city" className="block text-sm font-semibold text-chrome mb-1">
-                Hometown / City Representation
-              </label>
-              <input
-                id="crew-city"
-                type="text"
-                value={city}
-                onChange={(e) => setCity(e.target.value)}
-                required
-                className="w-full p-3 rounded bg-tungsten border border-subtle text-chrome focus:border-volt"
-              />
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={saving}
-                className="button button-volt"
-              >
-                {saving ? "Saving Changes..." : "Save Changes"} <Arrow />
-              </button>
-            </div>
-          </form>
-        </section>
-
-        {/* Danger Zone */}
-        <section className="panel" style={{ border: "1px solid var(--accent-crimson)" }}>
-          <div className="panel-heading">
-            <h2 className="text-crimson font-bold">Danger Zone</h2>
+          <div>
+            <label htmlFor="crew-city">Hometown or city</label>
+            <input id="crew-city" type="text" value={city} onChange={event => setCity(event.target.value)} required maxLength={120} disabled={!canEdit || saving} className="w-full p-3 rounded bg-tungsten border border-subtle text-chrome focus:border-volt" />
           </div>
-          <p className="text-sm text-titanium mb-4">
-            Disbanding a crew will cancel any unapproved event entries and revoke all active invitation tokens.
-          </p>
-          <button
-            type="button"
-            onClick={() => alert("Crew archiving requires contacting Chapter Administration for active championship entries.")}
-            className="button"
-            style={{ backgroundColor: "rgba(255, 42, 0, 0.15)", color: "var(--accent-crimson)", borderColor: "var(--accent-crimson)" }}
-          >
-            Disband Crew
-          </button>
-        </section>
-      </div>
-    </main>
-  );
+          {canEdit && <button type="submit" disabled={saving} className="button button-volt">{saving ? "Saving…" : "Save crew profile"} <Arrow /></button>}
+          {!canEdit && <p className="text-sm text-[var(--ink-muted)]">Only the crew manager can edit these fields.</p>}
+        </form>
+      </section>
+
+      <section className="panel" aria-labelledby="archive-heading">
+        <div className="panel-heading"><h2 id="archive-heading">Crew archive</h2><Status tone="amber">Unavailable</Status></div>
+        <p>Archiving is not connected. This workspace will not cancel entries or revoke invitations through a local-only action.</p>
+      </section>
+    </div>
+  </main>;
 }

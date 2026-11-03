@@ -1,25 +1,26 @@
 "use client";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { connectedRequest, segment } from "@/lib/connected-api";
 import { registrationCommand } from "@/lib/registration-command";
 import { contactCommand,contactRequest, type ContactAccess, type InquiryMessage, type InquiryStatus, type InquirySummary, type InquiryThread } from "@/lib/inquiries";
 
-export function InquiryConversation({chapter,id,contact,staff=false}:{chapter:string;id:string;contact?:ContactAccess;staff?:boolean}){
+export function InquiryConversation({chapter,id,contact,staff=false,expectedUid}:{chapter:string;id:string;contact?:ContactAccess;staff?:boolean;expectedUid?:string}){
   const [thread,setThread]=useState<InquiryThread|null>(null);const [rows,setRows]=useState<InquiryMessage[]>([]);const [cursor,setCursor]=useState<string|null>(null);
   const [message,setMessage]=useState("");const [status,setStatus]=useState<InquiryStatus>("in_progress");const [busy,setBusy]=useState(false);const [error,setError]=useState("");
+  const generation=useRef(0);
   const path=`/v1/chapters/${segment(chapter)}/${contact?"contact":"support"}/${segment(id)}`;
   const load=useCallback(async(next?:string|null)=>{
-    setBusy(true);setError("");try{const url=`${path}${next?`?cursor=${segment(next)}`:""}`;const value=contact?await contactRequest<InquiryThread>(url,contact.secret):await connectedRequest<InquiryThread>(url);setThread(value);setRows(previous=>next?[...previous,...value.messages.items]:value.messages.items);setCursor(value.messages.next_page);}
-    catch(reason){setError(reason instanceof Error?reason.message:"Unable to open the conversation.");}finally{setBusy(false);}
-  },[path,contact]);
-  useEffect(()=>{void load();},[load]);
-  async function reply(event:FormEvent){event.preventDefault();if(!thread)return;setBusy(true);setError("");
+    const current=++generation.current;setBusy(true);setError("");try{const url=`${path}${next?`?cursor=${segment(next)}`:""}`;const value=contact?await contactRequest<InquiryThread>(url,contact.secret):await connectedRequest<InquiryThread>(url,undefined,"GET",expectedUid);if(value.inquiry.id!==id||value.inquiry.chapter_id!==chapter||!Array.isArray(value.messages.items)||(value.messages.next_page!==null&&typeof value.messages.next_page!=="string"))throw new Error("Conversation response could not be verified for this chapter.");if(current===generation.current){setThread(value);setRows(previous=>next?[...previous,...value.messages.items]:value.messages.items);setCursor(value.messages.next_page);}}
+    catch(reason){if(current===generation.current)setError(reason instanceof Error?reason.message:"Unable to open the conversation.");}finally{if(current===generation.current)setBusy(false);}
+  },[path,contact,expectedUid,id,chapter]);
+  useEffect(()=>{void load();return()=>{generation.current++;};},[load]);
+  async function reply(event:FormEvent){event.preventDefault();if(!thread)return;const current=++generation.current;setBusy(true);setError("");
     const body={expected_revision:thread.inquiry.revision,message,...(staff?{status}:{})};
     try{
       if(contact)await contactCommand<InquirySummary>(path,contact.secret,body);
-      else await registrationCommand<InquirySummary>(path,body);
-      setMessage("");await load();
-    }catch(reason){setError(reason instanceof Error?reason.message:"Your reply was not saved.");}finally{setBusy(false);}
+      else await registrationCommand<InquirySummary>(path,body,"POST",false,expectedUid);
+      if(current===generation.current){setMessage("");await load();}
+    }catch(reason){if(current===generation.current)setError(reason instanceof Error?reason.message:"Your reply was not saved.");}finally{if(current===generation.current)setBusy(false);}
   }
   return <section className="panel inquiry-conversation"><div className="connected-actions"><button className="button button-outline" disabled={busy} onClick={()=>void load()}>Reload conversation</button></div>
     {thread&&<><h2>{thread.inquiry.subject}</h2><p>Reference: <span className="mono">{id}</span></p><p>Status: <strong>{thread.inquiry.status.replaceAll("_"," ")}</strong></p>

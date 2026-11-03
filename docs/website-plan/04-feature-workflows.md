@@ -75,10 +75,11 @@ time; display exact cutoff with timezone. Replacing a file invalidates previous
 readiness until verification completes. Late submission is a distinct state with
 approved policy treatment, not an invented automatic deduction.
 
-DJ export snapshots accepted track versions and running-order revision. Export
-manifest contains order, division, crew, actual extension, hash and playback
-readiness. Never change a WAV file's extension to MP3 without transcoding. Validate
-an export after lineup changes, and show whether the DJ's downloaded pack is stale.
+DJ export snapshots accepted track versions and each stage's running-order
+revision for the entire event in one download. Export manifest contains stage,
+order, division, crew, actual extension, hash and playback readiness. Never change
+a WAV file's extension to MP3 without transcoding. Validate an export after lineup
+changes, and show whether the DJ's downloaded pack is stale.
 
 ## 6. Check-in and passes
 Eligible entry -> issue scoped entitlement -> dancer presents QR -> operator checks

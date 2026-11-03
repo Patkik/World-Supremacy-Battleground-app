@@ -4,6 +4,37 @@ use crate::event_ops::PublishDivisionPayload;
 use sha2::{Digest, Sha256};
 
 impl FirestoreRepository {
+    /// Return only the participant's aggregate row from an already-published projection.
+    pub async fn participant_published_result(
+        &self,
+        claims: &Claims,
+        chapter: &str,
+        event: &str,
+        entry_id: &str,
+    ) -> Result<Option<serde_json::Value>> {
+        let input = (
+            claims.clone(),
+            chapter.to_owned(),
+            event.to_owned(),
+            entry_id.to_owned(),
+        );
+        self.db.run_transaction(|db, _tx| {
+            let (claims, chapter, event, entry_id) = input.clone();
+            Box::pin(async move { async {
+                if !matches!(claims.role.as_deref(), Some("crew_manager" | "dancer")) { return Err(forbidden()); }
+                let entry = entry_access(&db, &claims, &chapter, &event, &entry_id, false).await?;
+                let crew: Crew = required(&db, &format!("chapters/{}/crews/{}", segment(&chapter)?, segment(&entry.entry.crew_id)?)).await?;
+                if crew.id != entry.entry.crew_id || crew.chapter_id != chapter || (claims.role.as_deref() == Some("crew_manager") && crew.manager_uid != claims.sub) || (claims.role.as_deref() == Some("dancer") && !entry.entry.roster.iter().any(|member| member.uid == claims.sub)) { return Err(forbidden()); }
+                let Some(index) = get::<PublicEventIndex>(&db, &public_event_path(&event)?).await? else { return Ok(None); };
+                if index.event_id != event || index.chapter_id != chapter { return Err(forbidden()); }
+                let Some(snapshot) = get::<PublishedResultSnapshot>(&db, &snapshot_path(&event, &entry.entry.division_id)?).await? else { return Ok(None); };
+                if snapshot.chapter_id != chapter || snapshot.event_id != event || snapshot.division_id != entry.entry.division_id { return Err(forbidden()); }
+                let matching: Vec<&CrewResult> = snapshot.results.iter().filter(|result| result.entry_id == entry_id).collect();
+                if matching.len() > 1 || matching.first().is_some_and(|result| result.crew_id != entry.entry.crew_id) { return Err(conflict("Published entry scope mismatch")); }
+                Ok(matching.first().map(|result| serde_json::json!({"publication_id":snapshot.publication_id,"division_id":snapshot.division_id,"published_at":snapshot.published_at,"result":result})))
+            }.await.map_err(backoff) })
+        }).await.map_err(transaction_error)
+    }
     pub async fn publish_division_results(
         &self,
         claims: &Claims,
@@ -165,6 +196,17 @@ impl FirestoreRepository {
                                 "This public event ID is already used by another chapter",
                             ));
                         }
+                        // Share the event-creation reservation document so a
+                        // legacy publication and a new draft cannot claim the
+                        // same global event identifier concurrently.
+                        let directory_path = format!("eventDirectory/{}", segment(&event)?);
+                        let directory =
+                            get::<super::events::EventDirectoryEntry>(&db, &directory_path).await?;
+                        if directory.as_ref().is_some_and(|value| {
+                            value.event_id != event || value.chapter_id != chapter
+                        }) {
+                            return Err(conflict("This event ID is reserved for another chapter"));
+                        }
                         if index.is_none() {
                             put(
                                 &db,
@@ -176,7 +218,20 @@ impl FirestoreRepository {
                                 },
                             )?;
                         }
+                        if directory.is_none() {
+                            put(
+                                &db,
+                                tx,
+                                &directory_path,
+                                &super::events::EventDirectoryEntry {
+                                    event_id: event.clone(),
+                                    chapter_id: chapter.clone(),
+                                    created_at: now_secs(),
+                                },
+                            )?;
+                        }
                         put(&db, tx, &snapshot_path, &candidate)?;
+                        super::notifications::queue_publication_notice(&db, tx, &candidate)?;
                         division.publication_id = Some(candidate.publication_id.clone());
                         put(&db, tx, &path, &division)?;
                         audit(
@@ -392,7 +447,7 @@ fn public_event_path(event: &str) -> Result<String> {
     Ok(format!("publicEvents/{}", segment(event)?))
 }
 
-fn snapshot_path(event: &str, division: &str) -> Result<String> {
+pub(super) fn snapshot_path(event: &str, division: &str) -> Result<String> {
     Ok(format!(
         "{}/divisions/{}",
         public_event_path(event)?,

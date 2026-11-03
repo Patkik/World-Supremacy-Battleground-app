@@ -98,12 +98,30 @@ async fn seed(repo: &FirestoreRepository, chapter: &str, event: &str) -> Result<
                         &event_path(chapter, event)?,
                         &Event {
                             registration_closes_at: None,
+                            registration_opens_at: None,
                             id: event.into(),
                             chapter_id: chapter.into(),
                             name: "Synthetic event".into(),
                             status: "active".into(),
                             rules_version: "synthetic-policy-1".into(),
+                            event_date: None,
+                            timezone: None,
+                            venue: None,
+                            created_by: None,
+                            created_at: 0,
+                            updated_at: 0,
+                            revision: 0,
                         },
+                    )?;
+                    put(
+                        &db,
+                        tx,
+                        &format!("eventDirectory/{event}"),
+                        &serde_json::json!({
+                            "event_id": event,
+                            "chapter_id": chapter,
+                            "created_at": 0,
+                        }),
                     )?;
                     for (uid, role) in [
                         ("manager", "crew_manager"),
@@ -122,6 +140,7 @@ async fn seed(repo: &FirestoreRepository, chapter: &str, event: &str) -> Result<
                                 role: role.into(),
                                 active: true,
                                 valid_after: 0,
+                                expires_at: None,
                             },
                         )?;
                         put(
@@ -365,11 +384,13 @@ async fn local_checkout_reservations_are_scoped_and_replay_safe() -> Result<()> 
     );
 
     let paid_event = crate::repository::paymongo_local::LocalPaidEvent {
+        payload_digest: None,
         event_id: format!("evt_{}", new_id("event")),
         session_id: paid.session_id.clone().unwrap(),
         reference: paid.id.clone(),
         amount_minor: 100,
         currency: "PHP".into(),
+        provider_payment_id: None,
     };
     let wrong = crate::repository::paymongo_local::LocalPaidEvent {
         amount_minor: 101,
@@ -435,8 +456,15 @@ async fn synthetic_webhook_rejects_inconsistent_reservations_and_amounts() -> Re
     .await
     .map_err(transaction_error)?;
     assert!(matches!(
-        a.reconcile_payment(&finance, &chapter, &payment.payment_id, true)
-            .await,
+        a.reconcile_payment(
+            &finance,
+            &chapter,
+            &payment.payment_id,
+            true,
+            "unauthorized-operation",
+            "Approval is not permitted"
+        )
+        .await,
         Err(RepositoryError::Denied(StatusCode::FORBIDDEN, _))
     ));
     a.db.run_transaction(|db, tx| {
@@ -595,8 +623,14 @@ async fn synthetic_webhook_rejects_inconsistent_reservations_and_amounts() -> Re
     assert_eq!(quote.paid_amount_minor, 100);
     assert_eq!(quote.pending_amount_minor, 0);
     let finance = actor(&chapter, "finance", "finance");
-    a.refund_payment(&finance, &chapter, &payment.payment_id)
-        .await?;
+    a.refund_payment(
+        &finance,
+        &chapter,
+        &payment.payment_id,
+        "refund-payment",
+        "External reversal confirmed",
+    )
+    .await?;
     assert!(matches!(
         b.process_synthetic_webhook(Some(&chapter), &payload).await,
         Err(RepositoryError::Denied(StatusCode::CONFLICT, _))
@@ -676,15 +710,36 @@ async fn firestore_restart_competing_writers_rollback_and_lock_races() -> Result
     assert_eq!(quote.paid_amount_minor, 0);
     independent_process_check(&chapter, &event, &entry_id, &crew_id, "pending");
     let (settled_one, settled_two) = tokio::join!(
-        a.reconcile_payment(&finance, &chapter, &one.payment_id, true),
-        b.reconcile_payment(&finance, &chapter, &two.payment_id, true)
+        a.reconcile_payment(
+            &finance,
+            &chapter,
+            &one.payment_id,
+            true,
+            "settle-one",
+            "Receipt checked"
+        ),
+        b.reconcile_payment(
+            &finance,
+            &chapter,
+            &two.payment_id,
+            true,
+            "settle-two",
+            "Receipt checked"
+        )
     );
     let settled_one = settled_one?;
     settled_two?;
     assert_eq!(
         settled_one,
-        b.reconcile_payment(&finance, &chapter, &one.payment_id, true)
-            .await?
+        b.reconcile_payment(
+            &finance,
+            &chapter,
+            &one.payment_id,
+            true,
+            "settle-one",
+            "Receipt checked"
+        )
+        .await?
     );
     assert_eq!(
         restarted
@@ -694,8 +749,20 @@ async fn firestore_restart_competing_writers_rollback_and_lock_races() -> Result
         720_000
     );
     let (refund_a, refund_b) = tokio::join!(
-        a.refund_payment(&finance, &chapter, &one.payment_id),
-        b.refund_payment(&finance, &chapter, &one.payment_id)
+        a.refund_payment(
+            &finance,
+            &chapter,
+            &one.payment_id,
+            "refund-one",
+            "Cash return confirmed"
+        ),
+        b.refund_payment(
+            &finance,
+            &chapter,
+            &one.payment_id,
+            "refund-one",
+            "Cash return confirmed"
+        )
     );
     assert_eq!(refund_a?, refund_b?);
     assert_eq!(
@@ -715,10 +782,23 @@ async fn firestore_restart_competing_writers_rollback_and_lock_races() -> Result
             None,
         )
         .await?;
-    a.reconcile_payment(&finance, &chapter, &third.payment_id, true)
-        .await?;
+    a.reconcile_payment(
+        &finance,
+        &chapter,
+        &third.payment_id,
+        true,
+        "settle-third",
+        "Receipt checked",
+    )
+    .await?;
     assert!(a
-        .refund_payment(&manager, &chapter, &two.payment_id)
+        .refund_payment(
+            &manager,
+            &chapter,
+            &two.payment_id,
+            "manager-refund-denied",
+            "Requester is not finance"
+        )
         .await
         .is_err());
     let judge_one = actor(&chapter, "judge-1", "judge");
@@ -1112,7 +1192,7 @@ async fn repository_connect_rejects_non_demo_project_and_missing_emulator() {
         result.err().unwrap(),
         RepositoryError::Denied(
             StatusCode::BAD_REQUEST,
-            "Only demo-wsb with an explicit Firestore emulator is enabled"
+            "Repository tests may connect only to demo-wsb"
         )
     ));
 
@@ -1122,7 +1202,7 @@ async fn repository_connect_rejects_non_demo_project_and_missing_emulator() {
         staging_result.err().unwrap(),
         RepositoryError::Denied(
             StatusCode::BAD_REQUEST,
-            "Only demo-wsb with an explicit Firestore emulator is enabled"
+            "Repository tests may connect only to demo-wsb"
         )
     ));
 
@@ -1137,7 +1217,7 @@ async fn repository_connect_rejects_non_demo_project_and_missing_emulator() {
             missing_host_result.err().unwrap(),
             RepositoryError::Denied(
                 StatusCode::BAD_REQUEST,
-                "Only demo-wsb with an explicit Firestore emulator is enabled"
+                "demo-wsb requires an explicit emulator; production storage requires explicit opt-in without an emulator"
             )
         ));
     }
@@ -1165,7 +1245,7 @@ async fn adversarial_repository_connect_env_boundary_stress() {
                 result.err().unwrap(),
                 RepositoryError::Denied(
                     StatusCode::BAD_REQUEST,
-                    "Only demo-wsb with an explicit Firestore emulator is enabled"
+                    "Repository tests may connect only to demo-wsb"
                 )
             ),
             "Project '{bad_project}' should yield Denied(BAD_REQUEST)"

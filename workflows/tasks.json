@@ -1,6 +1,31 @@
 {
   "tasks": [
     {
+      "id": "audit-professional-readiness",
+      "title": "Implement overall audit reliability, usability and release improvements",
+      "depends_on": ["foundation"],
+      "owner": "implementer",
+      "status": "in_progress",
+      "acceptance": "Resolve and verify code-addressable findings F01-F18 in docs/overall-audit-2026-11-02.md; preserve explicit external policy, provider, privacy and production approval gates. Completion requires measured performance, critical browser/authorization recovery evidence and approved live scope, not only compilation.",
+      "evidence": [
+        "docs/overall-audit-2026-11-02.md",
+        "apps/web/src/lib/public-stage.ts",
+        "tests/public-stage.test.cjs",
+        "tests/public-stage-browser.cjs",
+        "apps/web/src/app/error.tsx",
+        ".github/workflows/ci.yml",
+        "tests/audit-browser.cjs",
+        "tests/public-motion-browser.cjs",
+        "tests/run-audit-browser.cjs",
+        "tests/service-worker-upgrade-browser.cjs",
+        "tests/role-demo-browser.cjs",
+        "tools/test-rehearsal.ps1",
+        "tools/measure-public-performance.cjs",
+        "tools/run-public-performance.cjs",
+        "apps/api/tests/document_parser_process.rs"
+      ]
+    },
+    {
       "id": "stack-foundation",
       "title": "Establish Next.js, Rust and Firebase development foundation",
       "depends_on": [],
@@ -80,13 +105,20 @@
       ],
       "owner": "implementer",
       "status": "in_progress",
-      "acceptance": "Verified webhook signatures, replay and refund cases pass",
+      "acceptance": "Manual finance reconciliation and full manual-ledger refund decisions require reasons and payload-bound receipts; payment detail reads are payer-scoped or finance/director-scoped; checkout input and display use the saved currency's minor-unit precision; provider checkout, verified webhook signatures, provider refunds and failure recovery pass controlled validation. The current WSB refund route changes no external money and is not live-enabled.",
       "evidence": [
         "apps/api/src/domain.rs",
         "apps/api/src/store.rs",
         "apps/api/src/finance.rs",
+        "apps/api/src/repository/finance.rs",
+        "apps/web/src/components/payment-records.tsx",
+        "apps/web/src/app/(admin)/admin/[chapterId]/finance/refunds/page.tsx",
         "apps/api/src/main.rs",
+        "apps/api/src/repository/tests.rs",
+        "tests/local-paymongo-api.cjs",
         "apps/web/src/app/(portal)/app/payments/page.tsx",
+        "apps/web/src/app/(portal)/app/payments/[paymentId]/page.tsx",
+        "apps/web/src/lib/money.ts",
         "apps/web/src/app/(admin)/admin/[chapterId]/finance/page.tsx"
       ]
     },
@@ -97,12 +129,17 @@
         "foundation"
       ],
       "owner": "implementer",
-      "status": "done",
-      "acceptance": "Offline recovery, conflicts and lock authorization verified",
+      "status": "in_progress",
+      "acceptance": "Versioned own-score commands, offline recovery/conflicts and server-authorized division locks are implemented; lock barriers reject expired panel memberships. Synthetic authorization, expiry, replay, reconnect and full role workflow rehearsal remain required before verification is complete. Head-judge review queries division entries in bounded batches with continuation and separate authoritative division totals; large-event and race behavior remain for rehearsal. Connected technical deduction saves use payload-bound operation receipts and require a refreshed review after confirmation; replay and lock races remain for rehearsal.",
       "evidence": [
         "apps/api/src/judging.rs",
         "apps/api/src/store.rs",
-        "apps/api/src/main.rs"
+        "apps/api/src/main.rs",
+        "apps/api/src/repository/panel.rs",
+        "apps/web/src/components/division-panel-workspace.tsx",
+        "apps/web/src/components/head-judge-division-review.tsx",
+        "apps/web/src/app/(console)/console/[eventId]/head-judge/page.tsx",
+        "apps/web/src/app/(console)/console/[eventId]/head-judge/[divisionId]/page.tsx"
       ]
     },
     {
@@ -113,21 +150,32 @@
       ],
       "owner": "implementer",
       "status": "in_progress",
-      "acceptance": "Compliance and venue recovery scenarios verified",
+      "acceptance": "Director-managed event drafts, revisioned core draft edits and registration windows, versioned director-authored division policy drafts, stage creation/configuration/marshal-access and reasoned public-stage publish/unpublish, participant music submission, event-assigned review, audio-operator demo export, and participant-owned stage status through the foreground-refreshing event-day call sheet are native, durable and scoped; the call sheet uses bounded batch reads; the public projection is allowlisted and excludes unpublished scores and draft lineups. Public schedule and livestream screens no longer fabricate times, stream stats, crews or audience reactions. Compliance and venue recovery scenarios are verified without inventing approved rules. Approved/live policy attachment, event activation, public schedule publication, full configuration, offline passes, production display/video delivery, and role rehearsal remain unfinished. The online marshal desk has a bounded candidate lookup for approved, currently ready roster members without widening the general entry read; check-in still rechecks eligibility transactionally. Stage hold changes also notify other active stage-assigned marshals transactionally with revision-based replay deduplication. Director stage-marshal assignment changes also notify only added/removed active marshals, with access-revision replay deduplication. Staff duty selection lists current assigned events in bounded pages with director oversight; destinations recheck authority and role rehearsal remains pending. Assignment-granted notices carry chapter/event context into the event-duty selector; the workspace chooser preserves the validated destination while the selector and desks recheck current authority. Cross-chapter notice recovery and revocation remain for role rehearsal.",
       "evidence": [
         "apps/api/src/event_ops.rs",
         "apps/api/src/repository/venue.rs",
-        "apps/api/src/repository/venue_tests.rs",
         "apps/api/src/repository/stage.rs",
+        "apps/api/src/repository/venue_tests.rs",
         "apps/api/src/repository/stage_tests.rs",
         "apps/api/src/domain.rs",
         "apps/api/src/store.rs",
         "apps/web/src/app/(console)/console/[eventId]/check-in/page.tsx",
         "apps/web/src/app/(console)/console/[eventId]/marshal/page.tsx",
+        "apps/web/src/components/event-day-entries.tsx",
         "apps/web/src/app/(console)/console/[eventId]/audio/page.tsx",
         "apps/web/src/app/(arena-live)/arena-live/[eventId]/page.tsx",
+        "apps/web/src/app/(arena-live)/arena-live/[eventId]/holding/page.tsx",
+        "apps/web/src/app/(arena-live)/arena-live/[eventId]/bracket/page.tsx",
+        "apps/web/src/app/(console)/console/[eventId]/broadcast/page.tsx",
+        "apps/web/src/components/public-stage-display.tsx",
+        "apps/web/src/app/(marketing)/events/[eventSlug]/schedule/page.tsx",
+        "apps/web/src/app/(marketing)/events/[eventSlug]/live/page.tsx",
+        "apps/api/src/repository/stage.rs",
+        "apps/api/src/event_ops.rs",
+        "apps/api/src/main.rs",
         "docs/online-checkin.md",
         "docs/stage-operations.md",
+        "docs/chapter-audit.md",
         "tests/venue-browser.cjs",
         "tests/venue-recovery.cjs",
         "tests/stage-api.cjs",
@@ -141,8 +189,37 @@
         "apps/web/src/components/stage-configuration.tsx",
         "apps/api/src/repository/lineup.rs",
         "apps/web/src/components/stage-lineup.tsx",
+        "apps/api/src/repository/events.rs",
+        "apps/web/src/components/registration-window-form.tsx",
+        "docs/event-management.md",
+        "apps/web/src/components/event-draft-form.tsx",
+        "apps/web/src/components/division-policy-drafts.tsx",
+        "apps/web/src/app/(admin)/admin/[chapterId]/events/[eventId]/division-policies/page.tsx",
+        "docs/firestore-repositories.md",
         "apps/web/src/components/lineup-history.tsx",
-        "tests/lineup-recovery.cjs"
+        "tests/lineup-recovery.cjs",
+        "apps/api/src/repository/music.rs",
+        "apps/api/src/repository/membership.rs",
+        "apps/api/src/auth.rs",
+        "apps/api/src/registration.rs",
+        "apps/web/src/components/staff-membership-workspace.tsx",
+        "apps/web/src/components/hq-access-workspace.tsx",
+        "infra/docker/seed.cjs",
+        "apps/web/src/components/audio-inspection.tsx",
+        "apps/web/src/components/music-review.tsx",
+        "apps/web/src/components/music-review-queue.tsx",
+        "apps/web/src/app/(portal)/app/entries/[entryId]/music/page.tsx",
+        "apps/web/src/app/(admin)/admin/[chapterId]/events/[eventId]/music/page.tsx",
+        "apps/api/src/repository/registration.rs",
+        "apps/web/src/components/event-command-center.tsx",
+        "apps/web/src/app/(admin)/admin/[chapterId]/events/[eventId]/page.tsx",
+        "apps/web/src/app/(admin)/admin/[chapterId]/events/new/page.tsx",
+        "apps/web/src/app/(admin)/admin/[chapterId]/events/page.tsx",
+        "apps/api/src/repository/mod.rs",
+        "docs/chapter-audit.md",
+        "apps/web/src/app/(console)/console/page.tsx",
+        "apps/web/src/components/workspace-access.tsx",
+        "docs/role-workflow-rehearsal.md"
       ]
     },
     {
@@ -164,6 +241,8 @@
         "apps/web/src/app/(marketing)/results/page.tsx",
         "docs/implementation-audit-2026-10-30.md",
         "apps/api/src/repository/publication.rs",
+        "apps/web/src/components/personal-results.tsx",
+        "infra/docker/test-local.cjs",
         "apps/api/src/repository/publication_tests.rs",
         "apps/web/src/components/connected-results-publication.tsx",
         "docs/firestore-repositories.md",
@@ -190,7 +269,9 @@
         "apps/web/src/app/(admin)/hq/integrations/page.tsx",
         "apps/web/src/app/(admin)/hq/operations/page.tsx",
         "apps/web/src/app/(marketing)/rankings/page.tsx",
-        "apps/web/src/app/(marketing)/about/page.tsx"
+        "apps/web/src/app/(marketing)/about/page.tsx",
+        "docs/role-workflow-rehearsal.md",
+        "infra/docker/seed.cjs"
       ]
     },
     {
@@ -257,10 +338,35 @@
       ],
       "owner": "implementer",
       "status": "in_progress",
-      "acceptance": "Account actions use Firebase and business reads/writes enforce current ownership and chapter roles.",
+      "acceptance": "Account actions use Firebase and business reads/writes enforce current ownership and chapter roles. Onboarding saves the account display name through Firebase rather than reporting a browser-only dancer profile; additional profile fields and role rehearsal remain open.",
       "evidence": [
         "apps/web/src/lib/account.ts",
-        "apps/api/src/registration.rs"
+        "apps/web/src/lib/api.ts",
+        "apps/web/src/components/workspace-access.tsx",
+        "apps/web/src/app/(portal)/app/page.tsx",
+        "apps/web/src/components/connected-crews.tsx",
+        "apps/web/src/components/workspace-shell.tsx",
+        "apps/api/src/registration.rs",
+        "apps/api/src/repository/membership.rs",
+        "infra/docker/seed.cjs",
+        "docs/persistent-membership.md",
+        "docs/role-workflow-rehearsal.md",
+        "apps/web/src/components/event-day-entries.tsx",
+        "tests/content-integrity.cjs",
+        "apps/web/src/app/(portal)/app/crews/[crewId]/settings/page.tsx",
+        "apps/web/src/app/(portal)/app/profile/page.tsx",
+        "apps/web/src/app/(portal)/app/security/page.tsx",
+        "apps/web/src/app/(identity)/verify-email/page.tsx",
+        "apps/web/src/app/(identity)/auth/action/page.tsx",
+        "apps/web/src/app/(identity)/change-email/page.tsx",
+        "apps/web/src/app/api/auth/send-verification-email/route.ts",
+        "apps/web/src/app/api/auth/send-reset-email/route.ts",
+        "apps/web/src/components/identity-form.tsx",
+        "apps/web/src/lib/auth-return.ts",
+        "apps/web/src/lib/email.ts",
+        "tests/identity-browser.cjs",
+        "docs/role-demo-2026-11-02.md",
+        "tests/role-demo-browser.cjs"
       ]
     },
     {
@@ -302,11 +408,31 @@
         "firestore-repositories"
       ],
       "owner": "implementer",
-      "status": "todo",
-      "acceptance": "Production membership/assignment provisioning and signed identity lifecycle are verified.",
+      "status": "in_progress",
+      "acceptance": "Demo-wsb chapter role grants, event assignments, and UID-bound, single-use expiring staff invitations use current membership authority, recent authentication, transactional receipts and audit; optional membership expiry is enforced for sessions and event access in both API adapters. Production membership/assignment provisioning, signed identity lifecycle, invitation retention/deletion, and all-role rehearsal remain unverified.",
       "evidence": [
+        "apps/api/src/repository/membership.rs",
+        "apps/api/src/staff.rs",
+        "apps/web/src/components/staff-membership-workspace.tsx",
+        "apps/api/src/repository/models.rs",
+        "apps/api/src/main.rs",
+        "apps/api/src/auth.rs",
         "apps/api/src/repository/",
-        "docs/implementation-audit-2026-10-30.md"
+        "apps/api/src/registration.rs",
+        "apps/api/src/repository/mod.rs",
+        ".env.production.example",
+        "docs/development.md",
+        "apps/api/src/access.rs",
+        "apps/api/src/domain.rs",
+        "apps/api/src/store.rs",
+        "docs/persistent-membership.md",
+        "docs/implementation-audit-2026-10-30.md",
+        "apps/web/src/components/staff-invitation-acceptance.tsx",
+        "apps/web/src/app/staff-invitations/accept/page.tsx",
+        "docs/role-workflow-rehearsal.md",
+        "docs/system-manual/api-reference.md",
+        "docs/role-demo-2026-11-02.md",
+        "tests/role-demo-browser.cjs"
       ]
     },
     {
@@ -317,19 +443,38 @@
       ],
       "owner": "implementer",
       "status": "in_progress",
-      "acceptance": "Private identity/residency evidence uploads and chapter-authorized review are durable and isolated; guardian relationship and event consent use verified authority, music files are inspected, and retention/readiness policy is approved and enforced before this task is done.",
+      "acceptance": "Private identity/residency evidence uploads and chapter-authorized review are durable and isolated; local guardian requests use bounded account-scoped pagination, reject duplicate/out-of-order rows and malformed or non-advancing cursors in the browser, and use owner-scoped notice links; pending requests remain withdrawable with unavailable counterpart identifiers redacted. Guardian relationship and event consent use verified authority, music files are inspected, and retention/readiness policy is approved and enforced before this task is done. Pagination, notice links, indexes and role workflows remain to be verified. JPEG/PNG uploads are decoded with strict dimension and pixel bounds before scanning; PDFs receive strict structural parsing with an 8 MiB per-stream cap, a 24 MiB estimated retained-object budget and a 100,000-object ceiling. One per-process slot serializes private object download, validation and scanning; an exact aggregate heap/decompression bound, parser OS isolation, complete embedded-resource inspection and role workflows remain open.",
       "evidence": [
         "docs/private-verification.md",
         "apps/api/src/repository/verification.rs",
+        "apps/api/src/malware_scan.rs",
         "apps/api/src/repository/verification_tests.rs",
         "apps/api/src/verification.rs",
         "apps/web/src/components/verification-workspace.tsx",
+        "apps/web/src/components/guardian-requests.tsx",
+        "apps/api/src/guardian.rs",
+        "apps/api/src/repository/guardian.rs",
+        "infra/firebase/firestore.indexes.json",
         "infra/firebase/storage.rules",
         "tests/storage.test.mjs",
+        "tests/music-storage-sdk-integration.cjs",
+        "tests/music-storage-integration.cjs",
+        "apps/api/src/repository/music.rs",
+        "apps/api/src/malware_scan.rs",
+        "apps/web/src/components/audio-inspection.tsx",
+        "apps/web/src/components/music-review.tsx",
+        "apps/web/src/components/music-policy-draft.tsx",
+        "apps/web/src/components/music-advisory.tsx",
+        "tests/music-policy-integration.cjs",
+        "tests/music-workflow-integration.cjs",
+        "tools/test-rehearsal.ps1",
         "tests/verification-browser.cjs",
         "tests/run-firestore-repository.cjs",
         "docs/open-questions.md",
-        "docs/implementation-audit-2026-10-30.md"
+        "docs/implementation-audit-2026-10-30.md",
+        "apps/api/Cargo.toml",
+        "docs/role-demo-2026-11-02.md",
+        "tests/role-demo-browser.cjs"
       ]
     },
     {
@@ -339,14 +484,15 @@
         "firestore-repositories"
       ],
       "owner": "implementer",
-      "status": "todo",
-      "acceptance": "Provider checkout, signed idempotent callbacks, refunds and reconciliation pass end-to-end.",
+      "status": "in_progress",
+      "acceptance": "Hosted checkout uses PayMongo v2 with account-configured payment methods, PHP currency validation, stable idempotency and response-to-reservation checks; replay returns only the saved validated checkout URL and fails closed when it is missing. Provider IDs used in API paths must pass prefix and character validation. Refunds use v1. Signed callbacks, provider refunds and failure recovery still require controlled account validation before production enablement.",
       "evidence": [
         "apps/api/src/finance.rs",
         "docs/implementation-audit-2026-10-30.md",
         "tests/synthetic-webhook-disabled.cjs",
         "apps/api/src/repository/tests.rs",
         "apps/api/src/paymongo.rs",
+        "apps/api/src/repository/paymongo_local.rs",
         "tests/checkout-quote-safety.cjs",
         "infra/docker/paymongo-emulator.cjs",
         "tests/paymongo-emulator.cjs",
@@ -357,7 +503,9 @@
         "tests/local-paymongo-recovery.cjs",
         "tests/paymongo-webhook-integration.cjs",
         "apps/web/src/app/(portal)/app/payment-return/page.tsx",
-        "apps/web/src/components/connected-checkout.tsx"
+        "apps/web/src/components/connected-checkout.tsx",
+        "docs/open-questions.md",
+        "docs/architecture.md"
       ]
     },
     {
@@ -372,7 +520,11 @@
       "acceptance": "Authorized online/offline pass checks, reconnection conflict handling and stage state recover safely.",
       "evidence": [
         "docs/online-checkin.md",
-        "apps/api/src/repository/venue.rs"
+        "apps/api/src/repository/venue.rs",
+        "apps/web/src/components/event-day-entries.tsx",
+        "infra/docker/test-local.cjs",
+        "docs/role-demo-2026-11-02.md",
+        "tests/role-demo-browser.cjs"
       ]
     },
     {
@@ -382,10 +534,13 @@
         "results"
       ],
       "owner": "implementer",
-      "status": "todo",
-      "acceptance": "Battle ballots, match transitions and advancement use sourced policy and idempotent server commands.",
+      "status": "in_progress",
+      "acceptance": "Durable director match setup and assigned panels recheck active, unexpired judge memberships and event assignments on draft save and activation; ballots are panel-scoped and idempotent. Bracket seeding, progression and advancement remain gated by approved competition policy. Expiry, replay, tenancy and role rehearsal remain unverified. A current assigned judge can recover only their own saved battle corner after reload; role and recovery behavior remain for rehearsal. The judge desk pages assigned match summaries, validates their event scope, and labels loaded-only counts and manual refresh.",
       "evidence": [
         "apps/api/src/event_ops.rs",
+        "apps/api/src/repository/battles.rs",
+        "docs/durable-battles.md",
+        "docs/role-workflow-rehearsal.md",
         "docs/open-questions.md"
       ]
     },
@@ -410,10 +565,44 @@
         "persistent-membership"
       ],
       "owner": "implementer",
-      "status": "todo",
-      "acceptance": "HQ actions are durable, audited and role-scoped across chapters.",
+      "status": "in_progress",
+      "acceptance": "HQ actions are durable, audited and role-scoped across chapters. Chapter directors can also keep private, revisioned content drafts with atomic audit and replay receipts; public review/publishing, global CMS, rights, audience, correction and retention decisions remain gated. The `/hq` overview combines current authorized API/database/release status, bounded notification exception sample, and exact separately-read chapter/event document counts; it validates response shapes, clears on account changes, and labels unavailable chapter health and global publications instead of fabricating them. Signed browser and all-role rehearsal remain pending.",
       "evidence": [
-        "docs/implementation-audit-2026-10-30.md"
+        "docs/implementation-audit-2026-10-30.md",
+        "apps/api/src/hq.rs",
+        "apps/api/src/repository/hq.rs",
+        "apps/api/src/repository/membership.rs",
+        "apps/web/src/components/hq-access-workspace.tsx",
+        "apps/web/src/components/hq-session-guard.tsx",
+        "apps/api/src/local_identity.rs",
+        "infra/docker/seed.cjs",
+        "docs/global-hq-session.md",
+        "apps/web/src/components/hq-applications-workspace.tsx",
+        "apps/web/src/app/(admin)/hq/applications/page.tsx",
+        "docs/native-applications.md",
+        "apps/api/src/main.rs",
+        "apps/web/src/app/(admin)/hq/integrations/page.tsx",
+        "apps/web/src/app/(admin)/hq/operations/page.tsx",
+        "apps/web/src/components/hq-operations-workspace.tsx",
+        "apps/web/src/lib/hq-integration-status.ts",
+        "apps/web/src/app/(admin)/hq/chapters/page.tsx",
+        "apps/web/src/app/(admin)/layout.tsx",
+        "apps/web/src/app/(admin)/hq/rules/page.tsx",
+        "apps/web/src/app/(admin)/hq/content/page.tsx",
+        "apps/web/src/app/(admin)/admin/[chapterId]/content/page.tsx",
+        "apps/api/src/chapter_content.rs",
+        "apps/api/src/repository/content.rs",
+        "apps/web/src/components/chapter-content-drafts.tsx",
+        "docs/chapter-content-drafts.md",
+        "docs/open-questions.md",
+        "docs/system-manual/api-reference.md",
+        "apps/web/src/components/hq-overview-workspace.tsx",
+        "apps/web/src/app/(admin)/hq/page.tsx",
+        "docs/global-hq-session.md",
+        "apps/web/src/app/(admin)/hq/page.tsx",
+        "docs/system-manual/features.md",
+        "docs/role-demo-2026-11-02.md",
+        "tests/role-demo-browser.cjs"
       ]
     },
     {
@@ -443,7 +632,9 @@
       "evidence": [
         "docs/local-docker.md",
         "compose.yaml",
-        "docs/docker-validation-2026-10-30.md"
+        "docs/docker-validation-2026-10-30.md",
+        "docs/role-demo-2026-11-02.md",
+        "tests/role-demo-browser.cjs"
       ]
     },
     {
@@ -454,17 +645,40 @@
       ],
       "owner": "implementer",
       "status": "in_progress",
-      "acceptance": "Inventory inherited CTAs, form actions and workflow destinations; replace each workflow redirect with a WSB-owned form, durable receipt and authorized review. Chapter/studio/partner proposal intake and selected-chapter support follow-up are implemented; global HQ application queue, membership and affiliation decisions remain explicitly unfinished. Preserve reference links and keep incomplete sensitive workflows tracked.",
+      "acceptance": "Inventory inherited CTAs, form actions and workflow destinations; replace workflow redirects with WSB-owned forms, durable receipts and authorized review. Public pages link source documents without presenting them as event-approved policy, and do not invent chapter/crew identities, affiliations, honors, schedules or media availability. Chapter/studio/partner intake, chapter support, Global HQ conversation follow-up, and a demo-only transactional historical-index backfill are implemented; affiliation decisions and sensitive workflow policies remain explicitly unfinished. Preserve reference links and keep incomplete sensitive workflows tracked. Crew managers can display a locally rendered QR for the existing one-use dancer invitation; scanning and expiry remain for role rehearsal. Crew managers can revoke the currently displayed dancer invitation; receipt replay and concurrent redemption remain to be verified. Bounded invitation history allows the current crew manager to revoke older unused invitations without exposing bearer tokens. Dancers can recover a prior invitation acceptance after reload through an account- and current-crew-scoped receipt check; role-level recovery remains to be verified. New crew invitation links use a fragment and a tab-scoped sign-in handoff; legacy path links remain supported and require log-redaction verification.",
       "evidence": [
         "docs/native-workflows.md",
         "docs/native-applications.md",
         "apps/web/src/components/native-application.tsx",
         "apps/web/src/app/(marketing)/partners/page.tsx",
         "apps/web/src/app/(marketing)/community/studios/page.tsx",
+        "apps/web/src/app/(marketing)/events/[eventSlug]/tickets/page.tsx",
+        "apps/web/src/app/(portal)/app/tickets/page.tsx",
         "apps/api/src/repository/support.rs",
         "tests/native-cta.cjs",
         "tests/applications-browser.cjs",
-        "tests/unavailable-workflows.cjs"
+        "tests/unavailable-workflows.cjs",
+        "tests/content-integrity.cjs",
+        "apps/api/src/hq.rs",
+        "apps/web/src/components/hq-applications-workspace.tsx",
+        "apps/web/src/app/(admin)/hq/applications/page.tsx",
+        "apps/api/src/repository/support.rs",
+        "apps/api/src/main.rs",
+        "docs/native-applications.md",
+        "apps/web/src/app/(admin)/admin/[chapterId]/content/page.tsx",
+        "apps/web/src/app/(marketing)/about/page.tsx",
+        "apps/web/src/app/(marketing)/events/[eventSlug]/page.tsx",
+        "apps/web/src/app/(marketing)/events/[eventSlug]/rules/page.tsx",
+        "apps/web/src/app/(marketing)/crews/[crewSlug]/page.tsx",
+        "apps/web/src/app/(marketing)/chapters/[chapterSlug]/page.tsx",
+        "apps/web/src/components/identity-form.tsx",
+        "apps/web/src/lib/auth-return.ts",
+        "apps/web/src/app/(identity)/verify-email/page.tsx",
+        "apps/web/src/app/(identity)/auth/action/page.tsx",
+        "docs/public-site-media.md",
+        "docs/open-questions.md",
+        "apps/web/src/components/chapter-directory.tsx",
+        "apps/web/src/app/(marketing)/page.tsx"
       ]
     },
     {
@@ -494,6 +708,59 @@
         "docs/native-inquiries.md",
         "apps/api/src/repository/support_tests.rs",
         "tests/support-browser.cjs"
+      ]
+    },
+    {
+      "id": "notification-inbox",
+      "title": "Deliver durable chapter-scoped in-app notifications",
+      "depends_on": [
+        "firestore-repositories",
+        "persistent-membership"
+      ],
+      "owner": "implementer",
+      "status": "in_progress",
+      "acceptance": "Chapter members can read only their own bounded notification inbox, receive an atomic unread count, and idempotently acknowledge a notification; the web inbox keys displayed state to the current account and chapter and checks response scope; crew-invitation acceptance, entry review decisions, verification review decisions, local guardian request updates, judge-panel assignment changes, manual music review outcomes, battle ballot closure for the recorded draft creator, finance and local PayMongo payment transitions to the payer and distinct crew manager, account support updates, event staff assignment changes, eligible online check-in, revisioned stage-position transitions and published results produce notices. Registration approvals and stage-position transitions atomically queue roster delivery; publication queues bounded per-entry expansion followed by roster delivery. Delivery rechecks current roster and membership. Global HQ can inspect bounded pending-job, recorded-failure and unreadable-metadata samples; workers isolate malformed jobs and apply a retry cooldown. Durable recovery, multi-instance behavior, access controls and role rehearsal remain to be verified; followers, corrections, other event triggers, delivery preferences, and external delivery stay unfinished. The browser validates bounded record shapes and accepts only same-origin relative notification destinations. The API bounds notification text and enforces same-origin relative destinations on write and read. Stage hold changes deliver one generic notice to other assigned active marshals, using the hold revision for deduplication. Director stage-access changes notify only added/removed marshals with revision-keyed replay deduplication and current-membership checks.",
+      "evidence": [
+        "apps/api/src/notifications.rs",
+        "apps/api/src/hq.rs",
+        "apps/api/src/repository/notifications.rs",
+        "apps/api/src/repository/registration.rs",
+        "apps/api/src/repository/membership.rs",
+        "apps/api/src/repository/finance.rs",
+        "apps/api/src/repository/support.rs",
+        "apps/api/src/repository/paymongo_local.rs",
+        "apps/api/src/repository/verification.rs",
+        "apps/api/src/repository/guardian.rs",
+        "apps/api/src/repository/publication.rs",
+        "apps/web/src/components/personal-results.tsx",
+        "apps/web/src/components/hq-operations-workspace.tsx",
+        "apps/web/src/components/support-workspace.tsx",
+        "apps/api/src/repository/venue.rs",
+        "apps/api/src/repository/music.rs",
+        "apps/api/src/repository/panel.rs",
+        "apps/api/src/repository/battles.rs",
+        "docs/durable-battles.md",
+        "apps/api/src/repository/stage.rs",
+        "apps/web/src/components/connected-notifications.tsx",
+        "apps/web/src/app/(portal)/app/notifications/page.tsx",
+        "docs/native-workflows.md",
+        "docs/role-workflow-rehearsal.md"
+      ]
+    },
+    {
+      "id": "chapter-audit-explorer",
+      "title": "Connect chapter audit history for directors and auditors",
+      "depends_on": [
+        "core-integrity"
+      ],
+      "owner": "implementer",
+      "status": "in_progress",
+      "acceptance": "Directors and read-only auditors retrieve current chapter audit records in bounded newest-first pages; the browser displays persisted fields and limits exports to loaded records. New writers persist audit correlation identifiers, while required human-reason policy, legacy migration, retention/export policy and role rehearsal remain open.",
+      "evidence": [
+        "apps/api/src/repository/audit.rs",
+        "apps/api/src/registration.rs",
+        "apps/web/src/app/(admin)/admin/[chapterId]/audit/page.tsx",
+        "docs/chapter-audit.md"
       ]
     }
   ],
@@ -526,7 +793,9 @@
     "local-docker-stack",
     "native-system-forms",
     "durable-registration-commands",
-    "native-contact-support"
+    "native-contact-support",
+    "chapter-audit-explorer",
+    "notification-inbox"
   ],
   "ready": [
     "verification-media"

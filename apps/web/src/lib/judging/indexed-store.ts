@@ -19,6 +19,10 @@ export interface CachedLineupRecord {
   updatedAt: number;
 }
 
+function cachedLineupKey(owner: string, chapter: string, event: string) {
+  return JSON.stringify([owner, chapter, event]);
+}
+
 function openDatabase(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(DATABASE, VERSION);
@@ -77,11 +81,23 @@ export class IndexedScoreStore implements ScoreStore {
     const db = await openDatabase();
     return new Promise((resolve, reject) => {
       const transaction = db.transaction("cached_lineups", "readonly");
-      const key = `${owner}:${chapter}:${event}`;
+      const key = cachedLineupKey(owner, chapter, event);
       const request = transaction.objectStore("cached_lineups").get(key);
       transaction.oncomplete = () => {
         db.close();
-        resolve(request.result ? (request.result as CachedLineupRecord).items : null);
+        const record = request.result as CachedLineupRecord | undefined;
+        const valid = !!record
+          && record.key === key
+          && record.owner === owner
+          && record.chapter === chapter
+          && record.event === event
+          && Number.isSafeInteger(record.updatedAt)
+          && Array.isArray(record.items)
+          && record.items.every(item => item
+            && typeof item.entry_id === "string" && item.entry_id.length > 0
+            && typeof item.crew_id === "string" && item.crew_id.length > 0
+            && typeof item.division_id === "string" && item.division_id.length > 0);
+        resolve(valid ? record!.items : null);
       };
       transaction.onerror = transaction.onabort = () => {
         db.close();
@@ -94,7 +110,7 @@ export class IndexedScoreStore implements ScoreStore {
     const db = await openDatabase();
     return new Promise<void>((resolve, reject) => {
       const transaction = db.transaction("cached_lineups", "readwrite");
-      const key = `${owner}:${chapter}:${event}`;
+      const key = cachedLineupKey(owner, chapter, event);
       const record: CachedLineupRecord = {
         key,
         owner,
@@ -112,6 +128,33 @@ export class IndexedScoreStore implements ScoreStore {
         db.close();
         reject(new Error("Could not cache lineup on device."));
       };
+    });
+  }
+
+  async removeCachedLineup(owner: string, chapter: string, event: string): Promise<void> {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction("cached_lineups", "readwrite");
+      transaction.objectStore("cached_lineups").delete(cachedLineupKey(owner, chapter, event));
+      transaction.oncomplete = () => { db.close(); resolve(); };
+      transaction.onerror = transaction.onabort = () => { db.close(); reject(new Error("The saved lineup could not be removed from this device.")); };
+    });
+  }
+
+  async removeCachedLineups(owner: string): Promise<void> {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const transaction = db.transaction("cached_lineups", "readwrite");
+      const store = transaction.objectStore("cached_lineups");
+      const request = store.index("owner").openCursor(IDBKeyRange.only(owner));
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor) return;
+        cursor.delete();
+        cursor.continue();
+      };
+      transaction.oncomplete = () => { db.close(); resolve(); };
+      transaction.onerror = transaction.onabort = () => { db.close(); reject(new Error("Saved assignment lists could not be removed from this device.")); };
     });
   }
 }

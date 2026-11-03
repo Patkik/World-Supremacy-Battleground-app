@@ -1,0 +1,19 @@
+name: wsb-local
+
+services:
+  ngrok:
+    image: ngrok/ngrok:latest
+    restart: unless-stopped
+    depends_on:
+      web:
+        condition: service_healthy
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:?Provide NGROK_AUTHTOKEN in .env.docker}
+      NGROK_DOMAIN: ${NGROK_DOMAIN:-backless-cuddle-endowment.ngrok-free.dev}
+    command:
+      - "http"
+      - "web:3000"
+      - "--url=https://${NGROK_DOMAIN:-backless-cuddle-endowment.ngrok-free.dev}"
+      - "--log=stdout"
+    ports:
+      - "127.0.0.1:4040:4040"

@@ -56,6 +56,7 @@ async fn inquiry_capabilities_account_scope_replay_staff_races_quota_and_recover
                         role: "support".into(),
                         active: true,
                         valid_after: 0,
+                        expires_at: None,
                     },
                 )?;
                 Ok(())

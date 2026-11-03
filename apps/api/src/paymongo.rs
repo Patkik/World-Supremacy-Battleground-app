@@ -1,6 +1,37 @@
 //! PayMongo payment provider integration, signature verification, and hosted checkout.
 use crate::store::{constant_time_eq, hmac_sha256};
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+
+fn valid_provider_id(value: &str, prefix: &str) -> bool {
+    value.len() <= 128
+        && value.strip_prefix(prefix).is_some_and(|suffix| {
+            !suffix.is_empty()
+                && suffix
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        })
+}
+
+fn valid_checkout_url(value: &str) -> bool {
+    reqwest::Url::parse(value).is_ok_and(|url| {
+        let path = url.path();
+        let safe_key = path.strip_prefix("/cs_").is_some_and(|suffix| {
+            !suffix.is_empty()
+                && suffix.len() <= 256
+                && suffix
+                    .bytes()
+                    .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        });
+        url.scheme() == "https"
+            && url.host_str() == Some("checkout.paymongo.com")
+            && url.port().is_none()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && safe_key
+            && url.fragment().is_some_and(|fragment| !fragment.is_empty())
+    })
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PaymongoCheckoutItem {
@@ -33,8 +64,11 @@ pub struct PaymongoCheckoutSession {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct CreateRefundRequest {
+    /// Stable WSB operation ID reused after timeout or ambiguous provider response.
+    pub operation_id: String,
     pub payment_id: String,
     pub amount_minor: u64,
+    pub currency: String,
     pub reason: String,
     pub notes: Option<String>,
 }
@@ -44,6 +78,8 @@ pub struct PaymongoRefund {
     pub id: String,
     pub payment_id: String,
     pub amount_minor: u64,
+    pub currency: String,
+    pub livemode: bool,
     pub status: String,
 }
 
@@ -73,6 +109,8 @@ pub struct PaymongoEvent {
     pub reference_number: Option<String>,
     pub payment: Option<PaymongoPaidPayment>,
     pub refund_id: Option<String>,
+    #[serde(default)]
+    pub refunds: Vec<PaymongoRefund>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -86,14 +124,20 @@ pub struct EmulatedCheckout {
 #[derive(Debug, Clone)]
 pub struct PaymongoClient {
     secret_key: String,
-    api_base_url: String,
+    api_origin: String,
     client: reqwest::Client,
 }
 
 impl PaymongoClient {
     pub fn new(secret_key: String, api_base_url: Option<String>) -> Self {
-        let api_base_url = api_base_url
-            .unwrap_or_else(|| "https://api.paymongo.com/v1".to_string())
+        let configured = api_base_url.unwrap_or_else(|| "https://api.paymongo.com".to_string());
+        let configured = configured.trim_end_matches('/');
+        // Accept older deployment values ending in `/v1` or `/v2`, but keep
+        // endpoint versions explicit at each call site (refunds remain v1).
+        let api_origin = configured
+            .strip_suffix("/v1")
+            .or_else(|| configured.strip_suffix("/v2"))
+            .unwrap_or(configured)
             .trim_end_matches('/')
             .to_string();
         let client = reqwest::Client::builder()
@@ -102,7 +146,7 @@ impl PaymongoClient {
             .unwrap_or_default();
         Self {
             secret_key,
-            api_base_url,
+            api_origin,
             client,
         }
     }
@@ -121,9 +165,33 @@ impl PaymongoClient {
         &self,
         req: &CreateCheckoutRequest,
     ) -> Result<PaymongoCheckoutSession, String> {
-        if req.reference_number.is_empty() || req.line_items.is_empty() {
+        if req.reference_number.is_empty()
+            || req.reference_number.len() > 100
+            || req.line_items.is_empty()
+            || req.payment_method_types.is_empty()
+        {
             return Err("Invalid checkout request".to_string());
         }
+        let currency = &req.line_items[0].currency;
+        if currency != "PHP"
+            || req
+                .line_items
+                .iter()
+                .any(|item| item.currency != *currency || item.amount == 0 || item.quantity == 0)
+        {
+            return Err(
+                "PayMongo hosted checkout currently requires nonzero PHP line items".into(),
+            );
+        }
+        let expected_amount = req
+            .line_items
+            .iter()
+            .try_fold(0_u64, |sum, item| {
+                item.amount
+                    .checked_mul(item.quantity)
+                    .and_then(|amount| sum.checked_add(amount))
+            })
+            .ok_or("Checkout amount is out of range")?;
         let payload = serde_json::json!({
             "data": {
                 "attributes": {
@@ -147,11 +215,22 @@ impl PaymongoClient {
             }
         });
 
-        let url = format!("{}/checkout_sessions", self.api_base_url);
+        let url = format!("{}/v2/checkout_sessions", self.api_origin);
+        // The reference is stable for a reservation/operation, so retries after a
+        // lost response reuse PayMongo's idempotency window instead of creating
+        // another payable session.
+        let idempotency_key = format!(
+            "wsb-checkout-{}",
+            Sha256::digest(req.reference_number.as_bytes())
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>()
+        );
         let response = self
             .client
             .post(&url)
             .basic_auth(&self.secret_key, Some(""))
+            .header("Idempotency-Key", idempotency_key)
             .json(&payload)
             .send()
             .await
@@ -173,25 +252,60 @@ impl PaymongoClient {
         }
 
         let data = &body["data"];
-        let id = data["id"].as_str().ok_or("Missing session ID")?.to_string();
+        let id = data["id"]
+            .as_str()
+            .filter(|id| valid_provider_id(id, "cs_"))
+            .ok_or("Missing or invalid session ID")?
+            .to_string();
         let attrs = &data["attributes"];
         let checkout_url = attrs["checkout_url"]
             .as_str()
-            .unwrap_or_default()
+            .filter(|url| valid_checkout_url(url))
+            .ok_or("Missing or invalid checkout URL")?
             .to_string();
         let reference_number = attrs["reference_number"]
             .as_str()
-            .unwrap_or_default()
+            .ok_or("Missing checkout reference")?
             .to_string();
-        let status = attrs["status"].as_str().unwrap_or("active").to_string();
-        let amount_minor = attrs["line_items"]
+        if reference_number != req.reference_number {
+            return Err("PayMongo returned a different checkout reference".into());
+        }
+        let status = attrs["status"]
+            .as_str()
+            .ok_or("Missing checkout status")?
+            .to_string();
+        if status != "active" {
+            return Err("PayMongo checkout session is not active".into());
+        }
+        let items = attrs["line_items"]
             .as_array()
-            .and_then(|arr| arr.first())
-            .and_then(|item| item["amount"].as_u64())
-            .or_else(|| attrs["amount"].as_u64())
-            .unwrap_or(0);
-        let currency = attrs["currency"].as_str().unwrap_or("PHP").to_string();
-        let livemode = attrs["livemode"].as_bool().unwrap_or(false);
+            .filter(|items| !items.is_empty())
+            .ok_or("PayMongo returned no checkout line items")?;
+        let response_currency = items[0]["currency"]
+            .as_str()
+            .ok_or("PayMongo returned a line item without currency")?;
+        let amount_minor = items
+            .iter()
+            .try_fold(0_u64, |sum, item| {
+                let item_currency = item["currency"].as_str()?;
+                if item_currency != response_currency {
+                    return None;
+                }
+                let item_amount = item["amount"].as_u64()?;
+                let quantity = item["quantity"].as_u64()?;
+                if item_amount == 0 || quantity == 0 {
+                    return None;
+                }
+                sum.checked_add(item_amount.checked_mul(quantity)?)
+            })
+            .ok_or("PayMongo returned invalid checkout line items")?;
+        let currency = response_currency.to_string();
+        if amount_minor != expected_amount
+            || !currency.eq_ignore_ascii_case(&req.line_items[0].currency)
+        {
+            return Err("PayMongo checkout amount or currency did not match the request".into());
+        }
+        let livemode = attrs["livemode"].as_bool().ok_or("Missing checkout mode")?;
 
         Ok(PaymongoCheckoutSession {
             id,
@@ -205,10 +319,13 @@ impl PaymongoClient {
     }
 
     pub async fn expire_checkout_session(&self, session_id: &str) -> Result<(), String> {
-        if !session_id.starts_with("cs_") {
+        if !valid_provider_id(session_id, "cs_") {
             return Err("Invalid checkout session ID".to_string());
         }
-        let url = format!("{}/checkout_sessions/{session_id}/expire", self.api_base_url);
+        let url = format!(
+            "{}/v2/checkout_sessions/{session_id}/expire",
+            self.api_origin
+        );
         let response = self
             .client
             .post(&url)
@@ -224,7 +341,15 @@ impl PaymongoClient {
     }
 
     pub async fn create_refund(&self, req: &CreateRefundRequest) -> Result<PaymongoRefund, String> {
-        if req.payment_id.is_empty() || req.amount_minor == 0 {
+        if !valid_provider_id(&req.payment_id, "pay_")
+            || req.amount_minor == 0
+            || req.currency != "PHP"
+            || !(8..=100).contains(&req.operation_id.len())
+            || !req
+                .operation_id
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))
+        {
             return Err("Invalid refund request".to_string());
         }
         let payload = serde_json::json!({
@@ -238,11 +363,19 @@ impl PaymongoClient {
             }
         });
 
-        let url = format!("{}/refunds", self.api_base_url);
+        let url = format!("{}/v1/refunds", self.api_origin);
+        let idempotency_key = format!(
+            "wsb-refund-{}",
+            Sha256::digest(format!("{}:{}", req.payment_id, req.operation_id).as_bytes())
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect::<String>()
+        );
         let response = self
             .client
             .post(&url)
             .basic_auth(&self.secret_key, Some(""))
+            .header("Idempotency-Key", idempotency_key)
             .json(&payload)
             .send()
             .await
@@ -264,16 +397,46 @@ impl PaymongoClient {
         }
 
         let data = &body["data"];
-        let id = data["id"].as_str().ok_or("Missing refund ID")?.to_string();
+        let id = data["id"]
+            .as_str()
+            .filter(|id| valid_provider_id(id, "ref_"))
+            .ok_or("Missing or invalid refund ID")?
+            .to_string();
         let attrs = &data["attributes"];
-        let payment_id = attrs["payment_id"].as_str().unwrap_or_default().to_string();
-        let amount_minor = attrs["amount"].as_u64().unwrap_or(req.amount_minor);
-        let status = attrs["status"].as_str().unwrap_or("succeeded").to_string();
+        let payment_id = attrs["payment_id"]
+            .as_str()
+            .filter(|value| valid_provider_id(value, "pay_"))
+            .ok_or("Missing or invalid refund payment ID")?
+            .to_string();
+        let amount_minor = attrs["amount"].as_u64().ok_or("Missing refund amount")?;
+        let currency = attrs["currency"]
+            .as_str()
+            .filter(|v| !v.is_empty())
+            .ok_or("Missing refund currency")?
+            .to_string();
+        let livemode = attrs["livemode"].as_bool().ok_or("Missing refund mode")?;
+        let status = attrs["status"]
+            .as_str()
+            .ok_or("Missing refund status")?
+            .to_string();
+        if id.is_empty()
+            || payment_id != req.payment_id
+            || amount_minor != req.amount_minor
+            || currency != req.currency
+            || !matches!(
+                status.as_str(),
+                "pending" | "processing" | "succeeded" | "failed"
+            )
+        {
+            return Err("PayMongo refund response does not match the request".into());
+        }
 
         Ok(PaymongoRefund {
             id,
             payment_id,
             amount_minor,
+            currency,
+            livemode,
             status,
         })
     }
@@ -281,27 +444,74 @@ impl PaymongoClient {
 
 /// Parse raw PayMongo webhook JSON payload into a structured event.
 pub fn parse_event(body: &[u8]) -> Result<PaymongoEvent, String> {
-    let root: serde_json::Value = serde_json::from_slice(body).map_err(|e| format!("Malformed JSON: {e}"))?;
+    let root: serde_json::Value =
+        serde_json::from_slice(body).map_err(|e| format!("Malformed JSON: {e}"))?;
     let data = &root["data"];
-    let event_id = data["id"].as_str().ok_or("Missing event ID")?.to_string();
+    let event_id = data["id"]
+        .as_str()
+        .filter(|value| valid_provider_id(value, "evt_"))
+        .ok_or("Missing or invalid event ID")?
+        .to_string();
     let attrs = &data["attributes"];
     let type_str = attrs["type"].as_str().ok_or("Missing event type")?;
-    let livemode = attrs["livemode"].as_bool().unwrap_or(false);
+    let livemode = attrs["livemode"].as_bool().ok_or("Missing event mode")?;
     let inner_data = &attrs["data"];
     let inner_attrs = &inner_data["attributes"];
 
     match type_str {
         "checkout_session.payment.paid" => {
-            let session_id = inner_data["id"].as_str().map(|s| s.to_string());
-            let reference_number = inner_attrs["reference_number"].as_str().map(|s| s.to_string());
-            let payment = inner_attrs["payments"].as_array().and_then(|payments| {
-                payments.iter().find(|p| p["attributes"]["status"] == "paid").map(|p| PaymongoPaidPayment {
-                    payment_id: p["id"].as_str().unwrap_or_default().to_string(),
-                    amount_minor: p["attributes"]["amount"].as_u64().unwrap_or(0),
-                    currency: p["attributes"]["currency"].as_str().unwrap_or("PHP").to_string(),
-                    status: "paid".to_string(),
-                    livemode: p["attributes"]["livemode"].as_bool().unwrap_or(false),
-                })
+            if data["type"] != "event"
+                || inner_data["type"] != "checkout_session"
+                || attrs["livemode"].as_bool() != Some(livemode)
+                || inner_attrs["livemode"].as_bool().unwrap_or(livemode) != livemode
+            {
+                return Err("Invalid checkout event type or mode".into());
+            }
+            let session_id = Some(
+                inner_data["id"]
+                    .as_str()
+                    .filter(|value| valid_provider_id(value, "cs_"))
+                    .ok_or("Missing or invalid session ID")?
+                    .to_string(),
+            );
+            let reference_number = Some(
+                inner_attrs["reference_number"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .ok_or("Missing checkout reference")?
+                    .to_string(),
+            );
+            let payments = inner_attrs["payments"]
+                .as_array()
+                .ok_or("Missing payments")?;
+            let paid: Vec<_> = payments
+                .iter()
+                .filter(|p| p["attributes"]["status"] == "paid")
+                .collect();
+            if paid.len() != 1
+                || paid[0]["type"] != "payment"
+                || paid[0]["attributes"]["livemode"].as_bool() != Some(livemode)
+            {
+                return Err("Invalid paid payment count, type or mode".into());
+            }
+            let p = paid[0];
+            let payment = Some(PaymongoPaidPayment {
+                payment_id: p["id"]
+                    .as_str()
+                    .filter(|value| valid_provider_id(value, "pay_"))
+                    .ok_or("Missing or invalid payment ID")?
+                    .to_string(),
+                amount_minor: p["attributes"]["amount"]
+                    .as_u64()
+                    .filter(|v| *v > 0)
+                    .ok_or("Invalid payment amount")?,
+                currency: p["attributes"]["currency"]
+                    .as_str()
+                    .filter(|s| !s.is_empty())
+                    .ok_or("Missing payment currency")?
+                    .to_string(),
+                status: "paid".to_string(),
+                livemode,
             });
             Ok(PaymongoEvent {
                 event_id,
@@ -311,12 +521,31 @@ pub fn parse_event(body: &[u8]) -> Result<PaymongoEvent, String> {
                 reference_number,
                 payment,
                 refund_id: None,
+                refunds: Vec::new(),
             })
         }
         "payment.paid" => {
-            let payment_id = inner_data["id"].as_str().unwrap_or_default().to_string();
-            let amount_minor = inner_attrs["amount"].as_u64().unwrap_or(0);
-            let currency = inner_attrs["currency"].as_str().unwrap_or("PHP").to_string();
+            if data["type"] != "event"
+                || inner_data["type"] != "payment"
+                || inner_attrs["livemode"].as_bool() != Some(livemode)
+                || inner_attrs["status"] != "paid"
+            {
+                return Err("Invalid payment event type, mode or status".into());
+            }
+            let payment_id = inner_data["id"]
+                .as_str()
+                .filter(|value| valid_provider_id(value, "pay_"))
+                .ok_or("Missing or invalid payment ID")?
+                .to_string();
+            let amount_minor = inner_attrs["amount"]
+                .as_u64()
+                .filter(|amount| *amount > 0)
+                .ok_or("Missing or invalid payment amount")?;
+            let currency = inner_attrs["currency"]
+                .as_str()
+                .filter(|value| !value.is_empty() && value.len() <= 3)
+                .ok_or("Missing or invalid payment currency")?
+                .to_string();
             let payment = Some(PaymongoPaidPayment {
                 payment_id,
                 amount_minor,
@@ -332,32 +561,143 @@ pub fn parse_event(body: &[u8]) -> Result<PaymongoEvent, String> {
                 reference_number: None,
                 payment,
                 refund_id: None,
+                refunds: Vec::new(),
             })
         }
         "payment.refunded" | "payment.refund.updated" => {
-            let payment_id = inner_data["id"].as_str().unwrap_or_default().to_string();
-            let amount_minor = inner_attrs["amount"].as_u64().unwrap_or(0);
-            let currency = inner_attrs["currency"].as_str().unwrap_or("PHP").to_string();
-            let refund_id = inner_attrs["refunds"]
-                .as_array()
-                .and_then(|arr| arr.first())
-                .and_then(|r| r["id"].as_str())
-                .map(|s| s.to_string());
-            let payment = Some(PaymongoPaidPayment {
-                payment_id,
-                amount_minor,
-                currency,
-                status: "refunded".to_string(),
-                livemode,
-            });
+            if data["type"] != "event" {
+                return Err("Invalid refund event envelope".into());
+            }
+            let (payment, refunds) = if inner_data["type"] == "payment" {
+                let payment_id = inner_data["id"]
+                    .as_str()
+                    .filter(|value| valid_provider_id(value, "pay_"))
+                    .ok_or("Missing or invalid payment ID")?
+                    .to_string();
+                let amount_minor = inner_attrs["amount"]
+                    .as_u64()
+                    .ok_or("Missing payment amount")?;
+                let currency = inner_attrs["currency"]
+                    .as_str()
+                    .filter(|v| !v.is_empty())
+                    .ok_or("Missing payment currency")?
+                    .to_string();
+                let status = inner_attrs["status"]
+                    .as_str()
+                    .ok_or("Missing payment status")?
+                    .to_string();
+                let values = inner_attrs["refunds"]
+                    .as_array()
+                    .ok_or("Missing payment refunds")?;
+                let mut refunds = Vec::with_capacity(values.len());
+                for value in values {
+                    if value["type"] != "refund" {
+                        return Err("Invalid refund resource".into());
+                    }
+                    let attrs = &value["attributes"];
+                    let refund = PaymongoRefund {
+                        id: value["id"]
+                            .as_str()
+                            .filter(|value| valid_provider_id(value, "ref_"))
+                            .ok_or("Missing or invalid refund ID")?
+                            .to_string(),
+                        payment_id: attrs["payment_id"]
+                            .as_str()
+                            .ok_or("Missing refund payment ID")?
+                            .to_string(),
+                        amount_minor: attrs["amount"]
+                            .as_u64()
+                            .filter(|v| *v > 0)
+                            .ok_or("Invalid refund amount")?,
+                        currency: attrs["currency"]
+                            .as_str()
+                            .ok_or("Missing refund currency")?
+                            .to_string(),
+                        livemode: attrs["livemode"].as_bool().ok_or("Missing refund mode")?,
+                        status: attrs["status"]
+                            .as_str()
+                            .ok_or("Missing refund status")?
+                            .to_string(),
+                    };
+                    if refund.payment_id != payment_id
+                        || refund.currency != currency
+                        || refund.livemode != livemode
+                        || !matches!(
+                            refund.status.as_str(),
+                            "pending" | "processing" | "succeeded" | "failed"
+                        )
+                    {
+                        return Err("Refund resource does not match its payment".into());
+                    }
+                    refunds.push(refund);
+                }
+                (
+                    PaymongoPaidPayment {
+                        payment_id,
+                        amount_minor,
+                        currency,
+                        status,
+                        livemode,
+                    },
+                    refunds,
+                )
+            } else if inner_data["type"] == "refund" {
+                let refund = PaymongoRefund {
+                    id: inner_data["id"]
+                        .as_str()
+                        .filter(|value| valid_provider_id(value, "ref_"))
+                        .ok_or("Missing or invalid refund ID")?
+                        .to_string(),
+                    payment_id: inner_attrs["payment_id"]
+                        .as_str()
+                        .filter(|value| valid_provider_id(value, "pay_"))
+                        .ok_or("Missing or invalid refund payment ID")?
+                        .to_string(),
+                    amount_minor: inner_attrs["amount"]
+                        .as_u64()
+                        .filter(|v| *v > 0)
+                        .ok_or("Invalid refund amount")?,
+                    currency: inner_attrs["currency"]
+                        .as_str()
+                        .ok_or("Missing refund currency")?
+                        .to_string(),
+                    livemode: inner_attrs["livemode"]
+                        .as_bool()
+                        .ok_or("Missing refund mode")?,
+                    status: inner_attrs["status"]
+                        .as_str()
+                        .ok_or("Missing refund status")?
+                        .to_string(),
+                };
+                if refund.livemode != livemode
+                    || !matches!(
+                        refund.status.as_str(),
+                        "pending" | "processing" | "succeeded" | "failed"
+                    )
+                {
+                    return Err("Refund resource mode or status is invalid".into());
+                }
+                let payment = PaymongoPaidPayment {
+                    payment_id: refund.payment_id.clone(),
+                    amount_minor: refund.amount_minor,
+                    currency: refund.currency.clone(),
+                    status: refund.status.clone(),
+                    livemode,
+                };
+                (payment, vec![refund])
+            } else {
+                return Err("Unexpected resource in refund event".into());
+            };
+            let refund_id = refunds.first().map(|refund| refund.id.clone());
             Ok(PaymongoEvent {
                 event_id,
                 event_type: PaymongoEventType::PaymentRefunded,
                 livemode,
                 session_id: None,
                 reference_number: None,
-                payment,
+                payment: Some(payment),
                 refund_id,
+                refunds,
             })
         }
         other => Ok(PaymongoEvent {
@@ -368,6 +708,7 @@ pub fn parse_event(body: &[u8]) -> Result<PaymongoEvent, String> {
             reference_number: None,
             payment: None,
             refund_id: None,
+            refunds: Vec::new(),
         }),
     }
 }
@@ -622,6 +963,7 @@ mod tests {
                         "type": "checkout_session",
                         "attributes": {
                             "status": "paid",
+                            "livemode": false,
                             "reference_number": "ref_wsb_789",
                             "payments": [
                                 {
@@ -670,12 +1012,18 @@ mod tests {
                         "attributes": {
                             "amount": 15000,
                             "currency": "PHP",
-                            "status": "refunded",
+                            "status": "paid",
                             "refunds": [
                                 {
                                     "id": "ref_abc999",
-                                    "amount": 15000,
-                                    "status": "succeeded"
+                                    "type": "refund",
+                                    "attributes": {
+                                        "amount": 15000,
+                                        "currency": "PHP",
+                                        "status": "succeeded",
+                                        "payment_id": "pay_xyz001",
+                                        "livemode": true
+                                    }
                                 }
                             ]
                         }
@@ -692,10 +1040,14 @@ mod tests {
         assert_eq!(payment.payment_id, "pay_xyz001");
         assert_eq!(payment.amount_minor, 15000);
         assert_eq!(event.refund_id.as_deref(), Some("ref_abc999"));
+        assert_eq!(event.refunds[0].amount_minor, 15000);
+        assert_eq!(event.refunds[0].payment_id, "pay_xyz001");
     }
 
     #[test]
     fn client_fails_closed_when_unconfigured() {
-        assert!(PaymongoClient::from_env().is_none() || std::env::var("PAYMONGO_SECRET_KEY").is_ok());
+        assert!(
+            PaymongoClient::from_env().is_none() || std::env::var("PAYMONGO_SECRET_KEY").is_ok()
+        );
     }
 }

@@ -80,7 +80,20 @@ function Desk({ chapter, eventId, uid, director }: { chapter: string; eventId: s
     }
   }
   useEffect(() => { void loadStages(); }, [chapter, eventId, uid]);
-  useEffect(() => { setEntries([]); setEntryCursor(null); setStageStatus(null); setStatusError(""); if (stage) { void loadEntries(stage); void loadStageStatus(stage); const timer = window.setInterval(() => void loadStageStatus(stage), 5000); return () => { window.clearInterval(timer); statusRequest.current++; }; } else { entryRequest.current++; setLoadingEntries(false); } }, [stage]);
+  useEffect(() => {
+    setEntries([]); setEntryCursor(null); setStageStatus(null); setStatusError("");
+    if (!stage) { entryRequest.current++; setLoadingEntries(false); return; }
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    void loadEntries(stage);
+    async function refresh() {
+      if (stopped) return;
+      if (document.visibilityState !== "hidden") await loadStageStatus(stage);
+      if (!stopped) timer = setTimeout(() => void refresh(), 5000);
+    }
+    void refresh();
+    return () => { stopped = true; if (timer !== undefined) clearTimeout(timer); statusRequest.current++; };
+  }, [stage]);
 
   async function move(id: string, revision: number, position: Position) {
     if (!stage) return;
@@ -110,14 +123,14 @@ function Desk({ chapter, eventId, uid, director }: { chapter: string; eventId: s
     {director && <StageCreate base={base} uid={uid} onCreated={() => void loadStages()}/>}
     <section className="panel"><h2>Stage</h2>{loading ? <p role="status">Loading stages…</p> : stages.length === 0 ? <p>{stageLoadFailed ? "Stage list is unavailable." : stageCursor ? "No active stages on this page. Load more to continue." : "No active stages are configured for this event."}</p> : <><label htmlFor="stage-select">Select stage</label><select id="stage-select" value={stage} disabled={busy} onChange={event => { stageRef.current = event.target.value; setStage(event.target.value); }}>{stages.map(value => <option key={value.stage_id} value={value.stage_id}>{value.stage_id}{value.active ? "" : " (inactive)"}</option>)}</select>{selected && <p>{selected.single_performer ? "One performer at a time" : "Multiple performers allowed"}</p>}</>}{stageCursor && <button className="button button-outline" type="button" disabled={busy || loading} onClick={() => void loadStages(stageCursor)}>Load more stages</button>}</section>
     {stageLoadFailed && <button type="button" className="button button-outline" disabled={busy || loading} onClick={() => { setLoading(true); void loadStages(stageCursor || undefined); }}>Retry loading stages</button>}
-    {stage && <section className="panel"><h2>Stage hold</h2>{currentStatus ? <p role="status"><strong>{currentStatus.held ? "Hold active" : "No hold active"}</strong> · revision {currentStatus.hold_revision}</p> : <p role="status">{statusError ? "Stage hold status is unavailable." : "Loading hold status…"}</p>}<div className="connected-actions"><button type="button" className="button button-outline" disabled={busy || !currentStatus?.active} style={{minHeight:56}} onClick={() => void changeHold()}>{currentStatus?.held ? "Release stage hold" : "Put stage on hold"}</button><button type="button" className="button button-outline" disabled={busy} style={{minHeight:56}} onClick={() => void loadStageStatus(stage)}>Refresh hold status</button></div><p className="fineprint">A hold blocks starting another performance in this system. It does not notify other operators; use your event communication procedure. Status refreshes while this page is open.</p>{statusError && <p role="alert" className="form-error">{statusError}</p>}</section>}
+    {stage && <section className="panel"><h2>Stage hold</h2>{currentStatus ? <p role="status"><strong>{currentStatus.held ? "Hold active" : "No hold active"}</strong> · revision {currentStatus.hold_revision}</p> : <p role="status">{statusError ? "Stage hold status is unavailable." : "Loading hold status…"}</p>}<div className="connected-actions"><button type="button" className="button button-outline" disabled={busy || !currentStatus?.active} style={{minHeight:56}} onClick={() => void changeHold()}>{currentStatus?.held ? "Release stage hold" : "Put stage on hold"}</button><button type="button" className="button button-outline" disabled={busy} style={{minHeight:56}} onClick={() => void loadStageStatus(stage)}>Refresh hold status</button></div><p className="fineprint">A hold blocks starting another performance in this system. Other active stage-assigned marshals receive an in-app notice; audio, lighting and external communication channels are not notified. Status refreshes while this page is open.</p>{statusError && <p role="alert" className="form-error">{statusError}</p>}</section>}
     {stage && <><section className="panel"><h2>Add to holding</h2><p>Use an approved entry ID. The server checks readiness and event check-ins.</p><form onSubmit={add}><label htmlFor="stage-entry">Entry ID</label><input id="stage-entry" maxLength={200} required value={entryId} onChange={event => setEntryId(event.target.value)} disabled={busy}/><button className="button button-volt" disabled={busy} style={{minHeight:56}}>Add to holding</button></form></section>
     <section className="panel"><div className="connected-actions"><h2>Stage entries</h2><button className="button button-outline" type="button" disabled={busy || loadingEntries} onClick={() => void loadEntries(stage)}>Refresh</button></div>{loadingEntries ? <p role="status">Loading entries…</p> : entries.length === 0 ? <p>{entryLoadFailed ? "Stage entries are unavailable." : "No entries on this page."}</p> : <ul className="connected-list">{entries.map(value => <li key={value.entry_id}><strong>{value.entry_id}</strong><p>{labels[value.position]} · revision {value.revision}</p>{next[value.position] && <button type="button" className="button button-outline" style={{minHeight:56}} disabled={busy || (next[value.position] === "performing" && (!currentStatus || currentStatus.held))} onClick={() => void move(value.entry_id, value.revision, next[value.position]!)}>Move to {labels[next[value.position]!]}</button>}</li>)}</ul>}{entryCursor && <button type="button" className="button button-outline" disabled={busy || loadingEntries} onClick={() => void loadEntries(stage, entryCursor)}>Load more entries</button>}</section></>}
     {error && <p role="alert" className="form-error">{error}</p>}{notice && <p role="status">{notice}</p>}
     {stage && director && <StageConfiguration key={`configuration/${stage}/${uid}`} base={base} stage={stage} uid={uid} onSaved={value => { setStages(current => current.map(item => item.stage_id === stage ? { ...item, ...value } : item)); void loadStageStatus(stage); }}/>}
-    {stage && director && <StageAssignments key={`access/${stage}/${uid}`} base={base} stage={stage} uid={uid}/>}
-    {stage && <StageLineup key={`lineup/${stage}/${uid}`} base={base} stage={stage} uid={uid} director={director}/>}
-    {stage && <LineupHistory key={`lineup-history/${stage}/${uid}`} base={base} stage={stage} uid={uid}/>}
+    {stage && director && <StageAssignments key={JSON.stringify([base, stage, uid])} base={base} stage={stage} uid={uid}/>}
+    {stage && <StageLineup key={JSON.stringify(["lineup", base, stage, uid])} base={base} stage={stage} uid={uid} director={director}/>}
+    {stage && <LineupHistory key={JSON.stringify(["lineup-history", base, stage, uid])} base={base} stage={stage} uid={uid}/>}
     {stage && <StageTimeline key={`${stage}/${uid}`} base={base} stage={stage} uid={uid}/>}
     <p className="fineprint">Entries are listed by record, not performance order. Calls and operator notifications are not connected. Stage changes require a connection.</p>
     <Link className="text-link" href={`/console/${segment(eventId)}/check-in`}>Open check-in desk</Link>

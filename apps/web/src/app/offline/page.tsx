@@ -1,2 +1,4 @@
 import { OfflineWorkspace } from "@/components/offline-workspace";
-export default function Page() { return <OfflineWorkspace />; }
+export default async function Page() {
+  return <OfflineWorkspace />;
+}

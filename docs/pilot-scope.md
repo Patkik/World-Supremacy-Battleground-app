@@ -17,8 +17,10 @@ The pilot release targets a functional multi-tenant competition vertical:
    division selection, roster validation, entry submission, and computed readiness status.
 3. **Readiness Tracking**: Computed multi-factor readiness (roster thresholds,
    audio compliance metadata, guardian consent status, payment ledger balance).
-4. **Offline-Capable Judging Protocol**: 100-point 5-pillar scoring model,
-   `operationId` idempotency, revision-controlled lock transitions, and score receipts.
+4. **Offline-Capable Judging Protocol**: a synthetic five-field, 100-point
+   protocol for exercising `operationId` idempotency, revision-controlled lock
+   transitions and score receipts. The fields are not an approved event rubric;
+   operational scoring remains gated on event-specific criteria and authority.
 5. **Published Results Projection**: Authoritative results finalization in Rust with
    isolated `publicEvents` / `publicResults` read-only projections.
 
@@ -37,10 +39,10 @@ The pilot release targets a functional multi-tenant competition vertical:
 |---|---|---|---|
 | **Divisions** (Monster, Mega, Open, Monster Varsity, Varsity Ignite, Junior, BG.ONE) | Official WSB Website & Hong Kong 2027 Event Spec | **Verified** | Parameterized per event with minimum/maximum roster limits and age brackets. |
 | **Chapter Multi-Tenancy** | WSB Organization Structure | **Verified** | Strict server-side chapter isolation across all mutations and Firestore records. |
-| **50% Roster Retention Rule** | Client Proposal Brief | **Proposed Policy** | Configurable validation rule on championship advancement entries; flagged if unverified. |
-| **January 1 Age Cutoff** | Client Proposal Brief | **Proposed Policy** | Configurable cutoff date in `divisionConfigs`; validates dancer DOB against event year. |
-| **5 Scoring Pillars (20 pts each)** | Client Proposal Brief | **Proposed Policy** | Pre-configured in judging suite: Choreography, Musicality, Execution, Stage Presence, Entertainment. |
-| **5-Second Audio Grace Period & 7-Day Lock** | Client Proposal Brief | **Proposed Policy** | Metadata validation check on audio submission; flags overtime routines for head judge review. |
+| **50% Roster Retention Rule** | WSB Rules 2026 PDF linked from the official Dubai 2026 page; also appears in client proposal | **Source-confirmed for that 2026 rules document; pilot applicability unresolved** | Dubai 2026 booklet applies retention into finals. Advancement automation is unavailable; do not apply it to Manila/Hong Kong until event-specific authority confirms it. |
+| **January 1 Age Cutoff** | WSB Rules 2026 PDF linked from the official Dubai 2026 page | **Source-confirmed for listed 2026 divisions; pilot applicability unresolved** | The booklet gives age thresholds as of January 1 for Kids, Junior, Young Guns, Varsity and Schools. The system does not make DOB-based eligibility decisions; approved pilot-event rules and reviewer policy are required. |
+| **Scoring rubric** | WSB Rules 2026 PDF linked from the official Dubai 2026 page; client proposal differs | **Source-confirmed rubric for that 2026 rules document; pilot applicability unresolved** | The booklet lists eight weighted criteria (Choreography 20%, Formation 10%, Execution 20%, Stage Presence 10%, Musicality 10%, Entertainment Value 10%, Originality & Creativity 10%, Attire 10%). The proposal's five equal pillars are not this rubric. Current five-field scoring is synthetic and must not be represented as the approved pilot rubric. |
+| **Five-second grace / submission deadlines** | WSB Rules 2026 PDF linked from the official Dubai 2026 page; client proposal describes audio grace and a seven-day lock | **Source-confirmed as a performance-duration grace for that 2026 rules document; pilot applicability unresolved** | The booklet states a five-second performance grace and says unspecified requirements should be submitted at least one week before competition. It does not specify a seven-day music lock or define this as upload-duration grace. Draft music grace is advisory only; it does not accept uploads, establish compliance or change readiness. |
 | **Deduction Catalog & Points** | Client Proposal Brief | **Unresolved** | Tracked in `docs/open-questions.md`; technical judge applies generic penalty points with violation tags. |
 | **Tie-Breaking Formula** | Client Proposal Brief | **Unresolved** | Tracked in `docs/open-questions.md`; flagged for head judge manual determination if tied. |
 

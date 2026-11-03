@@ -29,9 +29,6 @@ const server=http.createServer(async (request,response)=>{
     if(!Array.isArray(items)||items.length!==1||!Number.isSafeInteger(items[0]?.amount)||items[0].amount<=0||items[0].currency!=='PHP'||items[0].quantity!==1||typeof attributes.reference_number!=='string'||!attributes.reference_number.trim()||attributes.reference_number.length>200) return json(response,400,{error:'invalid synthetic checkout'});
     const sessionId=id('cs');
     const session={id:sessionId,type:'checkout_session',attributes:{reference_number:attributes.reference_number,livemode:false,status:'active',amount:items[0].amount,currency:'PHP',checkout_url:`https://checkout.paymongo.com/${sessionId}`,payments:[]}};
-    if(url.pathname==='/v2/checkout_sessions') {
-      delete session.attributes.checkout_url;
-    }
     state.sessions[session.id]=session;state.operations[operation]={hash,session_id:session.id,response:JSON.parse(JSON.stringify(session))};persist();return json(response,200,{data:session});
   }
   const expire=url.pathname.match(/^\/(?:v1|v2)\/checkout_sessions\/(cs_[a-f0-9]+)\/expire$/);

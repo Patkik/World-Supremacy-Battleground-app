@@ -1,0 +1,1182 @@
+[
+  {
+    "story_id": "US-PUBLIC-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-001-01, WSB-UI-001-02, WSB-UI-001-03, WSB-UI-001-04"
+  },
+  {
+    "story_id": "US-PUBLIC-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-002-01, WSB-UI-002-02, WSB-UI-002-03, WSB-UI-002-04"
+  },
+  {
+    "story_id": "US-PWA-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-003-01, WSB-UI-003-02, WSB-UI-003-03, WSB-UI-003-04"
+  },
+  {
+    "story_id": "US-ADMIN-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-004-01, WSB-UI-004-02, WSB-UI-004-03, WSB-UI-004-04"
+  },
+  {
+    "story_id": "US-AUDIT-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-005-01, WSB-UI-005-02, WSB-UI-005-03, WSB-UI-005-04"
+  },
+  {
+    "story_id": "US-ADMIN-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-006-01, WSB-UI-006-02, WSB-UI-006-03, WSB-UI-006-04"
+  },
+  {
+    "story_id": "US-ADMIN-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-007-01, WSB-UI-007-02, WSB-UI-007-03, WSB-UI-007-04"
+  },
+  {
+    "story_id": "US-ADMIN-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-008-01, WSB-UI-008-02, WSB-UI-008-03, WSB-UI-008-04"
+  },
+  {
+    "story_id": "US-ADMIN-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-009-01, WSB-UI-009-02, WSB-UI-009-03, WSB-UI-009-04"
+  },
+  {
+    "story_id": "US-ADMIN-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-010-01, WSB-UI-010-02, WSB-UI-010-03, WSB-UI-010-04"
+  },
+  {
+    "story_id": "US-ADMIN-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-011-01, WSB-UI-011-02, WSB-UI-011-03, WSB-UI-011-04"
+  },
+  {
+    "story_id": "US-ADMIN-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-012-01, WSB-UI-012-02, WSB-UI-012-03, WSB-UI-012-04"
+  },
+  {
+    "story_id": "US-ADMIN-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-013-01, WSB-UI-013-02, WSB-UI-013-03, WSB-UI-013-04"
+  },
+  {
+    "story_id": "US-ADMIN-010",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-014-01, WSB-UI-014-02, WSB-UI-014-03, WSB-UI-014-04"
+  },
+  {
+    "story_id": "US-ADMIN-011",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-015-01, WSB-UI-015-02, WSB-UI-015-03, WSB-UI-015-04"
+  },
+  {
+    "story_id": "US-ADMIN-012",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-016-01, WSB-UI-016-02, WSB-UI-016-03, WSB-UI-016-04"
+  },
+  {
+    "story_id": "US-REG-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-017-01, WSB-UI-017-02, WSB-UI-017-03, WSB-UI-017-04"
+  },
+  {
+    "story_id": "US-REG-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-018-01, WSB-UI-018-02, WSB-UI-018-03, WSB-UI-018-04"
+  },
+  {
+    "story_id": "US-ADMIN-013",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-019-01, WSB-UI-019-02, WSB-UI-019-03, WSB-UI-019-04"
+  },
+  {
+    "story_id": "US-RESULT-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-020-01, WSB-UI-020-02, WSB-UI-020-03, WSB-UI-020-04"
+  },
+  {
+    "story_id": "US-ADMIN-014",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-021-01, WSB-UI-021-02, WSB-UI-021-03, WSB-UI-021-04"
+  },
+  {
+    "story_id": "US-ADMIN-015",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-022-01, WSB-UI-022-02, WSB-UI-022-03, WSB-UI-022-04"
+  },
+  {
+    "story_id": "US-ADMIN-016",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-023-01, WSB-UI-023-02, WSB-UI-023-03, WSB-UI-023-04"
+  },
+  {
+    "story_id": "US-PAY-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-024-01, WSB-UI-024-02, WSB-UI-024-03, WSB-UI-024-04"
+  },
+  {
+    "story_id": "US-PAY-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-025-01, WSB-UI-025-02, WSB-UI-025-03, WSB-UI-025-04"
+  },
+  {
+    "story_id": "US-PAY-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-026-01, WSB-UI-026-02, WSB-UI-026-03, WSB-UI-026-04"
+  },
+  {
+    "story_id": "US-ADMIN-017",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-027-01, WSB-UI-027-02, WSB-UI-027-03, WSB-UI-027-04"
+  },
+  {
+    "story_id": "US-SUPPORT-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-028-01, WSB-UI-028-02, WSB-UI-028-03, WSB-UI-028-04"
+  },
+  {
+    "story_id": "US-VERIFY-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-029-01, WSB-UI-029-02, WSB-UI-029-03, WSB-UI-029-04"
+  },
+  {
+    "story_id": "US-CREW-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-030-01, WSB-UI-030-02, WSB-UI-030-03, WSB-UI-030-04"
+  },
+  {
+    "story_id": "US-RESULT-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-031-01, WSB-UI-031-02, WSB-UI-031-03, WSB-UI-031-04"
+  },
+  {
+    "story_id": "US-GUARD-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-032-01, WSB-UI-032-02, WSB-UI-032-03, WSB-UI-032-04"
+  },
+  {
+    "story_id": "US-CREW-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-033-01, WSB-UI-033-02, WSB-UI-033-03, WSB-UI-033-04"
+  },
+  {
+    "story_id": "US-CREW-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-034-01, WSB-UI-034-02, WSB-UI-034-03, WSB-UI-034-04"
+  },
+  {
+    "story_id": "US-CREW-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-035-01, WSB-UI-035-02, WSB-UI-035-03, WSB-UI-035-04"
+  },
+  {
+    "story_id": "US-CREW-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-036-01, WSB-UI-036-02, WSB-UI-036-03, WSB-UI-036-04"
+  },
+  {
+    "story_id": "US-CREW-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-037-01, WSB-UI-037-02, WSB-UI-037-03, WSB-UI-037-04"
+  },
+  {
+    "story_id": "US-GUARD-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-038-01, WSB-UI-038-02, WSB-UI-038-03, WSB-UI-038-04"
+  },
+  {
+    "story_id": "US-REG-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-039-01, WSB-UI-039-02, WSB-UI-039-03, WSB-UI-039-04"
+  },
+  {
+    "story_id": "US-REG-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-040-01, WSB-UI-040-02, WSB-UI-040-03, WSB-UI-040-04"
+  },
+  {
+    "story_id": "US-PAY-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-041-01, WSB-UI-041-02, WSB-UI-041-03, WSB-UI-041-04"
+  },
+  {
+    "story_id": "US-MUSIC-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-042-01, WSB-UI-042-02, WSB-UI-042-03, WSB-UI-042-04"
+  },
+  {
+    "story_id": "US-REG-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-043-01, WSB-UI-043-02, WSB-UI-043-03, WSB-UI-043-04"
+  },
+  {
+    "story_id": "US-REG-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-044-01, WSB-UI-044-02, WSB-UI-044-03, WSB-UI-044-04"
+  },
+  {
+    "story_id": "US-NOTICE-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-045-01, WSB-UI-045-02, WSB-UI-045-03, WSB-UI-045-04"
+  },
+  {
+    "story_id": "US-NOTICE-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-046-01, WSB-UI-046-02, WSB-UI-046-03, WSB-UI-046-04"
+  },
+  {
+    "story_id": "US-PLANNED-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-047-01, WSB-UI-047-02, WSB-UI-047-03, WSB-UI-047-04"
+  },
+  {
+    "story_id": "US-PAY-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-048-01, WSB-UI-048-02, WSB-UI-048-03, WSB-UI-048-04"
+  },
+  {
+    "story_id": "US-PAY-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-049-01, WSB-UI-049-02, WSB-UI-049-03, WSB-UI-049-04"
+  },
+  {
+    "story_id": "US-PAY-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-050-01, WSB-UI-050-02, WSB-UI-050-03, WSB-UI-050-04"
+  },
+  {
+    "story_id": "US-IDENTITY-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-051-01, WSB-UI-051-02, WSB-UI-051-03, WSB-UI-051-04"
+  },
+  {
+    "story_id": "US-IDENTITY-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-052-01, WSB-UI-052-02, WSB-UI-052-03, WSB-UI-052-04"
+  },
+  {
+    "story_id": "US-REG-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-053-01, WSB-UI-053-02, WSB-UI-053-03, WSB-UI-053-04"
+  },
+  {
+    "story_id": "US-RESULT-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-054-01, WSB-UI-054-02, WSB-UI-054-03, WSB-UI-054-04"
+  },
+  {
+    "story_id": "US-IDENTITY-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-055-01, WSB-UI-055-02, WSB-UI-055-03, WSB-UI-055-04"
+  },
+  {
+    "story_id": "US-SUPPORT-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-056-01, WSB-UI-056-02, WSB-UI-056-03, WSB-UI-056-04"
+  },
+  {
+    "story_id": "US-PLANNED-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-057-01, WSB-UI-057-02, WSB-UI-057-03, WSB-UI-057-04"
+  },
+  {
+    "story_id": "US-VERIFY-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-058-01, WSB-UI-058-02, WSB-UI-058-03, WSB-UI-058-04"
+  },
+  {
+    "story_id": "US-RESULT-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-059-01, WSB-UI-059-02, WSB-UI-059-03, WSB-UI-059-04"
+  },
+  {
+    "story_id": "US-RESULT-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-060-01, WSB-UI-060-02, WSB-UI-060-03, WSB-UI-060-04"
+  },
+  {
+    "story_id": "US-RESULT-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-061-01, WSB-UI-061-02, WSB-UI-061-03, WSB-UI-061-04"
+  },
+  {
+    "story_id": "US-RESULT-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-062-01, WSB-UI-062-02, WSB-UI-062-03, WSB-UI-062-04"
+  },
+  {
+    "story_id": "US-RESULT-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-063-01, WSB-UI-063-02, WSB-UI-063-03, WSB-UI-063-04"
+  },
+  {
+    "story_id": "US-IDENTITY-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-064-01, WSB-UI-064-02, WSB-UI-064-03, WSB-UI-064-04"
+  },
+  {
+    "story_id": "US-IDENTITY-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-065-01, WSB-UI-065-02, WSB-UI-065-03, WSB-UI-065-04"
+  },
+  {
+    "story_id": "US-PUBLIC-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-066-01, WSB-UI-066-02, WSB-UI-066-03, WSB-UI-066-04"
+  },
+  {
+    "story_id": "US-PUBLIC-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-067-01, WSB-UI-067-02, WSB-UI-067-03, WSB-UI-067-04"
+  },
+  {
+    "story_id": "US-PUBLIC-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-068-01, WSB-UI-068-02, WSB-UI-068-03, WSB-UI-068-04"
+  },
+  {
+    "story_id": "US-PUBLIC-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-069-01, WSB-UI-069-02, WSB-UI-069-03, WSB-UI-069-04"
+  },
+  {
+    "story_id": "US-JUDGE-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-070-01, WSB-UI-070-02, WSB-UI-070-03, WSB-UI-070-04"
+  },
+  {
+    "story_id": "US-MUSIC-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-071-01, WSB-UI-071-02, WSB-UI-071-03, WSB-UI-071-04"
+  },
+  {
+    "story_id": "US-BATTLE-001",
+    "issue": "Distinct implementation of role Battle judge not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-BATTLE-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-072-01, WSB-UI-072-02, WSB-UI-072-03, WSB-UI-072-04"
+  },
+  {
+    "story_id": "US-BATTLE-002",
+    "issue": "Distinct implementation of role Battle judge not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-BATTLE-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-073-01, WSB-UI-073-02, WSB-UI-073-03, WSB-UI-073-04"
+  },
+  {
+    "story_id": "US-STAGE-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-074-01, WSB-UI-074-02, WSB-UI-074-03, WSB-UI-074-04"
+  },
+  {
+    "story_id": "US-STAGE-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-075-01, WSB-UI-075-02, WSB-UI-075-03, WSB-UI-075-04"
+  },
+  {
+    "story_id": "US-RESULT-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-076-01, WSB-UI-076-02, WSB-UI-076-03, WSB-UI-076-04"
+  },
+  {
+    "story_id": "US-RESULT-010",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-077-01, WSB-UI-077-02, WSB-UI-077-03, WSB-UI-077-04"
+  },
+  {
+    "story_id": "US-JUDGE-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-078-01, WSB-UI-078-02, WSB-UI-078-03, WSB-UI-078-04"
+  },
+  {
+    "story_id": "US-JUDGE-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-079-01, WSB-UI-079-02, WSB-UI-079-03, WSB-UI-079-04"
+  },
+  {
+    "story_id": "US-JUDGE-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-080-01, WSB-UI-080-02, WSB-UI-080-03, WSB-UI-080-04"
+  },
+  {
+    "story_id": "US-JUDGE-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-081-01, WSB-UI-081-02, WSB-UI-081-03, WSB-UI-081-04"
+  },
+  {
+    "story_id": "US-STAGE-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-082-01, WSB-UI-082-02, WSB-UI-082-03, WSB-UI-082-04"
+  },
+  {
+    "story_id": "US-RESULT-011",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-083-01, WSB-UI-083-02, WSB-UI-083-03, WSB-UI-083-04"
+  },
+  {
+    "story_id": "US-JUDGE-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-084-01, WSB-UI-084-02, WSB-UI-084-03, WSB-UI-084-04"
+  },
+  {
+    "story_id": "US-JUDGE-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-085-01, WSB-UI-085-02, WSB-UI-085-03, WSB-UI-085-04"
+  },
+  {
+    "story_id": "US-PUBLIC-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-086-01, WSB-UI-086-02, WSB-UI-086-03, WSB-UI-086-04"
+  },
+  {
+    "story_id": "US-PUBLIC-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-087-01, WSB-UI-087-02, WSB-UI-087-03, WSB-UI-087-04"
+  },
+  {
+    "story_id": "US-PWA-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-088-01, WSB-UI-088-02, WSB-UI-088-03, WSB-UI-088-04"
+  },
+  {
+    "story_id": "US-PUBLIC-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-089-01, WSB-UI-089-02, WSB-UI-089-03, WSB-UI-089-04"
+  },
+  {
+    "story_id": "US-PUBLIC-010",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-090-01, WSB-UI-090-02, WSB-UI-090-03, WSB-UI-090-04"
+  },
+  {
+    "story_id": "US-PUBLIC-011",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-091-01, WSB-UI-091-02, WSB-UI-091-03, WSB-UI-091-04"
+  },
+  {
+    "story_id": "US-PUBLIC-012",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-092-01, WSB-UI-092-02, WSB-UI-092-03, WSB-UI-092-04"
+  },
+  {
+    "story_id": "US-PUBLIC-013",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-093-01, WSB-UI-093-02, WSB-UI-093-03, WSB-UI-093-04"
+  },
+  {
+    "story_id": "US-PUBLIC-014",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-094-01, WSB-UI-094-02, WSB-UI-094-03, WSB-UI-094-04"
+  },
+  {
+    "story_id": "US-PUBLIC-015",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-095-01, WSB-UI-095-02, WSB-UI-095-03, WSB-UI-095-04"
+  },
+  {
+    "story_id": "US-PUBLIC-016",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-096-01, WSB-UI-096-02, WSB-UI-096-03, WSB-UI-096-04"
+  },
+  {
+    "story_id": "US-PUBLIC-017",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-097-01, WSB-UI-097-02, WSB-UI-097-03, WSB-UI-097-04"
+  },
+  {
+    "story_id": "US-PUBLIC-018",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-098-01, WSB-UI-098-02, WSB-UI-098-03, WSB-UI-098-04"
+  },
+  {
+    "story_id": "US-IDENTITY-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-099-01, WSB-UI-099-02, WSB-UI-099-03, WSB-UI-099-04"
+  },
+  {
+    "story_id": "US-PUBLIC-019",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-100-01, WSB-UI-100-02, WSB-UI-100-03, WSB-UI-100-04"
+  },
+  {
+    "story_id": "US-PUBLIC-020",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-101-01, WSB-UI-101-02, WSB-UI-101-03, WSB-UI-101-04"
+  },
+  {
+    "story_id": "US-HQ-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-102-01, WSB-UI-102-02, WSB-UI-102-03, WSB-UI-102-04"
+  },
+  {
+    "story_id": "US-HQ-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-103-01, WSB-UI-103-02, WSB-UI-103-03, WSB-UI-103-04"
+  },
+  {
+    "story_id": "US-HQ-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-104-01, WSB-UI-104-02, WSB-UI-104-03, WSB-UI-104-04"
+  },
+  {
+    "story_id": "US-HQ-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-105-01, WSB-UI-105-02, WSB-UI-105-03, WSB-UI-105-04"
+  },
+  {
+    "story_id": "US-HQ-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-106-01, WSB-UI-106-02, WSB-UI-106-03, WSB-UI-106-04"
+  },
+  {
+    "story_id": "US-HQ-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-107-01, WSB-UI-107-02, WSB-UI-107-03, WSB-UI-107-04"
+  },
+  {
+    "story_id": "US-HQ-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-108-01, WSB-UI-108-02, WSB-UI-108-03, WSB-UI-108-04"
+  },
+  {
+    "story_id": "US-HQ-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-109-01, WSB-UI-109-02, WSB-UI-109-03, WSB-UI-109-04"
+  },
+  {
+    "story_id": "US-IDENTITY-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-110-01, WSB-UI-110-02, WSB-UI-110-03, WSB-UI-110-04"
+  },
+  {
+    "story_id": "US-IDENTITY-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-111-01, WSB-UI-111-02, WSB-UI-111-03, WSB-UI-111-04"
+  },
+  {
+    "story_id": "US-PWA-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-112-01, WSB-UI-112-02, WSB-UI-112-03, WSB-UI-112-04"
+  },
+  {
+    "story_id": "US-PUBLIC-021",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-113-01, WSB-UI-113-02, WSB-UI-113-03, WSB-UI-113-04"
+  },
+  {
+    "story_id": "US-PWA-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-114-01, WSB-UI-114-02, WSB-UI-114-03, WSB-UI-114-04"
+  },
+  {
+    "story_id": "US-PWA-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-115-01, WSB-UI-115-02, WSB-UI-115-03, WSB-UI-115-04"
+  },
+  {
+    "story_id": "US-IDENTITY-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-116-01, WSB-UI-116-02, WSB-UI-116-03, WSB-UI-116-04"
+  },
+  {
+    "story_id": "US-PUBLIC-022",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-117-01, WSB-UI-117-02, WSB-UI-117-03, WSB-UI-117-04"
+  },
+  {
+    "story_id": "US-PUBLIC-023",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-118-01, WSB-UI-118-02, WSB-UI-118-03, WSB-UI-118-04"
+  },
+  {
+    "story_id": "US-PUBLIC-024",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-119-01, WSB-UI-119-02, WSB-UI-119-03, WSB-UI-119-04"
+  },
+  {
+    "story_id": "US-PUBLIC-025",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-120-01, WSB-UI-120-02, WSB-UI-120-03, WSB-UI-120-04"
+  },
+  {
+    "story_id": "US-PUBLIC-026",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-121-01, WSB-UI-121-02, WSB-UI-121-03, WSB-UI-121-04"
+  },
+  {
+    "story_id": "US-IDENTITY-010",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-122-01, WSB-UI-122-02, WSB-UI-122-03, WSB-UI-122-04"
+  },
+  {
+    "story_id": "US-IDENTITY-011",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-123-01, WSB-UI-123-02, WSB-UI-123-03, WSB-UI-123-04"
+  },
+  {
+    "story_id": "US-ACCESS-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-124-01, WSB-UI-124-02, WSB-UI-124-03, WSB-UI-124-04"
+  },
+  {
+    "story_id": "US-PUBLIC-027",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-125-01, WSB-UI-125-02, WSB-UI-125-03, WSB-UI-125-04"
+  },
+  {
+    "story_id": "US-PUBLIC-028",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-126-01, WSB-UI-126-02, WSB-UI-126-03, WSB-UI-126-04"
+  },
+  {
+    "story_id": "US-IDENTITY-012",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-127-01, WSB-UI-127-02, WSB-UI-127-03, WSB-UI-127-04"
+  },
+  {
+    "story_id": "US-ACCESS-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-128-01, WSB-UI-128-02, WSB-UI-128-03, WSB-UI-128-04"
+  },
+  {
+    "story_id": "US-IDENTITY-013",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-02-01, WSB-ROLE-02-02, WSB-ROLE-02-03"
+  },
+  {
+    "story_id": "US-CREW-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-03-01, WSB-ROLE-03-02, WSB-ROLE-03-03"
+  },
+  {
+    "story_id": "US-CREW-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-04-01, WSB-ROLE-04-02, WSB-ROLE-04-03"
+  },
+  {
+    "story_id": "US-GUARD-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-05-01, WSB-ROLE-05-02, WSB-ROLE-05-03"
+  },
+  {
+    "story_id": "US-PLANNED-003",
+    "issue": "Distinct implementation of role Studio coordinator not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-06-01, WSB-ROLE-06-02, WSB-ROLE-06-03"
+  },
+  {
+    "story_id": "US-PLANNED-003",
+    "issue": "Prerequisite pending in source: WSB-ROLE-06-01, WSB-ROLE-06-02, WSB-ROLE-06-03"
+  },
+  {
+    "story_id": "US-REG-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-07-01, WSB-ROLE-07-02, WSB-ROLE-07-03"
+  },
+  {
+    "story_id": "US-VERIFY-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-08-01, WSB-ROLE-08-02, WSB-ROLE-08-03"
+  },
+  {
+    "story_id": "US-PLANNED-004",
+    "issue": "Distinct implementation of role Consent reviewer not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-09-01, WSB-ROLE-09-02, WSB-ROLE-09-03"
+  },
+  {
+    "story_id": "US-PLANNED-004",
+    "issue": "Prerequisite pending in source: WSB-ROLE-09-01, WSB-ROLE-09-02, WSB-ROLE-09-03"
+  },
+  {
+    "story_id": "US-PAY-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-10-01, WSB-ROLE-10-02, WSB-ROLE-10-03"
+  },
+  {
+    "story_id": "US-PLANNED-005",
+    "issue": "Distinct implementation of role Refund approver not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-11-01, WSB-ROLE-11-02, WSB-ROLE-11-03"
+  },
+  {
+    "story_id": "US-PLANNED-005",
+    "issue": "Prerequisite pending in source: WSB-ROLE-11-01, WSB-ROLE-11-02, WSB-ROLE-11-03"
+  },
+  {
+    "story_id": "US-ADMIN-018",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-12-01, WSB-ROLE-12-02, WSB-ROLE-12-03"
+  },
+  {
+    "story_id": "US-PLANNED-006",
+    "issue": "Distinct implementation of role Event manager not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-13-01, WSB-ROLE-13-02, WSB-ROLE-13-03"
+  },
+  {
+    "story_id": "US-PLANNED-006",
+    "issue": "Prerequisite pending in source: WSB-ROLE-13-01, WSB-ROLE-13-02, WSB-ROLE-13-03"
+  },
+  {
+    "story_id": "US-JUDGE-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-14-01, WSB-ROLE-14-02, WSB-ROLE-14-03"
+  },
+  {
+    "story_id": "US-RESULT-012",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-15-01, WSB-ROLE-15-02, WSB-ROLE-15-03"
+  },
+  {
+    "story_id": "US-PLANNED-007",
+    "issue": "Distinct implementation of role Technical judge not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-16-01, WSB-ROLE-16-02, WSB-ROLE-16-03"
+  },
+  {
+    "story_id": "US-PLANNED-007",
+    "issue": "Prerequisite pending in source: WSB-ROLE-16-01, WSB-ROLE-16-02, WSB-ROLE-16-03"
+  },
+  {
+    "story_id": "US-BATTLE-003",
+    "issue": "Distinct implementation of role Battle judge not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-BATTLE-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-17-03"
+  },
+  {
+    "story_id": "US-PLANNED-008",
+    "issue": "Distinct implementation of role Battle operator not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-18-01, WSB-ROLE-18-02, WSB-ROLE-18-03"
+  },
+  {
+    "story_id": "US-PLANNED-008",
+    "issue": "Prerequisite pending in source: WSB-ROLE-18-01, WSB-ROLE-18-02, WSB-ROLE-18-03"
+  },
+  {
+    "story_id": "US-STAGE-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-19-01, WSB-ROLE-19-02, WSB-ROLE-19-03"
+  },
+  {
+    "story_id": "US-STAGE-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-20-01, WSB-ROLE-20-02, WSB-ROLE-20-03"
+  },
+  {
+    "story_id": "US-MUSIC-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-21-01, WSB-ROLE-21-02, WSB-ROLE-21-03"
+  },
+  {
+    "story_id": "US-PLANNED-009",
+    "issue": "Distinct implementation of role Broadcast operator not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-22-01, WSB-ROLE-22-02, WSB-ROLE-22-03"
+  },
+  {
+    "story_id": "US-PLANNED-009",
+    "issue": "Prerequisite pending in source: WSB-ROLE-22-01, WSB-ROLE-22-02, WSB-ROLE-22-03"
+  },
+  {
+    "story_id": "US-PLANNED-010",
+    "issue": "Distinct implementation of role Content editor not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-010",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-23-01, WSB-ROLE-23-02, WSB-ROLE-23-03"
+  },
+  {
+    "story_id": "US-PLANNED-010",
+    "issue": "Prerequisite pending in source: WSB-ROLE-23-01, WSB-ROLE-23-02, WSB-ROLE-23-03"
+  },
+  {
+    "story_id": "US-PLANNED-011",
+    "issue": "Distinct implementation of role Content / result publisher not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-011",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-24-01, WSB-ROLE-24-02, WSB-ROLE-24-03"
+  },
+  {
+    "story_id": "US-PLANNED-011",
+    "issue": "Prerequisite pending in source: WSB-ROLE-24-01, WSB-ROLE-24-02, WSB-ROLE-24-03"
+  },
+  {
+    "story_id": "US-SUPPORT-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-25-01, WSB-ROLE-25-02, WSB-ROLE-25-03"
+  },
+  {
+    "story_id": "US-AUDIT-002",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-26-01, WSB-ROLE-26-02, WSB-ROLE-26-03"
+  },
+  {
+    "story_id": "US-PLANNED-012",
+    "issue": "Distinct implementation of role Global rules administrator not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-012",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-27-01, WSB-ROLE-27-02, WSB-ROLE-27-03"
+  },
+  {
+    "story_id": "US-PLANNED-012",
+    "issue": "Prerequisite pending in source: WSB-ROLE-27-01, WSB-ROLE-27-02, WSB-ROLE-27-03"
+  },
+  {
+    "story_id": "US-PLANNED-013",
+    "issue": "Distinct implementation of role Global administrator not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-013",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-28-01, WSB-ROLE-28-02, WSB-ROLE-28-03"
+  },
+  {
+    "story_id": "US-PLANNED-013",
+    "issue": "Prerequisite pending in source: WSB-ROLE-28-01, WSB-ROLE-28-02, WSB-ROLE-28-03"
+  },
+  {
+    "story_id": "US-HQ-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-29-01, WSB-ROLE-29-02, WSB-ROLE-29-03"
+  },
+  {
+    "story_id": "US-PLANNED-014",
+    "issue": "Distinct implementation of role Platform operator not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-014",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-30-01, WSB-ROLE-30-02, WSB-ROLE-30-03"
+  },
+  {
+    "story_id": "US-PLANNED-014",
+    "issue": "Prerequisite pending in source: WSB-ROLE-30-01, WSB-ROLE-30-02, WSB-ROLE-30-03"
+  },
+  {
+    "story_id": "US-ACCESS-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-31-01, WSB-ROLE-31-02, WSB-ROLE-31-03"
+  },
+  {
+    "story_id": "US-ACCESS-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-ROLE-32-01, WSB-ROLE-32-02, WSB-ROLE-32-03"
+  },
+  {
+    "story_id": "US-PUBLIC-030",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-IDENTITY-014",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-ACCESS-005",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-ACCESS-006",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-ACCESS-007",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-ACCESS-008",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-CREW-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-CREW-021, WSB-CREW-022, WSB-CREW-023, WSB-CREW-025, WSB-CREW-027, WSB-CREW-028, WSB-CREW-029, WSB-CREW-030, WSB-CREW-031"
+  },
+  {
+    "story_id": "US-CREW-009",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-REG-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-REG-023, WSB-REG-024, WSB-REG-025, WSB-REG-026, WSB-REG-027, WSB-REG-028, WSB-REG-029, WSB-REG-030, WSB-REG-035"
+  },
+  {
+    "story_id": "US-REG-009",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-REG-010",
+    "issue": "Broad source oracle needs individual refinement: WSB-REG-031, WSB-REG-032, WSB-REG-033, WSB-REG-034"
+  },
+  {
+    "story_id": "US-REG-010",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-VERIFY-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-VERIFY-008, WSB-VERIFY-009, WSB-VERIFY-010, WSB-VERIFY-011, WSB-VERIFY-012, WSB-VERIFY-013, WSB-VERIFY-014, WSB-VERIFY-015"
+  },
+  {
+    "story_id": "US-VERIFY-004",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-VERIFY-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-VERIFY-016, WSB-VERIFY-017, WSB-VERIFY-018, WSB-VERIFY-019"
+  },
+  {
+    "story_id": "US-VERIFY-005",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-GUARD-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-GUARD-008, WSB-GUARD-009, WSB-GUARD-010, WSB-GUARD-011, WSB-GUARD-012"
+  },
+  {
+    "story_id": "US-GUARD-004",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PAY-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-PAY-023, WSB-PAY-024, WSB-PAY-025, WSB-PAY-026, WSB-PAY-027, WSB-PAY-028, WSB-PAY-029, WSB-PAY-030, WSB-PAY-031"
+  },
+  {
+    "story_id": "US-PAY-009",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PAY-010",
+    "issue": "Broad source oracle needs individual refinement: WSB-PAY-032, WSB-PAY-033, WSB-PAY-034, WSB-PAY-035, WSB-PAY-036, WSB-PAY-037, WSB-PAY-038, WSB-PAY-039, WSB-PAY-040"
+  },
+  {
+    "story_id": "US-PAY-010",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-MUSIC-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-MUSIC-008, WSB-MUSIC-009, WSB-MUSIC-010, WSB-MUSIC-011, WSB-MUSIC-012"
+  },
+  {
+    "story_id": "US-MUSIC-004",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-MUSIC-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-MUSIC-013, WSB-MUSIC-014, WSB-MUSIC-015"
+  },
+  {
+    "story_id": "US-MUSIC-005",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-JUDGE-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-JUDGE-023, WSB-JUDGE-024, WSB-JUDGE-025, WSB-JUDGE-026, WSB-JUDGE-027, WSB-JUDGE-028, WSB-JUDGE-029, WSB-JUDGE-030, WSB-JUDGE-031, WSB-JUDGE-032, WSB-JUDGE-033, WSB-JUDGE-034, WSB-JUDGE-035, WSB-JUDGE-036, WSB-JUDGE-037, WSB-JUDGE-038, WSB-JUDGE-039, WSB-JUDGE-040"
+  },
+  {
+    "story_id": "US-JUDGE-009",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-RESULT-013",
+    "issue": "Broad source oracle needs individual refinement: WSB-RESULT-035, WSB-RESULT-036, WSB-RESULT-037, WSB-RESULT-038, WSB-RESULT-039, WSB-RESULT-040, WSB-RESULT-041, WSB-RESULT-042, WSB-RESULT-043, WSB-RESULT-044, WSB-RESULT-045, WSB-RESULT-046"
+  },
+  {
+    "story_id": "US-RESULT-013",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-BATTLE-004",
+    "issue": "Distinct implementation of role Battle judge not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-BATTLE-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-BATTLE-008, WSB-BATTLE-009, WSB-BATTLE-010, WSB-BATTLE-011"
+  },
+  {
+    "story_id": "US-BATTLE-004",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-BATTLE-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-BATTLE-012, WSB-BATTLE-013"
+  },
+  {
+    "story_id": "US-BATTLE-005",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-STAGE-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-STAGE-012, WSB-STAGE-013, WSB-STAGE-014, WSB-STAGE-015"
+  },
+  {
+    "story_id": "US-STAGE-006",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-STAGE-007",
+    "issue": "Broad source oracle needs individual refinement: WSB-STAGE-016, WSB-STAGE-017, WSB-STAGE-018, WSB-STAGE-019, WSB-STAGE-027"
+  },
+  {
+    "story_id": "US-STAGE-007",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-STAGE-008",
+    "issue": "Broad source oracle needs individual refinement: WSB-STAGE-020, WSB-STAGE-021, WSB-STAGE-022"
+  },
+  {
+    "story_id": "US-STAGE-008",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-STAGE-009",
+    "issue": "Broad source oracle needs individual refinement: WSB-STAGE-023, WSB-STAGE-024, WSB-STAGE-025, WSB-STAGE-026"
+  },
+  {
+    "story_id": "US-STAGE-009",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-NOTICE-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-NOTICE-007, WSB-NOTICE-008, WSB-NOTICE-009, WSB-NOTICE-010, WSB-NOTICE-011, WSB-NOTICE-012, WSB-NOTICE-013, WSB-NOTICE-014, WSB-NOTICE-015, WSB-NOTICE-016"
+  },
+  {
+    "story_id": "US-NOTICE-003",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-SUPPORT-004",
+    "issue": "Broad source oracle needs individual refinement: WSB-SUPPORT-008, WSB-SUPPORT-009, WSB-SUPPORT-010"
+  },
+  {
+    "story_id": "US-SUPPORT-004",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-SUPPORT-005",
+    "issue": "Broad source oracle needs individual refinement: WSB-SUPPORT-011, WSB-SUPPORT-012, WSB-SUPPORT-015"
+  },
+  {
+    "story_id": "US-SUPPORT-005",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-SUPPORT-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-SUPPORT-013, WSB-SUPPORT-014"
+  },
+  {
+    "story_id": "US-SUPPORT-006",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-ADMIN-019",
+    "issue": "Broad source oracle needs individual refinement: WSB-ADMIN-053, WSB-ADMIN-054, WSB-ADMIN-055, WSB-ADMIN-056, WSB-ADMIN-057, WSB-ADMIN-058, WSB-ADMIN-059"
+  },
+  {
+    "story_id": "US-ADMIN-019",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-AUDIT-003",
+    "issue": "Broad source oracle needs individual refinement: WSB-AUDIT-005, WSB-AUDIT-006, WSB-AUDIT-007, WSB-AUDIT-008"
+  },
+  {
+    "story_id": "US-AUDIT-003",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-HQ-010",
+    "issue": "Broad source oracle needs individual refinement: WSB-HQ-026, WSB-HQ-027, WSB-HQ-028, WSB-HQ-029, WSB-HQ-030"
+  },
+  {
+    "story_id": "US-HQ-010",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PWA-006",
+    "issue": "Broad source oracle needs individual refinement: WSB-PWA-016, WSB-PWA-017, WSB-PWA-018, WSB-PWA-019, WSB-PWA-020"
+  },
+  {
+    "story_id": "US-PWA-006",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-SECURITY-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-SECURITY-033, WSB-SECURITY-034, WSB-SECURITY-035, WSB-SECURITY-036, WSB-SECURITY-037, WSB-SECURITY-038"
+  },
+  {
+    "story_id": "US-SECURITY-001",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-015",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-019"
+  },
+  {
+    "story_id": "US-PLANNED-015",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-019"
+  },
+  {
+    "story_id": "US-PLANNED-015",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-016",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-020, WSB-PLANNED-024"
+  },
+  {
+    "story_id": "US-PLANNED-016",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-020, WSB-PLANNED-024"
+  },
+  {
+    "story_id": "US-PLANNED-016",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-017",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-021, WSB-PLANNED-034"
+  },
+  {
+    "story_id": "US-PLANNED-017",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-021, WSB-PLANNED-034"
+  },
+  {
+    "story_id": "US-PLANNED-017",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-018",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-022"
+  },
+  {
+    "story_id": "US-PLANNED-018",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-022"
+  },
+  {
+    "story_id": "US-PLANNED-018",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-019",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-023, WSB-PLANNED-037, WSB-PLANNED-038"
+  },
+  {
+    "story_id": "US-PLANNED-019",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-023, WSB-PLANNED-037, WSB-PLANNED-038"
+  },
+  {
+    "story_id": "US-PLANNED-019",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-020",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-025, WSB-PLANNED-026"
+  },
+  {
+    "story_id": "US-PLANNED-020",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-025, WSB-PLANNED-026"
+  },
+  {
+    "story_id": "US-PLANNED-020",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-021",
+    "issue": "Distinct implementation of role Battle operator not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-021",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-027"
+  },
+  {
+    "story_id": "US-PLANNED-021",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-027"
+  },
+  {
+    "story_id": "US-PLANNED-021",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-022",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-028"
+  },
+  {
+    "story_id": "US-PLANNED-022",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-028"
+  },
+  {
+    "story_id": "US-PLANNED-022",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-023",
+    "issue": "Distinct implementation of role Event manager not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-023",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-029, WSB-PLANNED-030"
+  },
+  {
+    "story_id": "US-PLANNED-023",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-029, WSB-PLANNED-030"
+  },
+  {
+    "story_id": "US-PLANNED-023",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-024",
+    "issue": "Distinct implementation of role Platform operator not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-024",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-031"
+  },
+  {
+    "story_id": "US-PLANNED-024",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-031"
+  },
+  {
+    "story_id": "US-PLANNED-024",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-025",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-032"
+  },
+  {
+    "story_id": "US-PLANNED-025",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-032"
+  },
+  {
+    "story_id": "US-PLANNED-025",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-026",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-033"
+  },
+  {
+    "story_id": "US-PLANNED-026",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-033"
+  },
+  {
+    "story_id": "US-PLANNED-026",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-027",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-035"
+  },
+  {
+    "story_id": "US-PLANNED-027",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-035"
+  },
+  {
+    "story_id": "US-PLANNED-027",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-PLANNED-028",
+    "issue": "Distinct implementation of role Content / result publisher not verified; do not substitute another role."
+  },
+  {
+    "story_id": "US-PLANNED-028",
+    "issue": "Broad source oracle needs individual refinement: WSB-PLANNED-036"
+  },
+  {
+    "story_id": "US-PLANNED-028",
+    "issue": "Prerequisite pending in source: WSB-PLANNED-036"
+  },
+  {
+    "story_id": "US-PLANNED-028",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  },
+  {
+    "story_id": "US-UI-001",
+    "issue": "Broad source oracle needs individual refinement: WSB-UI-129, WSB-UI-130, WSB-UI-131, WSB-UI-132, WSB-UI-133, WSB-UI-134, WSB-UI-135, WSB-UI-136"
+  },
+  {
+    "story_id": "US-UI-001",
+    "issue": "Linked group does not establish an explicit denial scenario."
+  }
+]

@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { connectedRequest, segment } from "@/lib/connected-api";
+import { formatMinorCurrency } from "@/lib/money";
 import { registrationCommand } from "@/lib/registration-command";
 
 type Reservation = { id: string; operation_id: string; amount_minor: number; requested_amount_minor: number | null; currency: string; session_id: string | null; cancelled: boolean; settled: boolean };
@@ -38,7 +39,7 @@ export function LocalPaymongoCheckout({ chapter, eventId, entryId, uid, onChange
   return <section className="panel local-paymongo-checkout"><h2>PayMongo local test</h2><p>This is a simulation. It reserves the available test balance but does not charge a payment or mark the entry paid.</p>
     <button type="button" className="button button-volt" style={{minHeight:56}} disabled={busy || loading} onClick={()=>void start()}>Start test checkout</button>
     <button type="button" className="button button-outline" style={{minHeight:56}} disabled={busy || loading} onClick={()=>void load()}>Refresh test checkouts</button>
-    {loading?<p role="status">Loading test checkouts…</p>:items.length===0?<p>No test checkouts on this page.</p>:<ul className="connected-list">{items.map(item=><li key={item.id}><strong>{new Intl.NumberFormat(undefined,{style:"currency",currency:item.currency}).format(item.amount_minor/100)}</strong><p>{item.cancelled?"Cancelled":item.settled?"Simulated payment settled":item.session_id?"Reserved · test session ready":"Reserved · session not ready"}</p>{!item.cancelled && !item.settled && <button type="button" className="button button-outline" style={{minHeight:56}} disabled={busy} onClick={()=>void action(item,!!item.session_id)}>{item.session_id?"Cancel test checkout":"Retry session creation"}</button>}{!item.cancelled && !item.settled && item.session_id && <button type="button" className="button button-volt" style={{minHeight:56}} disabled={busy} onClick={()=>void simulate(item)}>Simulate successful payment</button>}</li>)}</ul>}
+    {loading?<p role="status">Loading test checkouts…</p>:items.length===0?<p>No test checkouts on this page.</p>:<ul className="connected-list">{items.map(item=><li key={item.id}><strong>{formatMinorCurrency(item.amount_minor,item.currency)}</strong><p>{item.cancelled?"Cancelled":item.settled?"Simulated payment settled":item.session_id?"Reserved · test session ready":"Reserved · session not ready"}</p>{!item.cancelled && !item.settled && <button type="button" className="button button-outline" style={{minHeight:56}} disabled={busy} onClick={()=>void action(item,!!item.session_id)}>{item.session_id?"Cancel test checkout":"Retry session creation"}</button>}{!item.cancelled && !item.settled && item.session_id && <button type="button" className="button button-volt" style={{minHeight:56}} disabled={busy} onClick={()=>void simulate(item)}>Simulate successful payment</button>}</li>)}</ul>}
     {!loading && !error && items.length === 0 && <p>{cursor ? "No test checkouts on this page. Load more to continue." : "No test checkouts for this entry."}</p>}
     {cursor && <button type="button" className="button button-outline" disabled={busy || loading} onClick={()=>void load(cursor)}>Load more test checkouts</button>}
     {error && <p role="alert" className="form-error">{error}</p>}{notice && <p role="status">{notice}</p>}

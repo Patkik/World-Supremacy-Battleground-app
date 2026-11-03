@@ -3,6 +3,22 @@
 import { use } from "react";
 import Link from "next/link";
 import { Arrow, PageHeading, Status } from "@/components/ui";
+import { useWorkspaceSession } from "@/lib/account";
+import { segment } from "@/lib/connected-api";
+
+type Module = { title: string; detail: string; href: string; roles: string[] };
+
+function modulesFor(chapter: string): Module[] {
+  return [
+    { title: "Event management", detail: "Create and edit event drafts, registration windows and open each event command center.", href: `/admin/${chapter}/events`, roles: ["chapter_director"] },
+    { title: "Staff & assignments", detail: "Manage chapter roles, invitations and event assignments.", href: `/admin/${chapter}/staff`, roles: ["chapter_director"] },
+    { title: "Finance transactions", detail: "Review the recorded payment ledger and reconcile manual references.", href: `/admin/${chapter}/finance/transactions`, roles: ["chapter_director", "finance"] },
+    { title: "Chapter audit history", detail: "Read-only persisted audit records for this chapter.", href: `/admin/${chapter}/audit`, roles: ["chapter_director", "auditor"] },
+    { title: "Chapter content drafts", detail: "Private plain-text drafts with revision history. Nothing is published from this workspace.", href: `/admin/${chapter}/content`, roles: ["chapter_director"] },
+    { title: "Support queue", detail: "Read and reply to chapter member and public inquiries.", href: `/admin/${chapter}/support`, roles: ["chapter_director", "support"] },
+    { title: "Identity review", detail: "Review pending, clean-scanned private verification cases.", href: `/admin/${chapter}/verification`, roles: ["chapter_director", "verifier"] },
+  ];
+}
 
 export default function ChapterDashboardPage({
   params,
@@ -10,132 +26,35 @@ export default function ChapterDashboardPage({
   params: Promise<{ chapterId: string }>;
 }) {
   const { chapterId } = use(params);
-  const chapterName = chapterId === "hk" ? "WSB Hong Kong" : chapterId === "au" ? "WSB Australia" : "WSB Philippines";
+  const { session, loading, error } = useWorkspaceSession(chapterId);
+  const chapter = segment(chapterId);
+  const sameChapter = !!session && session.chapter_id === chapterId;
+  const available = sameChapter ? modulesFor(chapter).filter(module => module.roles.includes(session.role)) : [];
 
-  return (
-    <main id="main-content" className="workspace-main">
-      <PageHeading
-        eyebrow={`Chapter Command / ${chapterId.toUpperCase()}`}
-        title={`${chapterName} Operations`}
-        description="Event oversight, crew registration review, roster verification, and division management."
-        action={
-          <div className="flex gap-2">
-            <Link href={`/admin/${chapterId}/events/new`} className="button button-outline">
-              + Create Event
-            </Link>
-            <Link href={`/admin/${chapterId}/events/manila-session-2027/registrations`} className="button button-volt">
-              Review Queue (1 Pending) <Arrow />
-            </Link>
-          </div>
-        }
-      />
-
-      {/* Metric Tiles */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-        <div className="p-4 rounded bg-carbon border border-subtle">
-          <span className="text-xs text-titanium block mb-1">Active Events</span>
-          <strong className="text-2xl mono text-chrome">1 Active</strong>
-          <span className="text-xs text-volt block mt-1">Manila Session 2027</span>
-        </div>
-
-        <div className="p-4 rounded bg-carbon border border-subtle">
-          <span className="text-xs text-titanium block mb-1">Registered Crews</span>
-          <strong className="text-2xl mono text-chrome">14 Crews</strong>
-          <span className="text-xs text-titanium block mt-1">Across 5 divisions</span>
-        </div>
-
-        <div className="p-4 rounded bg-carbon border border-subtle">
-          <span className="text-xs text-titanium block mb-1">Pending Entry Reviews</span>
-          <strong className="text-2xl mono text-amber-400">1 Queue Item</strong>
-          <span className="text-xs text-amber-400 block mt-1">Ready for registrar sign-off</span>
-        </div>
-
-        <div className="p-4 rounded bg-carbon border border-subtle">
-          <span className="text-xs text-titanium block mb-1">Minor Consents</span>
-          <strong className="text-2xl mono text-volt">100% Verified</strong>
-          <span className="text-xs text-titanium block mt-1">Zero outstanding waivers</span>
-        </div>
-      </div>
-
-      <div className="dashboard-columns">
-        {/* Active Events Overview */}
-        <section className="panel">
-          <div className="panel-heading">
-            <h2>Active Chapter Events</h2>
-            <Link href={`/admin/${chapterId}/events`} className="text-link text-xs">
-              Manage All Events <Arrow />
-            </Link>
-          </div>
-
-          <div className="readiness-row">
-            <span className="check-disc complete" aria-hidden="true">★</span>
-            <div>
-              <strong>Manila Session 2027</strong>
-              <p>July 18, 2027 · SMX Convention Center · Active Registration</p>
-            </div>
-            <Link href={`/admin/${chapterId}/events/manila-session-2027`} className="button button-outline text-xs">
-              Command Center <Arrow />
-            </Link>
-          </div>
-
-          <div className="readiness-row">
-            <span className="check-disc" aria-hidden="true">Q</span>
-            <div>
-              <strong>Hong Kong World Championship 2027</strong>
-              <p>November 18–21, 2027 · Queen Elizabeth Stadium · International Final</p>
-            </div>
-            <span className="muted text-xs">HQ Synchronized</span>
-          </div>
-        </section>
-
-        {/* Quick Review Alert Box */}
-        <aside className="event-mini">
-          <span className="eyebrow">Registrar Priority</span>
-          <h2>Entry Awaiting Review</h2>
-          <p className="text-xs leading-relaxed text-titanium">
-            <strong>Afterhours Collective</strong> submitted their Open Crew entry. All 4 readiness vectors (Roster, Music, Consent, Payment) are complete.
-          </p>
-          <div className="mini-event-divider" />
-          <Link
-            href={`/admin/${chapterId}/events/manila-session-2027/registrations/entry-manila-open-1`}
-            className="button button-volt w-full text-center"
-          >
-            Inspect & Sign Off <Arrow />
-          </Link>
-        </aside>
-      </div>
-
-      {/* Chapter Action Grid */}
-      <section className="panel mt-6">
-        <div className="panel-heading">
-          <h2>Administrative Modules</h2>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-          <Link
-            href={`/admin/${chapterId}/events/manila-session-2027/registrations`}
-            className="p-4 rounded bg-tungsten hover:bg-tungsten/80 transition-colors border border-subtle block"
-          >
-            <strong className="text-chrome text-base block mb-1">Registration Queue</strong>
-            <p className="text-xs text-titanium">Inspect submitted rosters, download audio cuts, and verify guardian waivers.</p>
-          </Link>
-
-          <Link
-            href={`/admin/${chapterId}/events/manila-session-2027/divisions`}
-            className="p-4 rounded bg-tungsten hover:bg-tungsten/80 transition-colors border border-subtle block"
-          >
-            <strong className="text-chrome text-base block mb-1">Divisions & Rules</strong>
-            <p className="text-xs text-titanium">Configure age limits, roster headcount bounds, music duration caps, and fees.</p>
-          </Link>
-
-          <Link
-            href={`/admin/${chapterId}/staff`}
-            className="p-4 rounded bg-tungsten hover:bg-tungsten/80 transition-colors border border-subtle block"
-          >
-            <strong className="text-chrome text-base block mb-1">Staff & Assignments</strong>
-            <p className="text-xs text-titanium">Manage stage directors, registrars, and accredited head judges for this chapter.</p>
-          </Link>
-        </div>
-      </section>
-    </main>
-  );
+  return <main id="main-content" className="workspace-main">
+    <PageHeading
+      eyebrow={`Chapter Command / ${chapterId.toUpperCase()}`}
+      title="Chapter operations"
+      description="Open the connected workspace for your chapter role. Each workspace checks your current membership and assignment on the server."
+    />
+    {loading ? <p role="status">Checking chapter access…</p>
+      : !session ? <p role="alert" className="form-error">{error || "Sign in with your chapter account to continue."}</p>
+        : !sameChapter ? <p role="alert" className="form-error">This account is not signed into the chapter that owns this workspace. Choose the chapter from your workspaces first.</p>
+          : <>
+            <section className="panel" aria-label="Current access">
+              <div className="panel-heading"><div><h2>Your chapter access</h2><p>Resolved from current server-side membership, not from a saved browser selection.</p></div><Status tone="volt">{session.role.replaceAll("_", " ")}</Status></div>
+            </section>
+            {available.length > 0 && <section className="connected-stack" aria-label="Available modules">
+              {available.map(module => <article className="panel" key={module.href}>
+                <div className="panel-heading"><div><h2>{module.title}</h2><p>{module.detail}</p></div></div>
+                <Link href={module.href} className="button button-outline">Open {module.title.toLowerCase()} <Arrow /></Link>
+              </article>)}
+            </section>}
+            {(session.role === "registrar" || session.role === "marshal" || session.role === "judge" || session.role === "head_judge" || session.role === "audio_operator") && <section className="panel">
+              <div className="panel-heading"><div><h2>Event-duty access</h2><p>Choose an assigned event to open registration review, stage, judging or audio operations.</p></div></div>
+              <Link href="/console" className="button button-outline">Open assigned events <Arrow /></Link>
+            </section>}
+            {available.length === 0 && !["registrar", "marshal", "judge", "head_judge", "audio_operator"].includes(session.role) && <section className="panel"><p>No chapter operations modules are connected for your current role.</p></section>}
+          </>}
+  </main>;
 }

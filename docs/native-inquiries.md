@@ -56,6 +56,14 @@ Opening an inquiry does not approve a registration, consent or financial change.
 Requester replies reopen the conversation; chapter support explicitly chooses
 open, in progress, waiting on requester or resolved. Replies/status are visible
 to the requester. There is no hidden internal-note field masquerading as a reply.
+New staff updates to a signed-in member's inquiry also create a generic private inbox
+notice in the same transaction. The notice contains no conversation text and
+links to the account support conversation in its chapter. Opening the link
+rechecks the account's access; a different selected chapter prompts the member
+to switch chapters. Earlier notices may still link to the general support page.
+Replays do not create another notice, and current
+chapter membership is checked before delivery. Anonymous contact requests have
+no account inbox and continue to use their private recovery key.
 
 ## Local checks and remaining release gates
 
@@ -84,8 +92,10 @@ tests (16), Linux all-features tests (17, with explicit emulator cases separatel
 invoked), all-target Clippy and workspace tests passed. This completes the bounded
 native conversation slice, not the live release or every support feature.
 
-Only demo-wsb is enabled. Before live public contact activation, verify deployment
-abuse controls, retention/deletion, access-key expiry/rotation and secure recovery
-policy. Email delivery and specialized escalation/assignment are separate work.
+Only demo-wsb has been used for local verification. The explicitly gated
+non-demo Firestore runtime is not a release approval. Before live public contact
+activation, verify deployment abuse controls, retention/deletion, access-key
+expiry/rotation and secure recovery policy. Email delivery and specialized
+escalation/assignment are separate work.
 Private identity/media, other native forms and the full platform goal remain
-unfinished; this feature does not open the production gate.
+unfinished; this feature does not establish release readiness.

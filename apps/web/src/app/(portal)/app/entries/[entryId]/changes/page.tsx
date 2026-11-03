@@ -1,90 +1,33 @@
-"use client";
-
-import { useState, use } from "react";
 import Link from "next/link";
 import { Arrow, PageHeading, Status } from "@/components/ui";
 
-export default function EntryChangesPage({
+export default async function EntryChangesPage({
   params,
 }: {
   params: Promise<{ entryId: string }>;
 }) {
-  const { entryId } = use(params);
-  const [reason, setReason] = useState("");
-  const [actionType, setActionType] = useState<"division_switch" | "withdraw">("division_switch");
-  const [submitted, setSubmitted] = useState(false);
-
-  function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitted(true);
-  }
-
-  return (
-    <main id="main-content" className="workspace-main">
-      <PageHeading
-        eyebrow={`Entry #${entryId} / Adjustments`}
-        title="Entry Changes & Withdrawal"
-        description="Request division changes, emergency dancer substitutions, or official entry withdrawal."
-        action={
-          <Link href={`/app/entries/${entryId}`} className="button button-outline">
-            ← Back to Entry
-          </Link>
-        }
-      />
-
-      <div className="max-w-xl">
-        <section className="panel">
-          <div className="panel-heading">
-            <h2>{submitted ? "Request Dispatched" : "Formal Change Request"}</h2>
-          </div>
-
-          {submitted ? (
-            <div className="p-6 text-center space-y-4">
-              <span className="text-4xl text-volt block">✓</span>
-              <h3 className="text-xl font-bold text-chrome">Request Logged with Secretariat</h3>
-              <p className="text-sm text-titanium">
-                Your change notice has been transmitted to the Chapter Registrar. Roster changes within 48 hours of stage call require physical check-in at the venue desk.
-              </p>
-              <Link href={`/app/entries/${entryId}`} className="button button-volt">
-                Return to Entry Overview
-              </Link>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-              <div>
-                <label className="block text-sm font-semibold text-chrome mb-1">Request Type</label>
-                <select
-                  value={actionType}
-                  onChange={(e) => setActionType(e.target.value as "division_switch" | "withdraw")}
-                  className="w-full p-3 rounded bg-tungsten border border-subtle text-chrome focus:border-volt"
-                >
-                  <option value="division_switch">Switch Division (e.g. Open Crew to Monster Crew)</option>
-                  <option value="withdraw">Formal Withdrawal from Championship</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-chrome mb-1">Reason for Change / Request</label>
-                <textarea
-                  value={reason}
-                  onChange={(e) => setReason(e.target.value)}
-                  rows={4}
-                  required
-                  placeholder="Detail the technical or medical grounds for this adjustment..."
-                  className="w-full p-3 rounded bg-tungsten border border-subtle text-chrome focus:border-volt"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className={`button ${actionType === "withdraw" ? "bg-crimson text-white hover:bg-crimson/90" : "button-volt"}`}
-              >
-                {actionType === "withdraw" ? "Submit Formal Withdrawal" : "Submit Change Request"} <Arrow />
-              </button>
-            </form>
-          )}
-        </section>
-      </div>
-    </main>
-  );
+  const { entryId } = await params;
+  const entry = encodeURIComponent(entryId);
+  return <main id="main-content" className="workspace-main">
+    <PageHeading
+      eyebrow="Entry / Adjustments"
+      title="Entry changes are not self-service"
+      description="No division change, substitution or withdrawal request workflow is connected. No request is recorded from this page."
+      action={<Link href={`/app/entries/${entry}`} className="button button-outline">Back to entry <Arrow /></Link>}
+    />
+    <section className="panel" role="status">
+      <div className="panel-heading"><div><h2>Change request gate</h2><p>This page cannot submit a division change, dancer substitution or withdrawal request.</p></div><Status tone="amber">Unavailable</Status></div>
+      <p>Division changes, dancer substitutions and entry withdrawal affect eligibility, fees and event readiness, so they need an authorized review workflow that does not exist yet. Until it does, use account support to reach the chapter; a support conversation does not change your entry by itself.</p>
+    </section>
+    <section className="connected-stack" aria-label="Available actions">
+      <article className="panel">
+        <div className="panel-heading"><div><h2>Entry workspace</h2><p>Review the current saved state, roster and readiness of this entry.</p></div><Status tone="volt">Connected</Status></div>
+        <Link href={`/app/entries/${entry}`} className="button button-outline">Open entry <Arrow /></Link>
+      </article>
+      <article className="panel">
+        <div className="panel-heading"><div><h2>Account support</h2><p>Send the chapter a durable support request and follow its conversation.</p></div><Status tone="volt">Connected</Status></div>
+        <Link href="/app/support" className="button button-outline">Open support <Arrow /></Link>
+      </article>
+    </section>
+  </main>;
 }

@@ -21,6 +21,10 @@ async function login(email){const r=await fetch(`${api}/local/session`,{method:'
  const webhook=`${api}/v1/local/paymongo/webhook`;const raw=JSON.stringify(event);assert.equal((await fetch(webhook,{method:'POST',headers:{'content-type':'application/json','paymongo-signature':'t=1,te=bad,li='},body:raw})).status,401);
  const deliver=()=>fetch(`${emulator}/test/checkout_sessions/${pending.session_id}/deliver`,{method:'POST'});assert.equal((await deliver()).status,200);assert.equal((await deliver()).status,200);
  const paidQuote=await fetch(`${base}/quote`,{headers:headers(manager)});assert.equal(paidQuote.status,200);const balance=await paidQuote.json();assert.equal(balance.paid_amount_minor,100);assert.equal(balance.pending_amount_minor,0);
+ const finance=await login('finance@ph.wsb.test');
+ const refund=()=>fetch(`${api}/v1/chapters/ph/finance/payments/${pending.id}/refund`,{method:'POST',headers:headers(finance),body:JSON.stringify({operation_id:`refund-${randomUUID()}`,reason:'Provider refund gate check'})});
+ assert.equal((await refund()).status,409);assert.equal((await refund()).status,409);
+ assert.equal((await (await fetch(`${base}/quote`,{headers:headers(manager)})).json()).paid_amount_minor,100);
  const crypto=require('node:crypto');event.data.attributes.data.attributes.payments[0].attributes.amount=101;const changed=JSON.stringify(event);const now=String(Math.floor(Date.now()/1000));const signature=crypto.createHmac('sha256',c.WSB_PAYMONGO_LOCAL_SECRET).update(`${now}.${changed}`).digest('hex');
  assert.equal((await fetch(webhook,{method:'POST',headers:{'content-type':'application/json','paymongo-signature':`t=${now},te=${signature},li=`},body:changed})).status,409);
  const unchanged=await fetch(`${base}/quote`,{headers:headers(manager)});assert.equal((await unchanged.json()).paid_amount_minor,100);

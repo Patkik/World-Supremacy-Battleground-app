@@ -1,8 +1,22 @@
 //! Server-only repositories. Read authorization and aggregates through the
 //! transaction-bound client, before queuing any writes or returning a receipt.
+mod audit;
+mod battles;
+pub mod content;
+pub mod events;
 mod finance;
+#[cfg(feature = "local-testing")]
+pub mod guardian;
+mod hq;
 mod judging;
 pub mod lineup;
+mod membership;
+mod music;
+pub mod notifications;
+mod panel;
+#[cfg(feature = "local-testing")]
+pub mod waivers;
+pub use music::{DJExportPlan, MusicInspectionReceipt};
 #[cfg(feature = "local-testing")]
 pub mod paymongo_local;
 mod publication;
@@ -12,7 +26,13 @@ pub mod stage;
 pub mod support;
 mod venue;
 mod verification;
+pub use membership::{
+    AcceptStaffInvitation, ChangeEventAssignment, ChangeMembership, CreateStaffInvitation,
+    EventAssignmentPage, RevokeStaffInvitation, StaffInvitation, StaffInvitationPage,
+};
 pub use models::DeductionUpdate;
+pub use models::{EventStaffAssignment, MembershipPage, MembershipRecord};
+pub use panel::{ChangeJudgePanel, JudgePanelConfiguration};
 pub use reads::ReadScope;
 pub use registration::RegistrationCommand;
 pub mod models;
@@ -202,6 +222,18 @@ fn audit(
     resource: &str,
     id: &str,
 ) -> Result<()> {
+    audit_with_reason(db, tx, chapter, actor, action, resource, id, None)
+}
+fn audit_with_reason(
+    db: &FirestoreDb,
+    tx: &mut FirestoreTransaction<'_>,
+    chapter: &str,
+    actor: &str,
+    action: &str,
+    resource: &str,
+    id: &str,
+    reason: Option<&str>,
+) -> Result<()> {
     let value = AuditRecord {
         id: id.into(),
         actor_uid: actor.into(),
@@ -209,6 +241,10 @@ fn audit(
         action: action.into(),
         resource_id: resource.into(),
         recorded_at: now_secs(),
+        reason: reason.map(str::to_owned),
+        // The audit document ID is stable across exact operation replay and is
+        // also the transaction's audit correlation key. Legacy rows stay optional.
+        correlation_id: Some(id.into()),
     };
     put(
         db,
@@ -223,13 +259,16 @@ pub struct FirestoreRepository {
     db: FirestoreDb,
 }
 impl FirestoreRepository {
+    pub async fn global_membership(&self, claims: &Claims) -> Result<hq::GlobalMembership> {
+        hq::global_membership(&self.db, claims).await
+    }
     #[cfg(feature = "local-testing")]
     pub(crate) async fn local_identity_member(
         &self,
         uid: &str,
         chapter: &str,
     ) -> Result<Membership> {
-        let member: Membership = required(
+        let member: MembershipRecord = required(
             &self.db,
             &format!("chapters/{}/members/{}", segment(chapter)?, segment(uid)?),
         )
@@ -248,14 +287,39 @@ impl FirestoreRepository {
         membership(&self.db, &claims, chapter).await
     }
     pub async fn connect(project: &str) -> Result<Self> {
-        if project != "demo-wsb"
-            || std::env::var("FIRESTORE_EMULATOR_HOST")
-                .ok()
-                .filter(|v| !v.trim().is_empty())
-                .is_none()
+        if cfg!(test) && project != "demo-wsb" {
+            return Err(invalid("Repository tests may connect only to demo-wsb"));
+        }
+        let project_bytes = project.as_bytes();
+        let valid_project = (6..=30).contains(&project_bytes.len())
+            && project_bytes
+                .first()
+                .is_some_and(|byte| byte.is_ascii_lowercase())
+            && project_bytes
+                .last()
+                .is_some_and(|byte| byte.is_ascii_alphanumeric())
+            && project
+                .bytes()
+                .all(|byte| byte.is_ascii_lowercase() || byte.is_ascii_digit() || byte == b'-');
+        if !valid_project {
+            return Err(invalid("Invalid Firebase project identifier"));
+        }
+        let emulator_configured = std::env::var("FIRESTORE_EMULATOR_HOST")
+            .ok()
+            .is_some_and(|value| !value.trim().is_empty());
+        let production_enabled =
+            std::env::var("WSB_ENABLE_PRODUCTION_STORAGE").as_deref() == Ok("true");
+        let configured_project = std::env::var("FIREBASE_PROJECT_ID").ok();
+        let firestore_mode = std::env::var("WSB_STORAGE").as_deref() == Ok("firestore");
+        if (project == "demo-wsb" && (!emulator_configured || production_enabled))
+            || (project != "demo-wsb"
+                && (!production_enabled
+                    || emulator_configured
+                    || configured_project.as_deref() != Some(project)
+                    || !firestore_mode))
         {
             return Err(invalid(
-                "Only demo-wsb with an explicit Firestore emulator is enabled",
+                "demo-wsb requires an explicit emulator; production storage requires explicit opt-in without an emulator",
             ));
         }
         Ok(Self {
@@ -264,6 +328,9 @@ impl FirestoreRepository {
     }
     pub async fn membership(&self, claims: &Claims, chapter: &str) -> Result<Membership> {
         membership(&self.db, claims, chapter).await
+    }
+    pub async fn session_membership(&self, claims: &Claims, chapter: &str) -> Result<Membership> {
+        current_membership(&self.db, claims, chapter).await
     }
     pub async fn readiness_probe(&self) -> Result<()> {
         let _: Option<serde_json::Value> = get(&self.db, "chapters/wsb-readiness-probe").await?;
@@ -312,7 +379,19 @@ async fn membership(db: &FirestoreDb, claims: &Claims, chapter: &str) -> Result<
     if !auth::chapter_access(claims, chapter) {
         return Err(forbidden());
     }
-    let member: Membership = required(
+    let member = current_membership(db, claims, chapter).await?;
+    if claims.role.as_deref() != Some(&member.role) {
+        return Err(forbidden());
+    }
+    Ok(member)
+}
+
+async fn current_membership(
+    db: &FirestoreDb,
+    claims: &Claims,
+    chapter: &str,
+) -> Result<Membership> {
+    let record: MembershipRecord = required(
         db,
         &format!(
             "chapters/{}/members/{}",
@@ -325,15 +404,22 @@ async fn membership(db: &FirestoreDb, claims: &Claims, chapter: &str) -> Result<
         RepositoryError::Denied(StatusCode::NOT_FOUND, _) => forbidden(),
         other => other,
     })?;
-    if !member.active
-        || member.uid != claims.sub
-        || member.chapter_id != chapter
-        || claims.role.as_deref() != Some(&member.role)
-        || claims.auth_time < member.valid_after
+    if !record.active
+        || record.uid != claims.sub
+        || record.chapter_id != chapter
+        || claims.auth_time < record.valid_after
+        || record.expires_at.is_some_and(|expiry| expiry <= now_secs())
     {
         return Err(forbidden());
     }
-    Ok(member)
+    Ok(Membership {
+        uid: record.uid,
+        chapter_id: record.chapter_id,
+        role: record.role,
+        active: record.active,
+        valid_after: record.valid_after,
+        expires_at: record.expires_at,
+    })
 }
 async fn event_access(
     db: &FirestoreDb,

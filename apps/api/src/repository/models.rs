@@ -16,6 +16,45 @@ pub struct Assignment {
     pub active: bool,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EventStaffAssignment {
+    pub uid: String,
+    pub event_id: String,
+    pub active: bool,
+    #[serde(default)]
+    pub revision: u64,
+    #[serde(default)]
+    pub reason: String,
+    #[serde(default)]
+    pub changed_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MembershipRecord {
+    pub uid: String,
+    pub chapter_id: String,
+    pub role: String,
+    pub active: bool,
+    pub valid_after: u64,
+    #[serde(default)]
+    pub revision: u64,
+    #[serde(default)]
+    pub expires_at: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MembershipPage {
+    pub items: Vec<MembershipRecord>,
+    pub next_page: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ChapterMembershipSummary {
+    pub chapter_id: String,
+    pub chapter_name: String,
+    pub role: String,
+}
+
 /// Money and readiness state change atomically with the relevant ledger row.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EntryDocument {

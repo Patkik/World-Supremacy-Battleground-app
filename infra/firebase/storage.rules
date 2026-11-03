@@ -10,10 +10,14 @@ service firebase.storage {
     }
 
     function activeChapterMember(chapterId) {
+      let member = firestore.get(memberPath(chapterId)).data;
       return signedIn()
         && request.auth.token.chapterId == chapterId
         && firestore.exists(memberPath(chapterId))
-        && firestore.get(memberPath(chapterId)).data.active == true;
+        && member.active == true
+        && request.auth.token.get('auth_time', 0) >= member.valid_after
+        && (member.get('expires_at', null) == null
+          || request.time.toMillis() < member.get('expires_at', 0) * 1000);
     }
 
     function isReviewer(chapterId) {
@@ -33,6 +37,16 @@ service firebase.storage {
         && record.dancer_uid == uid;
     }
 
+    function reviewerCanReadCase(chapterId, uid, caseId) {
+      let path = casePath(chapterId, caseId);
+      let record = firestore.get(path).data;
+      return isReviewer(chapterId)
+        && firestore.exists(path)
+        && ownerCase(chapterId, uid, caseId)
+        && record.status == 'pending'
+        && record.malware_scan_status == 'clean';
+    }
+
     match /chapters/{chapterId}/verification/{uid}/{caseId}/{fileName} {
       allow create: if activeChapterMember(chapterId)
         && request.auth.uid == uid
@@ -44,11 +58,69 @@ service firebase.storage {
         && request.resource.contentType.matches('application/pdf|image/jpeg|image/png');
 
       allow read: if activeChapterMember(chapterId)
+        && fileName == 'document'
         && ((request.auth.uid == uid && ownerCase(chapterId, uid, caseId))
-          || isReviewer(chapterId));
+          || reviewerCanReadCase(chapterId, uid, caseId));
 
       // Files are immutable. New evidence gets a new case and object path.
       // Retention and deletion periods remain event/jurisdiction policy gates.
+      allow update, delete: if false;
+    }
+
+    function musicIntentPath(chapterId, intentId) {
+      return /databases/(default)/documents/chapters/$(chapterId)/musicIntents/$(intentId);
+    }
+
+    function ownsMusicIntent(chapterId, uid, intentId) {
+      let intent = firestore.get(musicIntentPath(chapterId, intentId)).data;
+      let member = firestore.get(memberPath(chapterId)).data;
+      return activeChapterMember(chapterId)
+        && request.auth.uid == uid
+        && member.uid == uid && member.chapter_id == chapterId
+        && member.role == 'crew_manager'
+        && request.auth.token.auth_time >= member.valid_after
+        && intent.chapter_id == chapterId && intent.owner_uid == uid
+        && intent.intent_id == intentId
+        && intent.storage_path == 'chapters/' + chapterId + '/music/' + uid + '/' + intentId + '/track';
+    }
+
+    function musicAssignmentPath(chapterId, eventId, uid) {
+      return /databases/(default)/documents/chapters/$(chapterId)/events/$(eventId)/assignments/$(uid);
+    }
+
+    function mayReadReviewedMusic(chapterId, uid, intentId) {
+      let intent = firestore.get(musicIntentPath(chapterId, intentId)).data;
+      let member = firestore.get(memberPath(chapterId)).data;
+      let assignmentPath = musicAssignmentPath(chapterId, intent.event_id, request.auth.uid);
+      return signedIn()
+        && firestore.exists(musicIntentPath(chapterId, intentId))
+        && firestore.exists(memberPath(chapterId))
+        && intent.chapter_id == chapterId
+        && intent.owner_uid == uid
+        && intent.intent_id == intentId
+        && intent.review_status == 'reviewed'
+        && intent.malware_scan_status == 'clean'
+        && member.uid == request.auth.uid
+        && member.chapter_id == chapterId
+        && activeChapterMember(chapterId)
+        && (member.role == 'chapter_director'
+          || (member.role == 'audio_operator'
+            && firestore.exists(assignmentPath)
+            && firestore.get(assignmentPath).data.uid == request.auth.uid
+            && firestore.get(assignmentPath).data.event_id == intent.event_id
+            && firestore.get(assignmentPath).data.active == true));
+    }
+
+    match /chapters/{chapterId}/music/{uid}/{intentId}/{fileName} {
+      allow create: if resource == null && fileName == 'track'
+        && ownsMusicIntent(chapterId, uid, intentId)
+        && firestore.get(musicIntentPath(chapterId, intentId)).data.status == 'awaiting_upload'
+        && request.time.toMillis() < firestore.get(musicIntentPath(chapterId, intentId)).data.expires_at * 1000
+        && request.resource.size > 0 && request.resource.size <= 25 * 1024 * 1024
+        && request.resource.contentType.matches('audio/wav|audio/mpeg');
+      allow read: if fileName == 'track'
+        && (ownsMusicIntent(chapterId, uid, intentId)
+          || mayReadReviewedMusic(chapterId, uid, intentId));
       allow update, delete: if false;
     }
 

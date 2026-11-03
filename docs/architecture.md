@@ -5,9 +5,13 @@ See [durable core](firestore-repositories.md) and the
 Firestore mode now persists scoring/receipts/audits, division locks, manual
 payments/reservations and membership reads. Other routes are being migrated and
 return 501 in that mode. The default mode remains synthetic in-memory development.
-Only demo-wsb + an explicit emulator is enabled; readiness is 503 until the full
-migration and production identity integration are verified. No production readiness
-or complete event rehearsal is claimed. [Docker local testing](local-docker.md)
+Demo-wsb Firestore requires an explicit emulator; non-demo Firestore requires
+`WSB_ENABLE_PRODUCTION_STORAGE=true`, `WSB_STORAGE=firestore`, a matching
+configured project ID and ADC, and rejects an emulator endpoint. This enables
+only a strict signed-identity/persistent runtime;
+readiness remains 503 until the full migration and release verification are
+complete. No production readiness or complete event rehearsal is claimed.
+[Docker local testing](local-docker.md)
 now supplies a separately compiled signed-test identity, persistent emulators,
 scoped core reads and positive browser/API checks. Unsigned tokens remain rejected.
 
@@ -20,6 +24,26 @@ revision conflicts, quotas, chapter isolation and audit commits. Remaining
 configuration/private-media/venue migrations keep release readiness closed.
 Locked results now publish through an immutable Firestore projection; tie and
 correction policies still gate those outcomes.
+
+For chapter API sessions, Rust now verifies the Firebase ID token's signed
+identity and resolves the current role from
+`chapters/{chapter}/members/{uid}`. The route's chapter scope and active
+membership are checked server-side; Firebase `chapterId` and `role` claims are
+not authorization inputs. Each downstream durable operation rechecks the
+derived role against current membership, and `auth_time` must satisfy
+`valid_after`. This makes multiple chapter memberships possible without
+waiting for custom-claim synchronization. The authenticated chapter selector
+lists server-verified memberships at `/v1/account/chapters`; its browser-selected
+chapter is routing context only. The verifier now contains a non-demo
+Identity Platform check for disabled users and revoked tokens. Production
+activation is explicit and remains unrehearsed; IAM setup and signed-token
+validation remain release gates. See
+[membership authority](persistent-membership.md).
+
+Global HQ now has a separate signed-session gate backed by `globalMembers/{uid}`;
+this does not grant chapter membership or authorize HQ actions. See
+[global HQ session boundary](global-hq-session.md). Global provisioning and
+audited governance actions remain unfinished.
 
 The original foundation design below is historical context; statements that a
 command/outbox does not yet exist are superseded by the audit.
@@ -100,14 +124,14 @@ API can run without credentials. `/healthz` is liveness only, not database readi
 
 ## PayMongo payment architecture and provider contracts
 
-- Official Provider: PayMongo hosted checkout (`/v1/checkout_sessions`) and refunds (`/v1/refunds`).
+- Official Provider: PayMongo hosted checkout (`/v2/checkout_sessions`) and refunds (`/v1/refunds`). Provider payment methods are configured from the enabled account capabilities; production checkout/refund validation remains a release gate.
 - Authentication: HTTP Basic Auth with `PAYMONGO_SECRET_KEY` as username and empty password.
 - Server Credential Gate: Secret keys are environment-only (`PAYMONGO_SECRET_KEY`, `PAYMONGO_WEBHOOK_SECRET`). They are never stored in client documents, Firestore collections, or chapter records. Production modes fail closed (503 Service Unavailable) if credentials are missing.
 - Local Testing Gate: When `WSB_LOCAL_TESTING=true` with `demo-wsb` and local Firebase emulator, the system utilizes a dedicated synthetic container on port 8191 with explicit synthetic signatures (`WSB_PAYMONGO_LOCAL_SECRET`). Synthetic emulators never call PayMongo or move money.
 - Durable Reservation & Session Mapping: Before external checkout session creation, the server executes an atomic Firestore transaction (`reserve_local_checkout`) moving entry balance to `pending_minor`. On provider response, `bind_local_checkout_session` atomically writes `localCheckoutSessionIndex/{session_id}`.
 - Webhook Signature Protocol: PayMongo delivers `paymongo-signature: t={ts},te={test_sig},li={live_sig}`. The server computes `HMAC-SHA256(secret, "${t}.${raw_body}")`, enforces timestamp clock skew $\le 300\text{s}$, and verifies the signature corresponding to the active mode (test or live).
 - Event Deduplication & Settlement: Handlers at `/v1/paymongo/webhook` and `/v1/webhooks/paymongo` check event ID deduplication in `localCheckoutEvents/{event_id}`. Processing is an atomic transaction that moves `pending_minor` to `paid_minor`, recalculates division readiness, persists `PaymentRecord`, and writes an immutable audit log. Replayed events return 200 OK immediately without double crediting.
-- Refunds & Reversals: Authorized chapter finance users trigger refunds via `POST /v1/chapters/{chapter}/payments/{paymentId}/refund`. If `provider_reference` starts with `pay_`, the server calls PayMongo's `/v1/refunds` API. Incoming `payment.refunded` and `payment.refund.updated` webhooks find the payment transactionally, deduct `amount_minor` from `entry.paid_minor`, update division readiness, mark payment `Refunded`, and record an audit log. Replays return 200 OK idempotently.
+- Refunds & Reversals: The current finance refund route records a reasoned, idempotent full reversal for a manually reconciled payment only. It updates the WSB ledger and does not transfer money. Provider-linked refund initiation and webhook reconciliation remain disabled until controlled PayMongo validation, approved refund terms and recovery procedures are complete.
 
 ## Offline judging contract (designed, not implemented)
 

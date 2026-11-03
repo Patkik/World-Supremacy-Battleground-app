@@ -92,6 +92,11 @@ test('only active authorized chapter reviewers can read a submitted chapter file
   testObjects.add(object);
   await assertSucceeds(uploadBytes(ref(owner, object), new Uint8Array([1, 2, 3]), { contentType: 'image/png' }));
   const reviewer = env.authenticatedContext(`reviewer-${marker}`, { chapterId: chapter, role: 'verifier' }).storage();
+  // Reviewer reads are gated on a pending case with a clean malware-scan receipt.
+  await assertFails(getBytes(ref(reviewer, object)));
+  await env.withSecurityRulesDisabled(async context => {
+    await context.firestore().doc(recordPath(chapter, caseId)).update({ status: 'pending', malware_scan_status: 'clean' });
+  });
   assert.equal((await assertSucceeds(getBytes(ref(reviewer, object)))).byteLength, 3);
   const outsider = env.authenticatedContext(`reviewer-hk-${marker}`, { chapterId: otherChapter, role: 'verifier' }).storage();
   await assertFails(getBytes(ref(outsider, object)));
@@ -115,4 +120,54 @@ test('upload policy denies missing chapter membership, unsupported MIME and over
   await assertFails(uploadBytes(ref(owner, oversizedObject), new Uint8Array(10 * 1024 * 1024 + 1), { contentType: 'application/pdf' }));
   const unprovisioned = env.authenticatedContext(`missing-${marker}`, { chapterId: chapter, role: 'dancer' }).storage();
   await assertFails(uploadBytes(ref(unprovisioned, objectPath(chapter, uid, badMimeCase)), new Uint8Array([1]), { contentType: 'application/pdf' }));
+});
+
+test('music objects require an active manager and matching unexpired intent, and are immutable', async () => {
+  const chapter = `music-${marker}`;
+  const uid = `manager-${marker}`;
+  const intentId = `intent-${marker}`;
+  const memberPath = `chapters/${chapter}/members/${uid}`;
+  const intentPath = `chapters/${chapter}/musicIntents/${intentId}`;
+  const objectPath = `chapters/${chapter}/music/${uid}/${intentId}/track`;
+  testDocs.add(memberPath); testDocs.add(intentPath); testObjects.add(objectPath);
+  const member = { uid, chapter_id:chapter, role:'crew_manager', active:true, valid_after:0 };
+  const intent = { intent_id:intentId, chapter_id:chapter, owner_uid:uid, storage_path:objectPath, status:'awaiting_upload', expires_at:Math.floor(Date.now()/1000)+3600 };
+  await env.withSecurityRulesDisabled(async context => {
+    await context.firestore().doc(memberPath).set(member);
+    await context.firestore().doc(intentPath).set(intent);
+  });
+  const owner = env.authenticatedContext(uid,{chapterId:chapter,role:'crew_manager',auth_time:Math.floor(Date.now()/1000)}).storage();
+  const wrongChapter = env.authenticatedContext(uid,{chapterId:'hk',role:'crew_manager',auth_time:Math.floor(Date.now()/1000)}).storage();
+  const outsider = env.authenticatedContext(`other-${marker}`,{chapterId:chapter,role:'crew_manager',auth_time:Math.floor(Date.now()/1000)}).storage();
+  const object = ref(owner,objectPath);
+  await assertFails(uploadBytes(ref(wrongChapter,objectPath),new Uint8Array([1]),{contentType:'audio/wav'}));
+  await assertFails(uploadBytes(ref(outsider,objectPath),new Uint8Array([1]),{contentType:'audio/wav'}));
+  await assertFails(uploadBytes(object,new Uint8Array([1]),{contentType:'audio/ogg'}));
+  await assertFails(uploadBytes(object,new Uint8Array(25*1024*1024+1),{contentType:'audio/wav'}));
+  await assertFails(uploadBytes(ref(owner,objectPath.replace('/track','/other')),new Uint8Array([1]),{contentType:'audio/wav'}));
+  await assertFails(uploadBytes(ref(owner,objectPath.replace(intentId,'missing-intent')),new Uint8Array([1]),{contentType:'audio/wav'}));
+  await env.withSecurityRulesDisabled(async context => { await context.firestore().doc(memberPath).update({valid_after:Math.floor(Date.now()/1000)+300}); });
+  await assertFails(uploadBytes(object,new Uint8Array([1]),{contentType:'audio/wav'}));
+  await env.withSecurityRulesDisabled(async context => { await context.firestore().doc(memberPath).update({valid_after:0}); });
+  await env.withSecurityRulesDisabled(async context => { await context.firestore().doc(intentPath).update({status:'submitted'}); });
+  await assertFails(uploadBytes(object,new Uint8Array([1]),{contentType:'audio/wav'}));
+  await env.withSecurityRulesDisabled(async context => { await context.firestore().doc(intentPath).update({status:'awaiting_upload'}); });
+  await env.withSecurityRulesDisabled(async context => { await context.firestore().doc(intentPath).update({expires_at:1}); });
+  await assertFails(uploadBytes(object,new Uint8Array([1]),{contentType:'audio/wav'}));
+  await env.withSecurityRulesDisabled(async context => { await context.firestore().doc(intentPath).update({expires_at:intent.expires_at}); });
+  await assertSucceeds(uploadBytes(object,new Uint8Array([1,2,3]),{contentType:'audio/wav'}));
+  assert.equal((await assertSucceeds(getBytes(object))).byteLength,3);
+  // MP3 uploads are accepted alongside WAV; both stay immutable once written.
+  const mpegIntentId = `intent-mpeg-${marker}`;
+  const mpegIntentPath = `chapters/${chapter}/musicIntents/${mpegIntentId}`;
+  const mpegObjectPath = `chapters/${chapter}/music/${uid}/${mpegIntentId}/track`;
+  testDocs.add(mpegIntentPath); testObjects.add(mpegObjectPath);
+  await env.withSecurityRulesDisabled(async context => { await context.firestore().doc(mpegIntentPath).set({ ...intent, intent_id: mpegIntentId, storage_path: mpegObjectPath }); });
+  await assertSucceeds(uploadBytes(ref(owner, mpegObjectPath), new Uint8Array([1, 2, 3]), { contentType: 'audio/mpeg' }));
+  await assertFails(uploadBytes(ref(owner, mpegObjectPath), new Uint8Array([4]), { contentType: 'audio/mpeg' }));
+  await assertFails(uploadBytes(object,new Uint8Array([4]),{contentType:'audio/wav'}));
+  await assertFails(deleteObject(object));
+  await assertFails(getBytes(ref(outsider,objectPath)));
+  await env.withSecurityRulesDisabled(async context => { await context.firestore().doc(memberPath).update({active:false}); });
+  await assertFails(getBytes(object));
 });

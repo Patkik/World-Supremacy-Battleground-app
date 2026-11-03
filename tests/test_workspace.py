@@ -35,6 +35,14 @@ class WorkspaceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             w.validate_dag([dict(id='a', depends_on=[], status='done')])
 
+    def test_reopened_dependency_allows_partial_work_but_not_completion(self):
+        tasks = [dict(id='a', depends_on=[], status='in_progress'),
+                 dict(id='b', depends_on=['a'], status='in_progress')]
+        self.assertEqual(w.validate_dag(tasks)['ready'], [])
+        tasks[1].update(status='done', evidence=['source'])
+        with self.assertRaisesRegex(ValueError, 'Unfinished dependency'):
+            w.validate_dag(tasks)
+
 
 if __name__ == '__main__':
     unittest.main()

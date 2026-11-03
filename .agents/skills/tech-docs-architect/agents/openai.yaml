@@ -1,0 +1,6 @@
+interface:
+  display_name: "Tech Docs Architect"
+  short_description: "Structure technical docs, API references, and ADRs"
+  default_prompt: "Use $tech-docs-architect to create structured, source-verified project documentation."
+policy:
+  allow_implicit_invocation: true

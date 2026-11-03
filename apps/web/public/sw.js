@@ -1,6 +1,9 @@
 /* Cache only the generic offline workspace and public, hashed build assets.
    Never cache API responses, Firebase traffic, private pages, or action links. */
-const VERSION = "wsb-offline-v1";
+const BUILD_ID = new URL(self.location.href).searchParams.get("build");
+const VERSION = BUILD_ID && /^[A-Za-z0-9_-]{1,128}$/.test(BUILD_ID)
+  ? `wsb-offline-${BUILD_ID}`
+  : "wsb-offline-legacy";
 const SHELL = "/offline";
 function publicAsset(path) {
   const url = new URL(path, self.location.origin);

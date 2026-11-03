@@ -4,10 +4,11 @@ use std::collections::{HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::domain::{
-    AudioUploadReceipt, BattleMatch, Chapter, CheckInRecord, Crew, CrewInvitation, CrewMember,
-    CrewResult, DJExportManifest, DJExportTrack, Deduction, Division, Entry, EntryReadiness,
-    EntryStatus, Event, FinanceSummary, GuardianConsentReceipt, MemberRole, PaymentQuote,
-    PaymentRecord, PaymentStatus, PublishedResultSnapshot, ScoreReceipt, SubmitScoreCommand,
+    AudioUploadReceipt, BattleMatch, Chapter, CheckInCandidate, CheckInCandidatePage,
+    CheckInDancerCandidate, CheckInRecord, Crew, CrewInvitation, CrewMember, CrewResult,
+    DJExportManifest, DJExportTrack, Deduction, Division, Entry, EntryReadiness, EntryStatus,
+    Event, FinanceSummary, GuardianConsentReceipt, MemberRole, PaymentQuote, PaymentRecord,
+    PaymentStatus, PublishedResultSnapshot, ScoreReceipt, SubmitScoreCommand,
     SyntheticWebhookPayload, WebhookReceipt,
 };
 
@@ -88,10 +89,17 @@ pub struct RegistrationStore {
     pub receipts: HashMap<String, ScoreReplay>,
     pub division_revisions: HashMap<String, u64>,
     pub payments: HashMap<String, PaymentRecord>,
+    payment_decisions: HashMap<String, PaymentDecisionReceipt>,
     pub check_ins: HashMap<String, CheckInRecord>,
     pub battle_matches: HashMap<String, BattleMatch>,
     pub published_results: HashMap<String, PublishedResultSnapshot>,
     pub paymongo_events: HashSet<String>,
+}
+
+#[derive(Clone)]
+struct PaymentDecisionReceipt {
+    command_hash: String,
+    payment: PaymentRecord,
 }
 
 impl Default for RegistrationStore {
@@ -122,6 +130,7 @@ impl RegistrationStore {
             receipts: HashMap::new(),
             division_revisions: HashMap::new(),
             payments: HashMap::new(),
+            payment_decisions: HashMap::new(),
             check_ins: HashMap::new(),
             battle_matches: HashMap::new(),
             published_results: HashMap::new(),
@@ -163,21 +172,37 @@ impl RegistrationStore {
 
         let event_ph = Event {
             registration_closes_at: None,
+            registration_opens_at: None,
             id: "manila-session-2027".into(),
             chapter_id: "ph".into(),
             name: "Manila Session 2027".into(),
             status: "active".into(),
             rules_version: "2027.1".into(),
+            event_date: None,
+            timezone: None,
+            venue: None,
+            created_by: None,
+            created_at: 0,
+            updated_at: 0,
+            revision: 0,
         };
         self.events.insert(event_ph.id.clone(), event_ph);
 
         let event_hk = Event {
             registration_closes_at: None,
+            registration_opens_at: None,
             id: "hk-championship-2027".into(),
             chapter_id: "hk".into(),
             name: "Hong Kong World Championship 2027".into(),
             status: "active".into(),
             rules_version: "2027.1".into(),
+            event_date: None,
+            timezone: None,
+            venue: None,
+            created_by: None,
+            created_at: 0,
+            updated_at: 0,
+            revision: 0,
         };
         self.events.insert(event_hk.id.clone(), event_hk);
 
@@ -365,6 +390,7 @@ impl RegistrationStore {
                     role: "judge".into(),
                     active: true,
                     valid_after: 0,
+                    expires_at: None,
                 },
             );
         }
@@ -376,6 +402,7 @@ impl RegistrationStore {
                 role: "head_judge".into(),
                 active: true,
                 valid_after: 0,
+                expires_at: None,
             },
         );
     }
@@ -718,6 +745,56 @@ impl RegistrationStore {
             .collect()
     }
 
+    pub fn check_in_candidates(
+        &self,
+        chapter_id: &str,
+        event_id: &str,
+        cursor: Option<&str>,
+        limit: usize,
+    ) -> Result<CheckInCandidatePage, &'static str> {
+        if !(1..=100).contains(&limit) || cursor.is_some_and(|value| value.len() > 20) {
+            return Err("Invalid page request");
+        }
+        let offset = cursor
+            .map(str::parse::<usize>)
+            .transpose()
+            .map_err(|_| "Invalid page cursor")?
+            .unwrap_or(0);
+        let mut items = self
+            .list_entries_by_event(chapter_id, event_id)
+            .into_iter()
+            .filter(|entry| {
+                entry.status == EntryStatus::Approved
+                    && self
+                        .evaluate_readiness(entry)
+                        .is_ok_and(|readiness| readiness.is_ready)
+            })
+            .map(|entry| CheckInCandidate {
+                entry_id: entry.id,
+                crew_id: entry.crew_id,
+                division_id: entry.division_id,
+                dancers: entry
+                    .roster
+                    .into_iter()
+                    .map(|member| CheckInDancerCandidate {
+                        uid: member.uid,
+                        name: member.name,
+                    })
+                    .collect(),
+            })
+            .collect::<Vec<_>>();
+        items.sort_by(|left, right| left.entry_id.cmp(&right.entry_id));
+        if offset > items.len() {
+            return Err("Invalid page cursor");
+        }
+        let end = offset.saturating_add(limit).min(items.len());
+        let page = items[offset..end].to_vec();
+        Ok(CheckInCandidatePage {
+            items: page,
+            next_page: (end < items.len()).then(|| end.to_string()),
+        })
+    }
+
     pub fn update_entry_roster(
         &mut self,
         chapter_id: &str,
@@ -977,7 +1054,12 @@ impl RegistrationStore {
             && self.events.get(event).is_some_and(|e| {
                 self.memberships
                     .get(&format!("{}/{}", e.chapter_id, uid))
-                    .is_some_and(|m| m.active && m.chapter_id == e.chapter_id && m.uid == uid)
+                    .is_some_and(|m| {
+                        m.active
+                            && m.chapter_id == e.chapter_id
+                            && m.uid == uid
+                            && m.expires_at.is_none_or(|expiry| expiry > now_secs())
+                    })
             })
     }
 
@@ -1428,7 +1510,33 @@ impl RegistrationStore {
         chapter: &str,
         payment_id: &str,
         approve: bool,
+        actor: &str,
+        operation_id: &str,
+        reason: &str,
     ) -> Result<PaymentRecord, &'static str> {
+        let reason = reason.trim();
+        if operation_id.is_empty()
+            || operation_id.len() > 128
+            || reason.chars().count() < 8
+            || reason.chars().count() > 1000
+            || reason.chars().any(char::is_control)
+        {
+            return Err("A valid operation ID and an 8–1000 character reason are required");
+        }
+        let receipt_key = scope_key(&[chapter, actor, operation_id]);
+        let command_hash = Sha256::digest(
+            serde_json::to_vec(&(payment_id, approve, reason)).expect("command serializes"),
+        )
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+        if let Some(receipt) = self.payment_decisions.get(&receipt_key) {
+            return if receipt.command_hash == command_hash {
+                Ok(receipt.payment.clone())
+            } else {
+                Err("Payment operation ID already used with different input")
+            };
+        }
         let snapshot = self
             .payments
             .get(payment_id)
@@ -1440,9 +1548,6 @@ impl RegistrationStore {
         } else {
             PaymentStatus::Failed
         };
-        if snapshot.status == target {
-            return Ok(snapshot);
-        }
         if snapshot.status != PaymentStatus::Pending {
             return Err("Only pending payments may be reconciled");
         }
@@ -1464,14 +1569,57 @@ impl RegistrationStore {
             .ok_or("Payment not found")?;
         payment.status = target;
         payment.settled_at = if approve { Some(now_secs()) } else { None };
-        Ok(payment.clone())
+        let result = payment.clone();
+        let audit_id = new_id("audit");
+        self.record_audit_with_reason(
+            chapter,
+            actor,
+            "payment_reconciled",
+            payment_id,
+            reason,
+            audit_id.clone(),
+        );
+        self.payment_decisions.insert(
+            receipt_key,
+            PaymentDecisionReceipt {
+                command_hash,
+                payment: result.clone(),
+            },
+        );
+        Ok(result)
     }
 
     pub fn refund_payment(
         &mut self,
         chapter_id: &str,
         payment_id: &str,
+        actor: &str,
+        operation_id: &str,
+        reason: &str,
     ) -> Result<PaymentRecord, &'static str> {
+        let reason = reason.trim();
+        if operation_id.is_empty()
+            || operation_id.len() > 128
+            || reason.chars().count() < 8
+            || reason.chars().count() > 1000
+            || reason.chars().any(char::is_control)
+        {
+            return Err("A valid operation ID and an 8–1000 character reason are required");
+        }
+        let receipt_key = scope_key(&[chapter_id, actor, operation_id]);
+        let command_hash = Sha256::digest(
+            serde_json::to_vec(&(payment_id, "refunded", reason)).expect("command serializes"),
+        )
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect::<String>();
+        if let Some(receipt) = self.payment_decisions.get(&receipt_key) {
+            return if receipt.command_hash == command_hash {
+                Ok(receipt.payment.clone())
+            } else {
+                Err("Payment operation ID already used with different input")
+            };
+        }
         let payment = self
             .payments
             .get_mut(payment_id)
@@ -1479,8 +1627,8 @@ impl RegistrationStore {
         if payment.chapter_id != chapter_id {
             return Err("Cross-chapter refund denied");
         }
-        if payment.status == PaymentStatus::Refunded {
-            return Ok(payment.clone());
+        if crate::domain::is_provider_payment_reference(&payment.provider_reference) {
+            return Err("Provider refunds require reconciliation");
         }
         if payment.status != PaymentStatus::Settled {
             return Err("Only settled payments can be refunded");
@@ -1494,7 +1642,24 @@ impl RegistrationStore {
             entry.updated_at = now_secs();
         }
 
-        Ok(payment.clone())
+        let result = payment.clone();
+        let audit_id = new_id("audit");
+        self.record_audit_with_reason(
+            chapter_id,
+            actor,
+            "payment_refund_recorded",
+            payment_id,
+            reason,
+            audit_id.clone(),
+        );
+        self.payment_decisions.insert(
+            receipt_key,
+            PaymentDecisionReceipt {
+                command_hash,
+                payment: result.clone(),
+            },
+        );
+        Ok(result)
     }
 
     pub fn list_payments(&self, chapter_id: &str) -> Vec<PaymentRecord> {
@@ -1601,6 +1766,12 @@ impl RegistrationStore {
         &mut self,
         event: &crate::paymongo::PaymongoEvent,
     ) -> Result<PaymentRecord, &'static str> {
+        if matches!(
+            event.event_type,
+            crate::paymongo::PaymongoEventType::PaymentRefunded
+        ) {
+            return Err("Provider refund reconciliation is unavailable");
+        }
         match &event.event_type {
             crate::paymongo::PaymongoEventType::CheckoutSessionPaid => {
                 let session_id = event.session_id.as_deref().unwrap_or_default();
@@ -1620,9 +1791,11 @@ impl RegistrationStore {
                     .unwrap_or("PHP");
                 let ref_num = event.reference_number.as_deref().unwrap_or("");
 
-                let target_id = if let Some(p) = self.payments.values().find(|p| {
-                    p.payment_id == ref_num || p.provider_reference == session_id
-                }) {
+                let target_id = if let Some(p) = self
+                    .payments
+                    .values()
+                    .find(|p| p.payment_id == ref_num || p.provider_reference == session_id)
+                {
                     p.payment_id.clone()
                 } else if let Some(entry) = self.entries.get(ref_num) {
                     let pay_id = format!("pay_pm_{}", event.event_id);
@@ -1925,13 +2098,28 @@ impl RegistrationStore {
     }
 
     pub fn record_audit(&mut self, chapter: &str, actor: &str, action: &str, resource: &str) {
+        let id = new_id("audit");
+        self.record_audit_with_reason(chapter, actor, action, resource, "", id);
+    }
+
+    fn record_audit_with_reason(
+        &mut self,
+        chapter: &str,
+        actor: &str,
+        action: &str,
+        resource: &str,
+        reason: &str,
+        id: String,
+    ) {
         self.audit.push(AuditRecord {
-            id: new_id("audit"),
+            id: id.clone(),
             actor_uid: actor.into(),
             chapter_id: chapter.into(),
             action: action.into(),
             resource_id: resource.into(),
             recorded_at: now_secs(),
+            reason: (!reason.is_empty()).then(|| reason.to_owned()),
+            correlation_id: Some(id),
         });
     }
 }

@@ -26,21 +26,123 @@ concatenation and path traversal. No whole-store/chapter JSON snapshot is used.
 | --- | --- |
 | `chapters/{chapter}` | Chapter metadata and currency |
 | `chapters/{chapter}/members/{uid}` | Active server-owned role and token valid-after |
+| `chapters/{chapter}/members/{uid}/notifications/{notification}` | Private in-app notification, read state and internal destination |
+| `chapters/{chapter}/members/{uid}/notificationMeta/inbox` | Transactionally maintained unread count and revision |
+| `chapters/{chapter}/staffInvitations/{inviteHash}` | UID-bound single-use staff invitation, expiry, reason and current state |
+| `chapters/{chapter}/staffInvitationOperations/{actorOperationHash}` | Payload-bound create, revoke and acceptance receipts |
+| `staffInviteLookups/{inviteHash}` | Server-only code-digest index to chapter and invited UID; client Firestore rules deny access |
 | `chapters/{chapter}/crews/{crew}` | Private canonical crew/membership data |
 | `chapters/{chapter}/events/{event}` | Event chapter and rule version |
 | `.../events/{event}/assignments/{uid}` | Current event assignment, including revocation |
 | `.../events/{event}/divisionState/{division}` | Configured panel, lock, generation, approved/ready/completed counters |
+| `.../events/{event}/divisionPolicyDrafts/{division}` | Director-authored draft settings and rule-source metadata; never used as a live policy |
+| `.../divisionPolicyDrafts/{division}/versions/{version}` | Immutable snapshot of each saved draft version |
+| `.../divisionPolicyDrafts/{division}/operations/{actorOperationHash}` | Payload-bound retry receipt for draft changes |
 | `.../divisionState/{division}/deductions/{crewHash}` | Versioned head-judge technical deductions for one approved crew |
 | `publicEvents/{event}` | Global event-ID reservation mapping to the owning chapter |
+| `eventDirectory/{event}` | Shared transaction reservation preventing chapter event creation and result publication from claiming the same global ID |
 | `.../publicEvents/{event}/divisions/{divisionHash}` | Immutable published-only result snapshot |
 | `.../events/{event}/entryIndex/{tupleHash}` | Crew/division to canonical entry ID |
 | `.../events/{event}/entries/{entry}` | Entry snapshot, settled amount, reserved pending amount, scorecard count |
 | `.../entries/{entry}/scorecards/{judgeHash}` | One latest score and revision per judge |
 | `chapters/{chapter}/scoreOperations/{actorOperationHash}` | Exact command and immutable server receipt |
 | `chapters/{chapter}/payments/{payment}` | Manual reconciliation ledger record |
+| `chapters/{chapter}/paymentOperations/{actorOperationHash}` | Payload-bound reconciliation/refund receipt and resulting payment record |
 | `chapters/{chapter}/paymentLocations/{payment}` | Authoritative event/entry location |
 | `chapters/{chapter}/paymentReferences/{referenceHash}` | Unique normalized reference, payer, amount and target |
 | `chapters/{chapter}/audit/{record}` | Audit entry committed with its business effect |
+
+Crew invitation acceptance writes a deterministic notification for the inviting
+manager in the same transaction as the canonical roster and invitation receipt.
+Entry review, payment ledger transitions, event-staff assignment changes, and
+eligible online check-in also write a notification for the affected manager,
+payer, staff member, or dancer in the same transaction as their source mutation.
+Payment transitions notify the payer with the payment-record link and, when the
+payer is not the crew manager, send that manager a summary link to the owned
+entry workspace. The manager notice omits payer-specific details.
+Dynamic notification destinations encode path segments and query values, so
+reserved characters in a saved identifier cannot change the destination or its
+parameters. New inbox writes also enforce bounded title, message and kind fields
+and reject non-relative, cross-origin, backslash-containing or control-character
+destinations. Reads validate saved links with the same origin rule before
+returning them. Existing saved notices retain their original links, but malformed
+records fail closed rather than being rendered.
+Registration approvals and stage-position changes save a server-only fan-out
+job with the source transaction. The local API worker processes at most 20
+roster recipients per transaction, rechecking the entry roster and current
+chapter membership. Notice writes, unread counters and job progress commit
+together; completed jobs are removed. Concurrent workers and restarts resume
+from the saved cursor, while removed or inactive members are skipped. Delayed
+notices direct dancers to current status rather than claiming an old stage state
+is still current. Delivery is asynchronous and this local implementation has not
+yet been rehearsed for failure, restart or multi-instance recovery.
+Publishing a result snapshot also commits one publication notification job.
+The worker expands that job one published entry per transaction into a manager
+notice and the same bounded roster queue. It rechecks the published snapshot,
+entry and crew scope; the result link opens the participant results workspace
+for the matching chapter and event. Publication corrections, follower delivery,
+and recovery or multi-instance verification remain unfinished.
+Workers record a failed attempt on a still-pending job when Firestore permits it
+and wait 30 seconds before retrying that job. A successful batch clears the
+cooldown; its historical failure count stays with the pending job until the job
+finishes. Current Global HQ admins can read a no-store aggregate sample of up to
+100 pending jobs from each queue, including how many sampled jobs have a recorded
+failure. The queue read requests only the failure-count field; the response
+contains no recipient or conversation details. Failures outside the
+sample, completed jobs, and failures that could not be recorded during a database
+outage are not represented; this is not a delivery history or alert service.
+Workers scan job IDs and progress fields instead of deserializing a whole page of
+jobs. A malformed job is logged independently and does not stop later jobs in the
+page. If its progress and failure metadata remain readable, the worker records
+the failed attempt and cooldown using a field-masked update that preserves the
+rest of the record. Progress, cooldown and failure values are parsed independently;
+even a malformed progress value can be cooldown-marked without being rewritten.
+The failure transaction compares the current progress value with the scanned
+value before changing retry metadata. A document that cannot be decoded at all
+may still require operator investigation; the HQ sample reports unreadable
+failure metadata when detected.
+Manual music review outcomes similarly notify the entry's crew manager in the
+same transaction as the versioned review decision; the notice explicitly says
+that a manual outcome does not establish compliance or readiness.
+Judge-panel additions/removals notify each changed judge in the same transaction
+as the panel revision, receipt and audit. The batch loads each recipient's
+notification and unread summary before staging any writes, preserving Firestore's
+read-before-write transaction order; panel changes affect at most 20 judges.
+Revisioned stage-position transitions notify the affected crew manager in the
+same transaction.
+Every notification writer rechecks the target chapter membership inside its
+delivery transaction. Missing, inactive, or expired recipients are skipped, so a
+command that races with access revocation can still complete without leaving a
+new inbox record for an account that no longer has chapter access. A malformed
+membership record fails closed.
+The demo PayMongo adapter notifies only for test-mode settlement and refund
+events. The signed-in member reads only its own
+notification subcollection; membership is rechecked for every page and read
+acknowledgement. These producers do not establish push/email delivery or coverage
+for every business event.
+
+The web inbox keeps displayed state inside an account-and-chapter keyed
+workspace, checks the authenticated UID on requests, and verifies returned notice
+scope before showing it. Pending responses are ignored when the workspace is
+replaced, and an authentication or authorization denial clears displayed notices
+and unread counts. Account-switch and delayed-response behavior still requires
+rehearsal.
+
+The unread counter shares each notification's source transaction. Mark-read
+acknowledgements recheck both the notification and counter in one transaction,
+so duplicate requests decrement only once and concurrent inbox changes retry on
+the shared counter document. The inbox page returns the count independently of
+the current result page.
+
+Audit pages use the dedicated read-only `GET /v1/chapters/{chapter}/audit`
+repository method. It rechecks active chapter membership and requires the
+current director or auditor role before querying that chapter's records in
+descending `recorded_at` order. The UI requests bounded pages and exports only
+records already loaded. See [chapter audit feed](chapter-audit.md) for the
+current schema limits and the remaining reason/correlation gaps. Event setup
+commands and staff invitation creation/revocation persist reasons; not all audit
+producers do. New audit IDs persist as correlation IDs, but are not end-to-end
+request traces.
 
 Client Firestore rules continue to deny direct access to all business collections.
 The repository's general page helper is internal server infrastructure; it is not
@@ -51,6 +153,12 @@ under `publicEvents`; private scorecards and unpublished entries are never queri
 by public result handlers. The parent public event document reserves the current
 API `event_id` globally for one chapter. A collision across chapters fails closed.
 Online dancer check-in is also persistent; see [online check-in](online-checkin.md).
+
+Division policy drafts are isolated from `divisionState`. They record proposed
+roster, duration, age and fee values alongside a supplied source/version and
+effective date. No participant or scoring path reads these drafts, and the
+current API has no approval/publish transition. The approved rule source and
+authorized reviewer remain open requirements.
 
 ## Transaction contract
 
@@ -96,8 +204,10 @@ these counters in the same transaction; they remain gated until migrated.
 
 A payment reference atomically reserves its requested share, creates a pending
 ledger row, creates the unique reference/location records and records its audit.
-No payer request sets money as settled. Reconciliation atomically releases the
-reservation and credits an approved amount once. Refund recording debits once.
+No payer request sets money as settled. Finance reconciliation requires a
+reason and operation ID; its transition, payload-bound receipt and audit commit
+atomically. Exact retries return the saved payment, while changed reuse conflicts.
+Manual refund recording follows the same contract and debits the ledger once.
 When an approved entry's readiness changes, its division's unready count changes
 in that same transaction. This is manual ledger reconciliation, not a provider
 charge, webhook or transfer.
@@ -149,8 +259,9 @@ CI definitions are added; a local pass is not evidence of a remote CI run.
 
 - Crew creation/edits, invitation redemption, entry/roster submission and registrar
   review now persist with replay/version checks and atomic counters. See
-  [registration contracts](persistent-registration.md). Verification,
-  event/panel configuration, private media and their readiness changes remain.
+  [registration contracts](persistent-registration.md). Director-managed judge
+  panels now persist with revision checks and audit; broader event configuration,
+  verification, private media and their readiness changes remain.
 - Expand bounded authorized list coverage beyond crews, payments and assigned
   performances, which now have paginated persistent reads and browser controls.
 - Add approved correction/republication workflows, battle progression and stage

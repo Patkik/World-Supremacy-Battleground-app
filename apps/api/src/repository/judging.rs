@@ -41,6 +41,12 @@ async fn score_context(
     Ok((entry, division))
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct DeductionReceipt {
+    command_hash: String,
+    revision: u64,
+}
+
 impl FirestoreRepository {
     pub async fn set_deductions(
         &self,
@@ -48,6 +54,31 @@ impl FirestoreRepository {
         chapter: &str,
         event: &str,
         command: DeductionUpdate,
+    ) -> Result<u64> {
+        self.set_deductions_inner(claims, chapter, event, command, None)
+            .await
+    }
+
+    pub async fn set_deductions_with_operation(
+        &self,
+        claims: &Claims,
+        chapter: &str,
+        event: &str,
+        command: DeductionUpdate,
+        operation: &str,
+    ) -> Result<u64> {
+        segment(operation)?;
+        self.set_deductions_inner(claims, chapter, event, command, Some(operation.to_owned()))
+            .await
+    }
+
+    async fn set_deductions_inner(
+        &self,
+        claims: &Claims,
+        chapter: &str,
+        event: &str,
+        command: DeductionUpdate,
+        operation: Option<String>,
     ) -> Result<u64> {
         if command.deductions.len() > 50
             || command.deductions.iter().any(|d| {
@@ -66,10 +97,11 @@ impl FirestoreRepository {
             chapter.to_owned(),
             event.to_owned(),
             command,
+            operation,
         );
         self.db
             .run_transaction(|db, tx| {
-                let (claims, chapter, event, command) = input.clone();
+                let (claims, chapter, event, command, operation) = input.clone();
                 let DeductionUpdate {
                     division_id: division,
                     crew_id: crew,
@@ -83,9 +115,6 @@ impl FirestoreRepository {
                         let state: DivisionDocument = required(&db, &division_path).await?;
                         if state.policy.id != division {
                             return Err(forbidden());
-                        }
-                        if state.locked {
-                            return Err(conflict("Division is locked"));
                         }
                         let index: EntryIndex = get(
                             &db,
@@ -110,10 +139,40 @@ impl FirestoreRepository {
                         {
                             return Err(forbidden());
                         }
+                        let command_hash = key(&[&serde_json::to_string(&(
+                            &division,
+                            &crew,
+                            expected,
+                            &deductions,
+                        ))
+                        .map_err(|_| invalid("Invalid deduction command"))?]);
+                        let receipt_path = operation.as_ref().map(|op| {
+                            format!(
+                                "{division_path}/deductionOperations/{}",
+                                key(&[&claims.sub, op])
+                            )
+                        });
+                        if let Some(receipt_path) = receipt_path.as_ref() {
+                            if let Some(receipt) =
+                                get::<DeductionReceipt>(&db, receipt_path).await?
+                            {
+                                return if receipt.command_hash == command_hash {
+                                    Ok(receipt.revision)
+                                } else {
+                                    Err(conflict(
+                                        "Operation ID already used for different deductions",
+                                    ))
+                                };
+                            }
+                        }
+                        if state.locked {
+                            return Err(conflict("Division is locked"));
+                        }
                         let path = format!("{division_path}/deductions/{}", key(&[&crew]));
                         let existing = get::<TechnicalDeductions>(&db, &path).await?;
                         let revision = existing.as_ref().map_or(0, |v| v.revision);
-                        if expected.checked_add(1) == Some(revision)
+                        if operation.is_none()
+                            && expected.checked_add(1) == Some(revision)
                             && existing
                                 .as_ref()
                                 .is_some_and(|v| v.deductions == deductions)
@@ -136,6 +195,17 @@ impl FirestoreRepository {
                             updated_at: now_secs(),
                         };
                         put(&db, tx, &path, &value)?;
+                        if let Some(receipt_path) = receipt_path {
+                            put(
+                                &db,
+                                tx,
+                                &receipt_path,
+                                &DeductionReceipt {
+                                    command_hash,
+                                    revision: next,
+                                },
+                            )?;
+                        }
                         audit(
                             &db,
                             tx,
@@ -153,6 +223,116 @@ impl FirestoreRepository {
             })
             .await
             .map_err(transaction_error)
+    }
+
+    pub async fn division_review(
+        &self,
+        claims: &Claims,
+        chapter: &str,
+        event: &str,
+        division: &str,
+        cursor: Option<String>,
+        limit: usize,
+    ) -> Result<serde_json::Value> {
+        if !(1..=100).contains(&limit)
+            || cursor.as_ref().is_some_and(|value| segment(value).is_err())
+        {
+            return Err(invalid("Invalid page request"));
+        }
+        event_access(
+            &self.db,
+            claims,
+            chapter,
+            event,
+            &["head_judge", "chapter_director"],
+        )
+        .await?;
+        let path = division_path(chapter, event, division)?;
+        let state: DivisionDocument = required(&self.db, &path).await?;
+        if state.policy.id != division {
+            return Err(forbidden());
+        }
+        // Review snapshot for the lock decision. Deduction and lock commands
+        // revalidate inside their own transactions; this read freezes nothing.
+        let parent = format!(
+            "{}/{}",
+            self.db.get_documents_path(),
+            event_path(chapter, event)?
+        );
+        let query = self
+            .db
+            .fluent()
+            .select()
+            .from("entries")
+            .parent(&parent)
+            .filter(|q| q.for_all([q.field("entry.division_id").eq(division)]))
+            .order(|order| order.fields([order.field("__name__").asc()]))
+            .limit((limit + 1) as u32);
+        let query = if let Some(id) = cursor {
+            query.start_at(firestore::FirestoreQueryCursor::AfterValue(vec![
+                firestore::FirestoreReference::new(format!("{parent}/entries/{id}")).into(),
+            ]))
+        } else {
+            query
+        };
+        let mut documents = query.query().await?;
+        let has_more = documents.len() > limit;
+        if has_more {
+            documents.pop();
+        }
+        let mut last_id: Option<String> = None;
+        let mut rows = Vec::new();
+        for raw in documents {
+            let document: EntryDocument = FirestoreDb::deserialize_doc_to(&raw)?;
+            let id = raw.name.rsplit('/').next().unwrap_or_default();
+            let entry = &document.entry;
+            if segment(id).is_err()
+                || entry.id != id
+                || entry.chapter_id != chapter
+                || entry.event_id != event
+                || entry.division_id != division
+                || last_id.as_deref().is_some_and(|previous| previous >= id)
+            {
+                return Err(forbidden());
+            }
+            last_id = Some(id.to_owned());
+            if entry.status != EntryStatus::Approved {
+                continue;
+            }
+            let saved: Option<TechnicalDeductions> = get(
+                &self.db,
+                &format!("{path}/deductions/{}", key(&[&entry.crew_id])),
+            )
+            .await?;
+            if saved.as_ref().is_some_and(|value| {
+                value.chapter_id != chapter
+                    || value.event_id != event
+                    || value.division_id != division
+                    || value.crew_id != entry.crew_id
+            }) {
+                return Err(forbidden());
+            }
+            rows.push(serde_json::json!({
+                "entry_id": entry.id,
+                "crew_id": entry.crew_id,
+                "completed_scorecards": document.completed_scorecards,
+                "deduction_revision": saved.as_ref().map_or(0, |value| value.revision),
+                "deductions": saved.map(|value| value.deductions).unwrap_or_default(),
+            }));
+        }
+        rows.sort_by(|a, b| a["entry_id"].as_str().cmp(&b["entry_id"].as_str()));
+        Ok(serde_json::json!({
+            "division_id": state.policy.id,
+            "name": state.policy.name,
+            "locked": state.locked,
+            "publication_id": state.publication_id,
+            "panel": state.panel,
+            "approved_entries": state.approved_entries,
+            "unready_entries": state.unready_entries,
+            "completed_scorecards": state.completed_scorecards,
+            "entries": rows,
+            "next_page": if has_more { last_id } else { None },
+        }))
     }
 
     pub async fn score_assignment(
@@ -469,6 +649,7 @@ impl FirestoreRepository {
                             )
                             .await?;
                             if !member.active
+                                || member.expires_at.is_some_and(|expiry| expiry <= now_secs())
                                 || member.uid != *uid
                                 || member.chapter_id != chapter
                                 || !matches!(member.role.as_str(), "judge" | "head_judge")

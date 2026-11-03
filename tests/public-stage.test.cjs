@@ -33,3 +33,16 @@ test('hidden displays do not fetch and resume on the next scheduled check', asyn
   const stop = pollStage({ load: async () => { calls++; return valid; }, accept: () => {}, fail: () => {}, visible: () => visible, schedule: fn => { scheduled.push(fn); return scheduled.length; }, cancel: () => {} });
   assert.equal(calls, 0); visible = true; scheduled.shift()(); await tick(); assert.equal(calls, 1); stop();
 });
+test('a stalled request times out, aborts and retries without accepting a late result', async () => {
+  let resolve; let signal; let calls = 0; let failed = 0; const accepted = []; const scheduled = [];
+  const stop = pollStage({
+    load: s => { signal = s; calls++; return calls === 1 ? new Promise(r => resolve = r) : Promise.resolve(valid); },
+    accept: value => accepted.push(value), fail: () => failed++, visible: () => true,
+    requestTimeoutMs: 10, schedule: (fn, delay) => { scheduled.push({ fn, delay }); return scheduled.length; }, cancel: () => {},
+  });
+  await new Promise(r => setTimeout(r, 30));
+  assert.equal(signal.aborted, true); assert.equal(failed, 1); assert.equal(scheduled[0].delay, 10000);
+  resolve({ ...valid, event: 'Late response' }); await tick(); assert.deepEqual(accepted, []);
+  scheduled.shift().fn(); await tick(); assert.deepEqual(accepted, [valid]);
+  stop();
+});

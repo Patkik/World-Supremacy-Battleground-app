@@ -1,98 +1,96 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
+import Link from "next/link";
+import { EmailAuthProvider, reauthenticateWithCredential, updatePassword } from "firebase/auth";
 import { Arrow, PageHeading, Status } from "@/components/ui";
+import { useAccount } from "@/lib/account";
+import { firebaseClient } from "@/lib/firebase/client";
+
+function authMessage(error: unknown) {
+  const code = typeof error === "object" && error !== null && "code" in error ? String(error.code) : "";
+  if (code.includes("wrong-password") || code.includes("invalid-credential")) return "The current password was not accepted.";
+  if (code.includes("requires-recent-login")) return "Sign in again, then retry the password change.";
+  if (code.includes("weak-password")) return "Choose a stronger password and try again.";
+  if (code.includes("network-request-failed")) return "Network unavailable. Your password was not changed.";
+  return error instanceof Error ? error.message : "Password could not be changed.";
+}
 
 export default function SecurityPage() {
-  const [sessions, setSessions] = useState([
-    { id: "sess-1", device: "Chrome on macOS", location: "Quezon City, PH", current: true, time: "Active now" },
-    { id: "sess-2", device: "Safari on iPhone 15", location: "Manila, PH", current: false, time: "2 hours ago" },
-  ]);
-  const [terminated, setTerminated] = useState(false);
+  const { user, loading, error: accountError } = useAccount();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [message, setMessage] = useState("");
 
-  function terminateOther() {
-    setSessions(sessions.filter((s) => s.current));
-    setTerminated(true);
-    setTimeout(() => setTerminated(false), 3000);
+  async function changePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
+    setMessage("");
+    if (!user?.email) {
+      setError("A password sign-in account is not available for this user.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError("The new password and confirmation do not match.");
+      return;
+    }
+    if (currentPassword === newPassword) {
+      setError("Choose a password different from the current password.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const credential = EmailAuthProvider.credential(user.email, currentPassword);
+      await reauthenticateWithCredential(user, credential);
+      await updatePassword(user, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      setMessage("Password updated with Firebase Auth.");
+    } catch (cause) {
+      setError(authMessage(cause));
+    } finally {
+      setSaving(false);
+    }
   }
 
-  return (
-    <main id="main-content" className="workspace-main">
-      <PageHeading
-        eyebrow="Security & Credentials · P1"
-        title="Security & Active Sessions"
-        description="Monitor active sign-in sessions, manage credentials, and review access privileges."
-      />
+  if (loading) return <main id="main-content" className="workspace-main"><PageHeading eyebrow="Account security" title="Loading account" description="Checking your signed-in Firebase account." /><p role="status">Loading account security…</p></main>;
+  if (!user) return <main id="main-content" className="workspace-main"><PageHeading eyebrow="Account security" title="Sign in required" description="Sign in before changing account security settings." /><p role="alert" className="form-error">{accountError || "Your signed-in account could not be loaded."}</p><Link href="/sign-in?next=%2Fapp%2Fsecurity" className="button button-volt">Sign in</Link></main>;
 
-      {terminated && (
-        <div className="info-note" style={{ color: "var(--accent-volt)", borderColor: "var(--border-active)", marginBottom: 20 }}>
-          All other sessions have been terminated.
-        </div>
-      )}
+  const hasPasswordProvider = user.providerData.some(provider => provider.providerId === "password");
+  const lastSignIn = user.metadata.lastSignInTime ? new Date(user.metadata.lastSignInTime) : null;
 
-      <div style={{ maxWidth: 720, display: "flex", flexDirection: "column", gap: 24 }}>
-        <section className="panel" style={{ padding: 28 }}>
-          <h2 style={{ fontSize: 18, fontFamily: "var(--font-sans)", fontWeight: 550, marginBottom: 12 }}>
-            Active Sessions
-          </h2>
-          <p style={{ color: "var(--text-titanium)", fontSize: 12, lineHeight: 1.7, marginBottom: 20 }}>
-            These devices are currently authenticated to your WSB account. If you see an unrecognized device, terminate it immediately.
-          </p>
+  return <main id="main-content" className="workspace-main">
+    <PageHeading eyebrow="Account security" title="Security" description="Review facts Firebase exposes for this account and change your password after reauthentication." />
+    {message && <p className="info-note" role="status">{message}</p>}
+    {error && <p className="form-error" role="alert">{error}</p>}
+    <div className="connected-stack max-w-2xl">
+      <section className="panel">
+        <div className="panel-heading"><div><h2>Account and sign-in</h2><p>Only the current account's Firebase data is shown here.</p></div><Status tone={user.emailVerified ? "volt" : "amber"}>{user.emailVerified ? "Email verified" : "Email not verified"}</Status></div>
+        <dl className="grid gap-4 sm:grid-cols-2">
+          <div><dt className="eyebrow">Email</dt><dd className="break-all">{user.email || "Not available"}</dd></div>
+          <div><dt className="eyebrow">Sign-in provider</dt><dd>{user.providerData.map(provider => provider.providerId).join(", ") || "Not available"}</dd></div>
+          <div><dt className="eyebrow">Last sign-in</dt><dd>{lastSignIn && Number.isFinite(lastSignIn.getTime()) ? lastSignIn.toLocaleString() : "Not available"}</dd></div>
+          <div><dt className="eyebrow">Other device sessions</dt><dd>Not listed by this client</dd></div>
+        </dl>
+        <p className="fineprint mt-4">This page cannot list or revoke other device sessions. Use the sign-out action on a shared device; password change does not claim a remote-session revocation.</p>
+      </section>
 
-          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-            {sessions.map((s) => (
-              <div
-                key={s.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "16px 20px",
-                  background: "var(--bg-tungsten)",
-                  border: "1px solid var(--border-subtle)",
-                  borderRadius: "var(--radius)",
-                }}
-              >
-                <div>
-                  <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                    <strong style={{ fontSize: 13 }}>{s.device}</strong>
-                    {s.current && <Status tone="volt">Current device</Status>}
-                  </div>
-                  <span style={{ fontSize: 11, color: "var(--text-titanium)", display: "block", marginTop: 4 }}>
-                    {s.location} · {s.time}
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {sessions.length > 1 && (
-            <button
-              onClick={terminateOther}
-              className="button button-outline"
-              style={{ marginTop: 20, fontSize: 12 }}
-            >
-              Sign out other sessions
-            </button>
-          )}
-        </section>
-
-        <section className="panel" style={{ padding: 28 }}>
-          <h2 style={{ fontSize: 18, fontFamily: "var(--font-sans)", fontWeight: 550, marginBottom: 8 }}>
-            Change Password
-          </h2>
-          <p style={{ color: "var(--text-titanium)", fontSize: 12, marginBottom: 20 }}>
-            Ensure your password is at least 8 characters long and contains a mix of letters and numbers.
-          </p>
-          <div style={{ display: "flex", gap: 16 }}>
-            <input type="password" placeholder="Current password" style={{ maxWidth: 220 }} />
-            <input type="password" placeholder="New password" style={{ maxWidth: 220 }} />
-            <button className="button button-volt" style={{ fontSize: 11, padding: "12px 18px", minHeight: 0 }}>
-              Update <Arrow />
-            </button>
-          </div>
-        </section>
-      </div>
-    </main>
-  );
+      <section className="panel">
+        <div className="panel-heading"><div><h2>Change password</h2><p>Firebase requires the current password to reauthenticate before this change.</p></div><Status>{hasPasswordProvider ? "Password sign-in" : "No password provider"}</Status></div>
+        {hasPasswordProvider ? <form onSubmit={changePassword} className="connected-stack">
+          <label htmlFor="current-password">Current password</label>
+          <input id="current-password" type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} required disabled={saving} />
+          <label htmlFor="new-password">New password</label>
+          <input id="new-password" type="password" autoComplete="new-password" value={newPassword} onChange={event => setNewPassword(event.target.value)} minLength={6} required disabled={saving} />
+          <label htmlFor="confirm-password">Confirm new password</label>
+          <input id="confirm-password" type="password" autoComplete="new-password" value={confirmPassword} onChange={event => setConfirmPassword(event.target.value)} minLength={6} required disabled={saving} />
+          <button type="submit" className="button button-volt" disabled={saving}>{saving ? "Updating…" : "Update password"} <Arrow /></button>
+        </form> : <p>This account does not use password sign-in. Use the configured identity provider to manage its credentials. <Link href="/forgot-password" className="text-link">Password reset options <Arrow diagonal /></Link></p>}
+      </section>
+    </div>
+  </main>;
 }

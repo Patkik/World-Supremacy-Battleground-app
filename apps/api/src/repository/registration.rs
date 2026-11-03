@@ -19,6 +19,14 @@ pub enum RegistrationCommand {
     Invite {
         crew_id: String,
     },
+    RevokeInvite {
+        crew_id: String,
+        token: String,
+    },
+    RevokeInviteRef {
+        crew_id: String,
+        invitation_id: String,
+    },
     CreateEntry {
         event_id: String,
         crew_id: String,
@@ -54,6 +62,8 @@ struct InvitationDocument {
     issued_at: u64,
     expires_at: u64,
     accepted_by: Option<String>,
+    #[serde(default)]
+    revoked: bool,
     acceptance_hash: Option<String>,
     response: Option<Crew>,
 }
@@ -127,7 +137,9 @@ async fn authorize(
             let _: Chapter = required(db, &format!("chapters/{}", segment(chapter)?)).await?;
         }
         RegistrationCommand::UpdateCrew { crew_id, .. }
-        | RegistrationCommand::Invite { crew_id } => {
+        | RegistrationCommand::Invite { crew_id }
+        | RegistrationCommand::RevokeInvite { crew_id, .. }
+        | RegistrationCommand::RevokeInviteRef { crew_id, .. } => {
             manager(db, claims, chapter, crew_id).await?;
         }
         RegistrationCommand::CreateEntry {
@@ -156,6 +168,120 @@ async fn authorize(
 }
 
 impl FirestoreRepository {
+    pub async fn list_crew_invitations(
+        &self,
+        claims: &Claims,
+        chapter: &str,
+        crew: &str,
+        cursor: Option<String>,
+        limit: usize,
+    ) -> Result<Page<Value>> {
+        if !(1..=100).contains(&limit)
+            || cursor.as_ref().is_some_and(|v| {
+                v.len() != 64
+                    || !v
+                        .bytes()
+                        .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            })
+        {
+            return Err(invalid("Invalid page request"));
+        }
+        membership(&self.db, claims, chapter).await?;
+        manager(&self.db, claims, chapter, crew).await?;
+        let parent = format!(
+            "{}/chapters/{}",
+            self.db.get_documents_path(),
+            segment(chapter)?
+        );
+        let query = self
+            .db
+            .fluent()
+            .select()
+            .from("invitations")
+            .parent(&parent)
+            .filter(|q| q.for_all([q.field("crew_id").eq(crew)]))
+            .order(|order| order.fields([order.field("__name__").asc()]))
+            .limit((limit + 1) as u32);
+        let query = if let Some(id) = cursor {
+            query.start_at(firestore::FirestoreQueryCursor::AfterValue(vec![
+                firestore::FirestoreReference::new(format!("{parent}/invitations/{id}")).into(),
+            ]))
+        } else {
+            query
+        };
+        let mut documents = query.query().await?;
+        let has_more = documents.len() > limit;
+        if has_more {
+            documents.pop();
+        }
+        let mut items = Vec::new();
+        let mut last_id = None;
+        for document in &documents {
+            let invitation: InvitationDocument = FirestoreDb::deserialize_doc_to(document)?;
+            if invitation.crew_id != crew {
+                return Err(forbidden());
+            }
+            let id = document.name.rsplit('/').next().unwrap_or_default();
+            if id.len() != 64
+                || !id
+                    .bytes()
+                    .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+                || last_id
+                    .as_deref()
+                    .is_some_and(|previous: &str| previous >= id)
+            {
+                return Err(forbidden());
+            }
+            last_id = Some(id.to_owned());
+            items.push(json!({"id": id, "crew_id": crew, "issued_at": invitation.issued_at, "expires_at": invitation.expires_at, "used": invitation.accepted_by.is_some(), "revoked": invitation.revoked}));
+        }
+        Ok(Page {
+            items,
+            next_page: if has_more { last_id } else { None },
+        })
+    }
+
+    pub async fn event_details(
+        &self,
+        claims: &Claims,
+        chapter: &str,
+        event: &str,
+    ) -> Result<Event> {
+        let input = (claims.clone(), chapter.to_owned(), event.to_owned());
+        self.db
+            .run_transaction(|db, _tx| {
+                let (claims, chapter, event) = input.clone();
+                Box::pin(async move {
+                    async {
+                        event_access(
+                            &db,
+                            &claims,
+                            &chapter,
+                            &event,
+                            &["chapter_director", "registrar"],
+                        )
+                        .await
+                    }
+                    .await
+                    .map_err(backoff)
+                })
+            })
+            .await
+            .map_err(transaction_error)
+    }
+
+    pub async fn authorize_audio_inspection(
+        &self,
+        claims: &Claims,
+        chapter: &str,
+        event: &str,
+        entry_id: &str,
+    ) -> Result<()> {
+        membership(&self.db, claims, chapter).await?;
+        let entry = entry_access(&self.db, claims, chapter, event, entry_id, false).await?;
+        manager(&self.db, claims, chapter, &entry.entry.crew_id).await?;
+        Ok(())
+    }
     pub async fn registration_command<T: DeserializeOwned>(
         &self,
         claims: &Claims,
@@ -196,6 +322,10 @@ impl FirestoreRepository {
                             RegistrationCommand::CreateCrew { .. } => "crew_created",
                             RegistrationCommand::UpdateCrew { .. } => "crew_updated",
                             RegistrationCommand::Invite { .. } => "crew_invitation_issued",
+                            RegistrationCommand::RevokeInvite { .. }
+                            | RegistrationCommand::RevokeInviteRef { .. } => {
+                                "crew_invitation_revoked"
+                            }
                             RegistrationCommand::CreateEntry { .. } => "entry_created_or_recovered",
                             RegistrationCommand::Roster { .. } => "entry_roster_updated",
                             RegistrationCommand::Submit { .. } => "entry_submitted_for_review",
@@ -240,6 +370,92 @@ impl FirestoreRepository {
         })
     }
 
+    pub async fn recover_crew_invitation(
+        &self,
+        claims: &Claims,
+        chapter: &str,
+        crew_id: &str,
+        token: &str,
+    ) -> Result<Crew> {
+        segment(token)?;
+        let input = (
+            claims.clone(),
+            chapter.to_owned(),
+            crew_id.to_owned(),
+            token.to_owned(),
+        );
+        self.db
+            .run_transaction(|db, _tx| {
+                let (claims, chapter, crew_id, token) = input.clone();
+                Box::pin(async move {
+                    async {
+                        membership(&db, &claims, &chapter).await?;
+                        require_role(&claims, &["dancer", "crew_manager"])?;
+                        let invitation: InvitationDocument = required(
+                            &db,
+                            &format!(
+                                "chapters/{}/invitations/{}",
+                                segment(&chapter)?,
+                                key(&[&token])
+                            ),
+                        )
+                        .await?;
+                        if invitation.crew_id != crew_id
+                            || invitation.revoked
+                            || invitation.accepted_by.as_deref() != Some(claims.sub.as_str())
+                        {
+                            return Err(forbidden());
+                        }
+                        let crew: Crew = required(&db, &crew_path(&chapter, &crew_id)?).await?;
+                        let inviter: Membership = required(
+                            &db,
+                            &format!(
+                                "chapters/{}/members/{}",
+                                segment(&chapter)?,
+                                segment(&invitation.inviter_uid)?
+                            ),
+                        )
+                        .await?;
+                        if crew.id != crew_id
+                            || crew.chapter_id != chapter
+                            || crew.manager_uid != invitation.inviter_uid
+                            || !inviter.active
+                            || inviter
+                                .expires_at
+                                .is_some_and(|expiry| expiry <= now_secs())
+                            || inviter.role != "crew_manager"
+                            || inviter.uid != invitation.inviter_uid
+                            || inviter.chapter_id != chapter
+                            || inviter.valid_after > invitation.issued_at
+                        {
+                            return Err(forbidden());
+                        }
+                        let receipt = invitation
+                            .response
+                            .ok_or_else(|| conflict("Invitation receipt needs review"))?;
+                        if receipt.id != crew_id
+                            || receipt.chapter_id != chapter
+                            || !receipt.members.iter().any(|member| {
+                                member.uid == claims.sub && member.role == MemberRole::Dancer
+                            })
+                        {
+                            return Err(forbidden());
+                        }
+                        if !crew.members.iter().any(|member| {
+                            member.uid == claims.sub && member.role == MemberRole::Dancer
+                        }) {
+                            return Err(forbidden());
+                        }
+                        Ok(crew)
+                    }
+                    .await
+                    .map_err(backoff)
+                })
+            })
+            .await
+            .map_err(transaction_error)
+    }
+
     pub async fn redeem_invitation(
         &self,
         claims: &Claims,
@@ -271,7 +487,7 @@ impl FirestoreRepository {
                             key(&[&token])
                         );
                         let mut invitation: InvitationDocument = required(&db, &path).await?;
-                        if invitation.crew_id != crew_id {
+                        if invitation.crew_id != crew_id || invitation.revoked {
                             return Err(forbidden());
                         }
                         let mut crew: Crew = required(&db, &crew_path(&chapter, &crew_id)?).await?;
@@ -288,6 +504,7 @@ impl FirestoreRepository {
                             || crew.chapter_id != chapter
                             || crew.manager_uid != invitation.inviter_uid
                             || !inviter.active
+                            || inviter.expires_at.is_some_and(|expiry| expiry <= now_secs())
                             || inviter.role != "crew_manager"
                             || inviter.uid != invitation.inviter_uid
                             || inviter.chapter_id != chapter
@@ -298,14 +515,17 @@ impl FirestoreRepository {
                         let fingerprint =
                             key(&[&claims.sub, &name, if is_minor { "minor" } else { "adult" }]);
                         if let Some(uid) = &invitation.accepted_by {
+                            if !crew.members.iter().any(|member| member.uid == claims.sub && member.role == MemberRole::Dancer) { return Err(forbidden()); }
                             if uid != &claims.sub
                                 || invitation.acceptance_hash.as_deref() != Some(&fingerprint)
                             {
                                 return Err(conflict("Invitation already redeemed"));
                             }
-                            return invitation
-                                .response
-                                .ok_or_else(|| conflict("Invitation receipt needs review"));
+                            let receipt = invitation.response.ok_or_else(|| conflict("Invitation receipt needs review"))?;
+                            if receipt.id != crew_id || receipt.chapter_id != chapter || !receipt.members.iter().any(|member| member.uid == claims.sub && member.role == MemberRole::Dancer) {
+                                return Err(forbidden());
+                            }
+                            return Ok(crew);
                         }
                         if invitation.expires_at <= now_secs() {
                             return Err(conflict("Invitation expired"));
@@ -328,6 +548,23 @@ impl FirestoreRepository {
                         invitation.accepted_by = Some(claims.sub.clone());
                         invitation.acceptance_hash = Some(fingerprint);
                         invitation.response = Some(crew.clone());
+                        super::notifications::enqueue(
+                            &db,
+                            tx,
+                            &chapter,
+                            &invitation.inviter_uid,
+                            key(&[
+                                "crew-invitation-accepted",
+                                &crew_id,
+                                &claims.sub,
+                                &path,
+                            ]),
+                            "crew_invitation_accepted",
+                            "A dancer joined your crew",
+                            "Your crew invitation was accepted. Open the crew workspace to view its roster.",
+                            &super::notifications::destination(&["app", "crews", &crew_id], &[])?,
+                        )
+                        .await?;
                         put(&db, tx, &crew_path(&chapter, &crew_id)?, &crew)?;
                         put(&db, tx, &path, &invitation)?;
                         audit(
@@ -398,6 +635,7 @@ async fn apply(
                 issued_at: now,
                 expires_at,
                 accepted_by: None,
+                revoked: false,
                 acceptance_hash: None,
                 response: None,
             };
@@ -420,6 +658,58 @@ async fn apply(
                 expires_at,
                 used: false
             }))
+        }
+        RegistrationCommand::RevokeInvite { crew_id, token } => {
+            if token.len() < 32
+                || token.len() > 128
+                || !token
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b == b'_' || b == b'-')
+            {
+                return Err(invalid("Invalid invitation"));
+            }
+            let path = format!(
+                "chapters/{}/invitations/{}",
+                segment(chapter)?,
+                key(&[&token])
+            );
+            let mut invitation: InvitationDocument = required(db, &path).await?;
+            if invitation.crew_id != crew_id || invitation.inviter_uid != claims.sub {
+                return Err(forbidden());
+            }
+            if invitation.accepted_by.is_some() {
+                return Err(conflict("Invitation has already been used"));
+            }
+            invitation.revoked = true;
+            put(db, tx, &path, &invitation)?;
+            Ok(json!({"crew_id": crew_id, "revoked": true}))
+        }
+        RegistrationCommand::RevokeInviteRef {
+            crew_id,
+            invitation_id,
+        } => {
+            if invitation_id.len() != 64
+                || !invitation_id
+                    .bytes()
+                    .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+            {
+                return Err(invalid("Invalid invitation reference"));
+            }
+            let path = format!(
+                "chapters/{}/invitations/{}",
+                segment(chapter)?,
+                invitation_id
+            );
+            let mut invitation: InvitationDocument = required(db, &path).await?;
+            if invitation.crew_id != crew_id {
+                return Err(forbidden());
+            }
+            if invitation.accepted_by.is_some() {
+                return Err(conflict("Invitation has already been used"));
+            }
+            invitation.revoked = true;
+            put(db, tx, &path, &invitation)?;
+            Ok(json!({"crew_id": crew_id, "revoked": true}))
         }
         RegistrationCommand::CreateEntry {
             event_id,
@@ -541,6 +831,7 @@ async fn apply(
             }
             let before_ready = readiness(&document, &division)?.is_ready;
             let was_approved = document.entry.status == EntryStatus::Approved;
+            let before_status = document.entry.status.clone();
             match &action {
                 RegistrationCommand::Roster { uids, .. } => {
                     open(&event)?;
@@ -629,6 +920,56 @@ async fn apply(
             document.entry.revision = next_revision(document.entry.revision)?;
             document.entry.updated_at = now_secs();
             division.generation = next_revision(division.generation)?;
+            if before_status != document.entry.status
+                && matches!(&action, RegistrationCommand::Review { .. })
+            {
+                let crew: Crew =
+                    required(db, &crew_path(chapter, &document.entry.crew_id)?).await?;
+                if crew.id != document.entry.crew_id || crew.chapter_id != chapter {
+                    return Err(forbidden());
+                }
+                let (title, message) = match &document.entry.status {
+                    EntryStatus::Approved => (
+                        "Entry approved",
+                        "Your event entry was approved. Open its workspace to review the latest status.",
+                    ),
+                    EntryStatus::NeedsCorrection => (
+                        "Entry needs attention",
+                        "A registration review requested a correction. Open the entry workspace for its current checklist.",
+                    ),
+                    _ => unreachable!("Only review decisions create entry notifications"),
+                };
+                let notice_id = key(&[
+                    "entry-review",
+                    chapter,
+                    event_id,
+                    &document.entry.id,
+                    &document.entry.revision.to_string(),
+                ]);
+                super::notifications::enqueue(
+                    db,
+                    tx,
+                    chapter,
+                    &crew.manager_uid,
+                    notice_id.clone(),
+                    "entry_review_decision",
+                    title,
+                    message,
+                    &super::notifications::destination(
+                        &["app", "entries", &document.entry.id],
+                        &[("event", event_id)],
+                    )?,
+                )
+                .await?;
+                if document.entry.status == EntryStatus::Approved {
+                    super::notifications::queue_roster_notice(
+                        db, tx, &document.entry, &crew.manager_uid, &notice_id,
+                        "entry_review_decision", "Entry status updated",
+                        "Your crew's event entry status changed. Open your event-day workspace for its current status.",
+                        &super::notifications::destination(&["app", "event-day", event_id], &[])?,
+                    )?;
+                }
+            }
             put(db, tx, &entry_path(chapter, event_id, entry_id)?, &document)?;
             put(
                 db,

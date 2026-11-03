@@ -1,8 +1,61 @@
 "use client";
-
-import { use, useState } from "react";
 import Link from "next/link";
-import { Arrow, Brand, PageHeading, Status, Button, StatCard } from "@/components/ui";
+import { use, useCallback, useEffect, useState } from "react";
+import { Arrow, Brand, PageHeading, Status } from "@/components/ui";
+import { useWorkspaceSession } from "@/lib/account";
+import { ApiError, connectedPage, segment } from "@/lib/connected-api";
+
+type DivisionStatus = {
+  id: string;
+  name: string;
+  locked: boolean;
+  publication_id: string | null;
+  approved_entries: number;
+  unready_entries: number;
+  completed_scorecards: number;
+  panel_count: number;
+};
+
+function Desk({ eventId, chapter, uid }: { eventId: string; chapter: string; uid: string }) {
+  const [divisions, setDivisions] = useState<DivisionStatus[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const base = `/v1/chapters/${segment(chapter)}/events/${segment(eventId)}`;
+
+  const load = useCallback(async (next?: string | null) => {
+    setLoading(true); setError("");
+    try {
+      const page = await connectedPage<DivisionStatus>(`${base}/division-status`, next, uid);
+      if (!Array.isArray(page.items) || page.items.length > 100 || page.items.some(row => !row || typeof row.id !== "string" || !row.id || typeof row.name !== "string" || !row.name || typeof row.locked !== "boolean" || !(row.publication_id === null || typeof row.publication_id === "string") || [row.approved_entries, row.unready_entries, row.completed_scorecards, row.panel_count].some(value => !Number.isSafeInteger(value) || value < 0) || row.panel_count > 20 || !Number.isSafeInteger(row.approved_entries * row.panel_count)) || new Set(page.items.map(row => row.id)).size !== page.items.length || !(page.next_page === null || (typeof page.next_page === "string" && !!page.next_page && page.next_page.length <= 4096 && page.next_page !== next))) throw new Error("Division status could not be verified. Refresh before continuing.");
+      setDivisions(current => next ? [...current, ...page.items.filter(row => !current.some(existing => existing.id === row.id))] : page.items);
+      setCursor(page.next_page);
+    } catch (reason) { if (reason instanceof ApiError && [401, 403].includes(reason.status)) { setDivisions([]); setCursor(null); } setError(reason instanceof Error ? reason.message : "Unable to load division status."); }
+    finally { setLoading(false); }
+  }, [base, uid]);
+  useEffect(() => { void load(); }, [load]);
+
+  return <div className="connected-stack">
+    {loading && divisions.length === 0 ? <p role="status">Loading divisions…</p>
+      : error ? <p role="alert" className="form-error">{error}</p>
+        : divisions.length === 0 ? <p>No divisions are configured for this event.</p>
+          : <ul className="connected-list">
+            {divisions.map(division => {
+              const required = division.approved_entries * division.panel_count;
+              const complete = division.panel_count > 0 && division.approved_entries > 0 && division.unready_entries === 0 && division.completed_scorecards === required;
+              return <li key={division.id} className="panel">
+                <div className="panel-heading"><div><h2>{division.name}</h2><p className="mono">{division.id}</p></div><Status tone={division.locked ? "volt" : complete ? "volt" : "amber"}>{division.locked ? "Locked" : complete ? "Complete" : "Incomplete"}</Status></div>
+                <p>{division.approved_entries} approved entries · {division.completed_scorecards} of {required} scorecards · {division.unready_entries} unready · panel of {division.panel_count}</p>
+                {division.publication_id && <p className="fineprint">Published as {division.publication_id}</p>}
+                <Link href={`/console/${segment(eventId)}/head-judge/${segment(division.id)}`} className="button button-outline">Open division review <Arrow /></Link>
+              </li>;
+            })}
+          </ul>}
+    {cursor && <button type="button" className="button button-outline" disabled={loading} onClick={() => void load(cursor)}>Load more divisions</button>}
+    {error && divisions.length > 0 && <p role="alert" className="form-error">{error}</p>}
+    <button type="button" className="button button-outline" disabled={loading} onClick={() => void load()}>Refresh division status</button>
+  </div>;
+}
 
 export default function HeadJudgeOverviewPage({
   params,
@@ -10,167 +63,6 @@ export default function HeadJudgeOverviewPage({
   params: Promise<{ eventId: string }>;
 }) {
   const { eventId } = use(params);
-  const [frozen, setFrozen] = useState(false);
-
-  const divisions = [
-    {
-      id: "div-open-crew",
-      name: "Open Crew",
-      entriesCount: 18,
-      submittedScores: 18,
-      status: "Ready for Lock",
-      flaggedOutliers: 0,
-      averageScore: "87.42",
-      tone: "volt" as const,
-    },
-    {
-      id: "div-monster-crew",
-      name: "Monster Crew",
-      entriesCount: 12,
-      submittedScores: 10,
-      status: "Scoring Active",
-      flaggedOutliers: 1,
-      averageScore: "84.15",
-      tone: "amber" as const,
-    },
-    {
-      id: "div-young-guns",
-      name: "Young Guns",
-      entriesCount: 14,
-      submittedScores: 14,
-      status: "Finalized & Locked",
-      flaggedOutliers: 0,
-      averageScore: "89.05",
-      tone: "neutral" as const,
-    },
-    {
-      id: "div-varsity",
-      name: "Varsity",
-      entriesCount: 16,
-      submittedScores: 16,
-      status: "Ready for Lock",
-      flaggedOutliers: 2,
-      averageScore: "86.30",
-      tone: "amber" as const,
-    },
-  ];
-
-  const judges = [
-    { id: "J01", name: "Ken Swift", role: "Head Judge / Panel A", activeEntry: "014", ping: "18ms", status: "Active" },
-    { id: "J02", name: "Buddha Stretch", role: "Panel A - Foundation", activeEntry: "014", ping: "22ms", status: "Active" },
-    { id: "J03", name: "Yuki", role: "Panel A - Choreography", activeEntry: "014", ping: "24ms", status: "Active" },
-    { id: "TJ1", name: "Lando Wilkins", role: "Technical Deductions", activeEntry: "014", ping: "15ms", status: "Active" },
-  ];
-
-  return (
-    <div className="judge-shell">
-      <header className="judge-header">
-        <Brand />
-        <div className="judge-event">
-          <strong>Head Judge Console</strong>
-          <span>Event Desk #{eventId} · Audit & Finalization</span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link href="/console" className="text-link">
-            Console Hub <Arrow diagonal />
-          </Link>
-        </div>
-      </header>
-
-      <main className="max-w-6xl mx-auto p-6 space-y-8">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <PageHeading
-            eyebrow="Authoritative Panel Control"
-            title="Division Completion & Score Matrix"
-            description="Audit real-time judge scoring progress, review statistical outliers, and execute division locks prior to public reveal."
-          />
-          <div className="flex items-center gap-3">
-            <Button
-              variant={frozen ? "secondary" : "danger"}
-              onClick={() => setFrozen(!frozen)}
-              style={{ minHeight: "48px" }}
-            >
-              {frozen ? "Unfreeze Scoring Engine" : "Emergency Freeze Scoring"}
-            </Button>
-          </div>
-        </div>
-
-        {frozen && (
-          <div className="panel p-4 bg-crimson/10 border border-crimson text-crimson rounded flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <span className="font-bold">SYSTEM LOCKED:</span>
-              <span>All judge desks are currently paused. No score submissions will be accepted.</span>
-            </div>
-            <span className="mono text-xs">REVISION_HOLD_0x99A</span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <StatCard label="Total Divisions" value="4" meta="All scheduled" />
-          <StatCard label="Total Entries Scored" value="58 / 60" meta="96.6% complete" tone="volt" />
-          <StatCard label="Outlier Flags" value="3" meta="Requires head review" tone="amber" />
-          <StatCard label="Audit Status" value="In Sync" meta="All nodes reachable" />
-        </div>
-
-        <section className="space-y-4">
-          <h2 className="text-xl font-bold text-chrome">Divisions Overview</h2>
-          <div className="space-y-3">
-            {divisions.map((div) => (
-              <div
-                key={div.id}
-                className="panel p-6 bg-carbon border border-subtle flex flex-col md:flex-row justify-between items-start md:items-center gap-4"
-              >
-                <div className="space-y-1">
-                  <div className="flex items-center gap-3">
-                    <h3 className="text-xl font-bold text-chrome">{div.name}</h3>
-                    <Status tone={div.tone}>{div.status}</Status>
-                    {div.flaggedOutliers > 0 && (
-                      <span className="badge badge-amber text-xs mono">
-                        {div.flaggedOutliers} Outlier{div.flaggedOutliers > 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm text-titanium">
-                    <span className="mono">{div.submittedScores} / {div.entriesCount}</span> routines scored · Average: <span className="mono text-white">{div.averageScore}</span> pts
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <Link
-                    href={`/console/${eventId}/head-judge/${div.id}`}
-                    className="button button-volt"
-                    style={{ minHeight: "48px", display: "inline-flex", alignItems: "center" }}
-                  >
-                    Review Division <Arrow />
-                  </Link>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <h2 className="text-xl font-bold text-chrome">Active Judging Nodes</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            {judges.map((j) => (
-              <div key={j.id} className="panel p-4 bg-carbon border border-subtle space-y-2">
-                <div className="flex justify-between items-start">
-                  <span className="mono text-xs text-titanium">{j.id}</span>
-                  <Status tone="volt">{j.status}</Status>
-                </div>
-                <div>
-                  <h4 className="font-bold text-chrome">{j.name}</h4>
-                  <p className="text-xs text-titanium">{j.role}</p>
-                </div>
-                <div className="pt-2 border-t border-subtle flex justify-between text-xs mono text-muted">
-                  <span>Entry: {j.activeEntry}</span>
-                  <span>Latency: {j.ping}</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      </main>
-    </div>
-  );
+  const { session, loading, error } = useWorkspaceSession();
+  return <div className="judge-shell"><header className="judge-header"><Brand /><div className="judge-event"><strong>Head judge desk</strong><span>Event {eventId}</span></div><Link href="/console" className="text-link">Console hub</Link></header><main id="main-content" className="workspace-main"><PageHeading title="Division review" description="Review panel completeness before locking a division. Publication is a separate authorized step at the chapter publication desk." />{loading ? <p role="status">Checking access…</p> : !session ? <p role="alert">{error || "Sign in to continue."} <Link href={`/sign-in?next=${segment(`/console/${segment(eventId)}/head-judge`)}`}>Sign in</Link></p> : !["head_judge", "chapter_director"].includes(session.role) ? <p role="alert">Your account does not have head-judge access for this event.</p> : <Desk key={JSON.stringify([session.chapter_id, session.uid, session.role, eventId])} chapter={session.chapter_id} uid={session.uid} eventId={eventId} />}</main></div>;
 }

@@ -1,8 +1,27 @@
 "use client";
 
-import { use } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import { Arrow, PageHeading, Status } from "@/components/ui";
+import { useWorkspaceSession } from "@/lib/account";
+import { ApiError, connectedRequest, segment } from "@/lib/connected-api";
+import type { PaymentRecord } from "@/lib/api";
+import { formatMinorCurrency } from "@/lib/money";
+
+function paymentError(error: unknown) {
+  if (error instanceof ApiError && error.status === 401) return "Your session expired. Sign in again to view this payment record.";
+  if (error instanceof ApiError && error.status === 403) return "This payment record belongs to another account.";
+  if (error instanceof ApiError && error.status === 404) return "This payment record was not found in the selected chapter.";
+  if (error instanceof ApiError && error.status === 501) return "Payment records are not available in this storage mode.";
+  if (error instanceof ApiError && error.status === 503) return "Payment storage is unavailable. Try again when the service is available.";
+  return error instanceof Error ? error.message : "Unable to load this payment record.";
+}
+
+function dateLabel(seconds: number | undefined) {
+  if (seconds === undefined) return "Not recorded";
+  const date = new Date(seconds * 1000);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString() : "Invalid saved timestamp";
+}
 
 export default function PaymentReceiptPage({
   params,
@@ -10,71 +29,70 @@ export default function PaymentReceiptPage({
   params: Promise<{ paymentId: string }>;
 }) {
   const { paymentId } = use(params);
+  const { session, loading: sessionLoading, error: sessionError } = useWorkspaceSession();
+  const [payment, setPayment] = useState<PaymentRecord | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    if (!session) {
+      setPayment(null);
+      return () => { active = false; };
+    }
+    setLoading(true);
+    setError("");
+    connectedRequest<PaymentRecord>(
+      `/v1/chapters/${segment(session.chapter_id)}/finance/payments/${segment(paymentId)}`,
+      undefined,
+      "GET",
+      session.uid,
+    )
+      .then(record => { if (active) setPayment(record); })
+      .catch(cause => { if (active) setError(paymentError(cause)); })
+      .finally(() => { if (active) setLoading(false); });
+    return () => { active = false; };
+  }, [paymentId, session]);
+
+  const settled = payment?.status === "settled";
+  const statusTone = payment?.status === "settled" ? "volt" : payment?.status === "pending" ? "neutral" : "crimson";
 
   return (
     <main id="main-content" className="workspace-main">
       <PageHeading
-        eyebrow={`Receipt #${paymentId} / Reconciled`}
-        title="Official Payment Receipt"
-        description="Official World Supremacy Battlegrounds championship entry transaction record."
+        eyebrow={payment ? `Payment record / ${payment.payment_id}` : "Payment record"}
+        title="Payment record"
+        description="View the saved status and amount from the chapter payment ledger."
         action={
           <div className="flex gap-2">
-            <Link href="/app/payments" className="button button-outline">
-              ← Payment History
-            </Link>
-            <button onClick={() => window.print()} className="button button-volt">
-              Print / Save PDF <Arrow />
-            </button>
+            <Link href="/app/payments" className="button button-outline">Payment history</Link>
+            {settled && <button onClick={() => window.print()} className="button button-volt">Print ledger record <Arrow /></button>}
           </div>
         }
       />
 
-      <div className="max-w-2xl panel p-8 space-y-6">
-        <div className="flex justify-between items-start border-b border-subtle pb-6">
-          <div>
-            <span className="eyebrow">WSB Philippines Chapter</span>
-            <h2 className="text-2xl font-bold text-chrome">Payment Confirmation</h2>
-            <p className="text-xs text-titanium mt-1">Transaction Ref: ref-pay-afterhours-1</p>
-          </div>
-          <Status tone="volt">PAID IN FULL</Status>
-        </div>
-
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div>
-            <span className="text-titanium text-xs block mb-1">Billed To:</span>
-            <strong className="text-chrome block">Afterhours Collective</strong>
-            <span className="text-titanium text-xs">Manager: Kenji Ramos</span>
-          </div>
-          <div className="text-right">
-            <span className="text-titanium text-xs block mb-1">Settlement Date:</span>
-            <strong className="text-chrome block mono">July 02, 2027</strong>
-            <span className="text-titanium text-xs">Payment ID: {paymentId}</span>
-          </div>
-        </div>
-
-        <div className="border border-subtle rounded overflow-hidden">
-          <div className="bg-tungsten p-3 text-xs font-bold text-titanium flex justify-between">
-            <span>Description</span>
-            <span>Amount</span>
-          </div>
-          <div className="p-4 flex justify-between items-center text-sm border-b border-subtle">
-            <div>
-              <strong className="text-chrome block">Manila Session 2027 · Open Crew Entry</strong>
-              <span className="text-xs text-titanium">6 Registered Dancers × ₱1,200.00</span>
-            </div>
-            <strong className="mono text-chrome">₱7,200.00 PHP</strong>
-          </div>
-          <div className="bg-carbon p-4 flex justify-between items-center text-sm font-bold">
-            <span className="text-chrome">Total Settled:</span>
-            <span className="mono text-volt text-lg">₱7,200.00 PHP</span>
-          </div>
-        </div>
-
-        <div className="p-4 bg-tungsten rounded border border-subtle text-xs text-titanium space-y-1">
-          <strong className="text-chrome block mb-1">Authoritative Reconciled Ledger:</strong>
-          <p>This transaction is permanently locked into the WSB minor currency unit financial ledger. Retain this receipt for venue check-in verification.</p>
-        </div>
-      </div>
+      {sessionLoading ? <p role="status">Checking chapter access…</p>
+        : !session ? <section className="panel"><p role="alert">{sessionError || "Sign in to view this payment record."}</p><Link href="/sign-in" className="button button-volt">Sign in</Link></section>
+          : loading ? <p role="status">Loading payment record…</p>
+            : error ? <section className="panel" role="alert"><p className="form-error">{error}</p><button type="button" className="button button-outline" onClick={() => window.location.reload()}>Retry</button></section>
+              : payment ? <article className="max-w-2xl panel p-6 sm:p-8">
+                <div className="panel-heading">
+                  <div><p className="eyebrow">Chapter ledger / {payment.chapter_id}</p><h2>Saved transaction details</h2></div>
+                  <Status tone={statusTone}>{payment.status.replaceAll("_", " ")}</Status>
+                </div>
+                <p className="mono text-2xl text-chrome">{formatMinorCurrency(payment.amount_minor, payment.currency)}</p>
+                <dl className="grid gap-4 sm:grid-cols-2">
+                  <div><dt className="eyebrow">Payment record ID</dt><dd className="break-all font-mono">{payment.payment_id}</dd></div>
+                  <div><dt className="eyebrow">Entry ID</dt><dd className="break-all font-mono">{payment.entry_id}</dd></div>
+                  <div><dt className="eyebrow">Reference</dt><dd className="break-all font-mono">{payment.provider_reference}</dd></div>
+                  <div><dt className="eyebrow">Currency</dt><dd className="font-mono">{payment.currency}</dd></div>
+                  <div><dt className="eyebrow">Record created</dt><dd>{dateLabel(payment.created_at)}</dd></div>
+                  <div><dt className="eyebrow">Ledger settlement time</dt><dd>{dateLabel(payment.settled_at)}</dd></div>
+                </dl>
+                <p className="mt-6 text-sm text-[var(--ink-muted)]">
+                  This is the WSB ledger record. It is not a bank or payment-provider receipt, and a return from checkout alone does not confirm settlement.
+                </p>
+              </article> : null}
     </main>
   );
 }

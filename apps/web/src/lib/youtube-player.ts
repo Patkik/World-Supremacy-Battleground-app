@@ -14,6 +14,13 @@ let pending:Promise<YouTubeAPI>|undefined;
 export function loadYouTubeAPI():Promise<YouTubeAPI>{
   if(window.YT?.Player)return Promise.resolve(window.YT);
   if(pending)return pending;
+  // Warm the separate embed origin while the API script loads, only after
+  // HeroHighlights has checked motion and data-saving preferences.
+  if(!document.getElementById("wsb-youtube-preconnect")){
+    const connection=document.createElement("link");connection.id="wsb-youtube-preconnect";
+    connection.rel="preconnect";connection.href="https://www.youtube-nocookie.com";connection.crossOrigin="anonymous";
+    document.head.appendChild(connection);
+  }
   pending=new Promise<YouTubeAPI>((resolve,reject)=>{
     const previous=window.onYouTubeIframeAPIReady;
     const timeout=window.setTimeout(()=>{pending=undefined;reject(new Error("Video service is taking too long to respond."));},15000);

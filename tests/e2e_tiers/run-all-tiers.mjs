@@ -7,6 +7,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '../..');
 
+console.warn('These tier tests use an in-memory model. Passing them does not verify the running WSB application or establish end-to-end role coverage. For the real local API checks, run: ./tools/local.ps1 test');
+
 const TIERS = [
   {
     tier: 'Tier 1',

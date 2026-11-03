@@ -21,3 +21,8 @@ Frontend directory rules live in [apps/web/AGENTS.md](../apps/web/AGENTS.md). Al
 - [build-awwwards-quality-sites](../.agents/skills/build-awwwards-quality-sites/SKILL.md): Hero intro timelines, single-engine Lenis + ScrollTrigger choreography, kinetic reveals, and optional shaders (`(marketing)` only — forbidden in `(console)` and `(portal)`).
 - [gsap](../.agents/skills/gsap/SKILL.md): Production React 19 `useGSAP()` scoping, `contextSafe` handlers, compositor-only transforms, and `gsap.matchMedia()` reduced-motion cleanup.
 - [ui-craft](../.agents/skills/ui-craft/SKILL.md): High-density tactical ergonomics, forms, token hygiene, non-happy-path state coverage, and dark-venue contrast (`(portal)` and `(console)`).
+
+## Documentation and presentations
+
+- [tech-docs-architect](../.agents/skills/tech-docs-architect/SKILL.md): Diataxis technical documentation, READMEs, API references, manuals and ADRs.
+- [pitch-deck-architect](../.agents/skills/pitch-deck-architect/SKILL.md): Visual pitch/defense decks, speaker scripts, 90-second demo flows and Q&A backups.

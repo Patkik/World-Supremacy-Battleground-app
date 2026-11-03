@@ -1,116 +1,33 @@
-"use client";
-
-import { use, useState } from "react";
 import Link from "next/link";
-import { Arrow, PageHeading, Status, Button, StatCard } from "@/components/ui";
+import { Arrow, PageHeading, Status } from "@/components/ui";
 
-export default function AdminEventAdvancementPage({
+const gates = [
+  { title: "Seed and quota allocation", detail: "No approved eligibility, tie, correction or advancement rule set exists for this event. The product brief's roster-retention and seeding proposals are not verified policy." },
+  { title: "Invitations and acceptance", detail: "No advancement invitation, qualification or acceptance record is stored. There is nothing to resend or export." },
+  { title: "Finals credentials", detail: "Accreditation and delegation manifests require an approved advancement policy and an identified issuing authority before any record can be created." },
+];
+
+export default async function AdminEventAdvancementPage({
   params,
 }: {
   params: Promise<{ chapterId: string; eventId: string }>;
 }) {
-  const { chapterId, eventId } = use(params);
-
-  const [allocations, setAllocations] = useState([
-    {
-      seed: "PH Seed #1",
-      division: "Open Crew",
-      crew: "Afterhours Collective",
-      rank: 1,
-      score: "88.33",
-      status: "Accepted",
-      tone: "volt" as const,
-    },
-    {
-      seed: "PH Seed #2",
-      division: "Open Crew",
-      crew: "Alliance Project",
-      rank: 2,
-      score: "87.17",
-      status: "Invitation Sent",
-      tone: "amber" as const,
-    },
-    {
-      seed: "PH Seed #3",
-      division: "Open Crew",
-      crew: "Legion X",
-      rank: 3,
-      score: "85.00",
-      status: "Invitation Sent",
-      tone: "amber" as const,
-    },
-    {
-      seed: "PH Seed #1",
-      division: "Monster Crew",
-      crew: "FMD Xtreme",
-      rank: 1,
-      score: "89.15",
-      status: "Accepted",
-      tone: "volt" as const,
-    },
-  ]);
-
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <PageHeading
-          eyebrow={`Chapter / ${chapterId.toUpperCase()} / Events`}
-          title="World Championship Quotas & Seed Allocations"
-          description={`Manage national representation quotas for Event #${eventId}, track invitation acceptance, and dispatch global final credentials to advancing delegations.`}
-        />
-        <Button
-          variant="secondary"
-          onClick={() => alert("Exporting National Delegation Manifest CSV...")}
-          style={{ minHeight: "48px" }}
-        >
-          Export Delegation Manifest
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard label="Total Quotas" value="6 Seeds" meta="Assigned to PH Chapter" />
-        <StatCard label="Confirmed Accepted" value="2 Crews" meta="Afterhours, FMD Xtreme" tone="volt" />
-        <StatCard label="Awaiting Acceptance" value="2 Crews" meta="Deadline Dec 15" tone="amber" />
-        <StatCard label="World Final Host" value="Sydney, AU" meta="ICC Theatre 2027" />
-      </div>
-
-      <div className="panel bg-carbon border border-subtle overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-subtle text-xs mono text-titanium">
-              <th className="p-4">Assigned Seed</th>
-              <th className="p-4">Division</th>
-              <th className="p-4">Crew</th>
-              <th className="p-4">Qualifier Rank</th>
-              <th className="p-4">Official Score</th>
-              <th className="p-4">Invitation Status</th>
-              <th className="p-4 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-subtle">
-            {allocations.map((a, i) => (
-              <tr key={i} className="hover:bg-subtle/30 transition-colors">
-                <td className="p-4 mono font-bold text-volt">{a.seed}</td>
-                <td className="p-4 text-xs text-titanium">{a.division}</td>
-                <td className="p-4 font-bold text-chrome">{a.crew}</td>
-                <td className="p-4 mono text-xs text-chrome">Rank #{a.rank}</td>
-                <td className="p-4 mono text-xs font-bold text-white">{a.score}</td>
-                <td className="p-4">
-                  <Status tone={a.tone}>{a.status}</Status>
-                </td>
-                <td className="p-4 text-right">
-                  <button
-                    onClick={() => alert(`Resending World Finals accreditation link to ${a.crew}`)}
-                    className="button button-ghost text-xs"
-                  >
-                    Resend Notice
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  const { chapterId, eventId } = await params;
+  return <main id="main-content" className="workspace-main">
+    <PageHeading
+      eyebrow={`Chapter / ${chapterId.toUpperCase()} / Events`}
+      title="Advancement is not available"
+      description={`No seed allocation, invitation or acceptance workflow is connected for Event ${eventId}. Advancement remains gated on approved competition policy.`}
+      action={<Link href={`/admin/${encodeURIComponent(chapterId)}/events/${encodeURIComponent(eventId)}`} className="button button-outline">Event command center <Arrow /></Link>}
+    />
+    <section className="panel" role="status">
+      <div className="panel-heading"><div><h2>Policy gate</h2><p>No advancement invitations or finals credentials can be issued from this page.</p></div><Status tone="amber">Unavailable</Status></div>
+      <p>Published division results remain available through the authorized publication desk once a division is locked and published. Advancing crews to another event requires approved rules that do not yet exist.</p>
+    </section>
+    <section className="connected-stack" aria-label="Advancement gates">
+      {gates.map(gate => <article className="panel" key={gate.title}>
+        <div className="panel-heading"><div><h2>{gate.title}</h2><p>{gate.detail}</p></div><Status tone="amber">Not connected</Status></div>
+      </article>)}
+    </section>
+  </main>;
 }

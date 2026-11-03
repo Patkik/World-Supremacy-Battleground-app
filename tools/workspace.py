@@ -113,7 +113,7 @@ def validate_dag(tasks):
         visiting.add(key)
         for dep in task['depends_on']:
             visit(dep)
-            if task['status'] in ('done', 'in_progress') and by_id[dep]['status'] != 'done':
+            if task['status'] == 'done' and by_id[dep]['status'] != 'done':
                 raise ValueError('Unfinished dependency for ' + key)
         visiting.remove(key)
         visited.add(key)

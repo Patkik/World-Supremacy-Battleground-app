@@ -16,11 +16,19 @@ async fn unresolved_tie_is_never_written_to_public_projection() -> Result<()> {
     let head = actor(&chapter, "head", "head_judge");
     let event_doc = crate::domain::Event {
         registration_closes_at: None,
+        registration_opens_at: None,
         id: event.clone(),
         chapter_id: chapter.clone(),
         name: "Synthetic tie event".into(),
         status: "active".into(),
         rules_version: "synthetic-policy-1".into(),
+        event_date: None,
+        timezone: None,
+        venue: None,
+        created_by: None,
+        created_at: 0,
+        updated_at: 0,
+        revision: 0,
     };
     let source = crate::store::RegistrationStore::new();
     let division = DivisionDocument {
@@ -88,6 +96,7 @@ async fn unresolved_tie_is_never_written_to_public_projection() -> Result<()> {
                                 role: role.into(),
                                 active: true,
                                 valid_after: 0,
+                                expires_at: None,
                             },
                         )?;
                         put(

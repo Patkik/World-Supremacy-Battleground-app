@@ -1,1 +1,21 @@
-{"indexes":[],"fieldOverrides":[]}
+{
+  "indexes": [
+    {
+      "collectionGroup": "guardianRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "subject_uid", "order": "ASCENDING" },
+        { "fieldPath": "request_id", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "guardianRequests",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "guardian_uid", "order": "ASCENDING" },
+        { "fieldPath": "request_id", "order": "ASCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

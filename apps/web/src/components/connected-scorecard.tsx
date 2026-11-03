@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { useAccount } from "@/lib/account";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { selectedChapterFor, useWorkspaceSession } from "@/lib/account";
 import { connectedRequest, segment } from "@/lib/connected-api";
 import { newOperation, queueOperation, type Criteria, type ScoreOperation } from "@/lib/judging/outbox";
 import { scoreStore, synchronizeScores } from "@/lib/judging/sync";
@@ -12,8 +12,9 @@ const zero: Criteria = { choreography: 0, musicality: 0, execution: 0, stage_pre
 type State = { schema_version: 1; locked: boolean; revision: number; criteria?: Criteria };
 
 export function ConnectedScorecard({ eventId, entryId }: { eventId: string; entryId: string }) {
-  const { user, loading, error: accountError } = useAccount();
+  const { user, session, loading, error: accountError } = useWorkspaceSession();
   const [trusted, setTrusted] = useState(false);
+  const trustedRef = useRef(false);
   const [values, setValues] = useState<Criteria>(zero);
   const [operation, setOperation] = useState<ScoreOperation | null>(null);
   const [context, setContext] = useState<{ chapter: string; crew: string; revision: number; locked: boolean } | null>(null);
@@ -25,18 +26,41 @@ export function ConnectedScorecard({ eventId, entryId }: { eventId: string; entr
   const [review, setReview] = useState(false);
   const [dirty, setDirty] = useState(false);
   const reviewDialog = useRef<HTMLDialogElement>(null);
+  const scopeGeneration = useRef(0);
+  const chapterScope = session && user && session.uid === user.uid ? session.chapter_id : user ? selectedChapterFor(user.uid) : null;
+  const scopeKey = `${user?.uid ?? "signed-out"}/${chapterScope ?? "no-chapter"}/${eventId}/${entryId}`;
+  const priorScope = useRef(scopeKey);
+  useLayoutEffect(() => {
+    if (priorScope.current === scopeKey) return;
+    priorScope.current = scopeKey;
+    ++scopeGeneration.current;
+    trustedRef.current = false;
+    setTrusted(false); setValues(zero); setOperation(null); setContext(null); setRecords([]);
+    setError(""); setMessage("Confirm this is a trusted device to open the scorecard.");
+    setBusy(false); setReview(false); setDirty(false);
+    reviewDialog.current?.close();
+  }, [scopeKey]);
   useEffect(() => { if (review) reviewDialog.current?.showModal(); }, [review]);
 
   const refreshQueue = useCallback(async () => {
-    if (!user || !trusted) return;
-    setRecords((await scoreStore.list(user.uid)).filter(r => r.event === eventId && r.entryId === entryId));
-  }, [user, trusted, eventId, entryId]);
+    if (!user || !trusted || !trustedRef.current || priorScope.current !== scopeKey) return;
+    const generation = scopeGeneration.current;
+    const records = await scoreStore.list(user.uid);
+    if (generation === scopeGeneration.current && priorScope.current === scopeKey) setRecords(records.filter(r => r.event === eventId && r.entryId === entryId));
+  }, [user, trusted, eventId, entryId, scopeKey]);
 
   const sync = useCallback(async () => {
-    if (!user || !trusted) return;
-    try { await synchronizeScores(user.uid); await refreshQueue(); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : "Scores could not be synchronized."); }
-  }, [user, trusted, refreshQueue]);
+    if (!user || !trusted || !trustedRef.current || priorScope.current !== scopeKey) return;
+    const generation = scopeGeneration.current;
+    try {
+      await synchronizeScores(user.uid);
+      if (generation === scopeGeneration.current && priorScope.current === scopeKey) {
+        await refreshQueue();
+        if (generation === scopeGeneration.current && priorScope.current === scopeKey) setError("");
+      }
+    }
+    catch (reason) { if (generation === scopeGeneration.current && priorScope.current === scopeKey) setError(reason instanceof Error ? reason.message : "Scores could not be synchronized."); }
+  }, [user, trusted, refreshQueue, scopeKey]);
 
   useEffect(() => {
     const network = () => { setOnline(navigator.onLine); if (navigator.onLine) void sync(); };
@@ -52,19 +76,19 @@ export function ConnectedScorecard({ eventId, entryId }: { eventId: string; entr
     async function load() {
       const saved = (await scoreStore.list(user!.uid)).filter(r => r.event === eventId && r.entryId === entryId).sort((a, b) => b.createdAt - a.createdAt);
       if (alive) setRecords(saved);
-      const latest = saved[0];
+      const latest = saved.find(record => record.chapter === chapterScope);
       if (latest && alive) {
         setOperation(latest); setValues(latest.command.criteria); setDirty(false);
         setContext({ chapter: latest.chapter, crew: latest.command.crew_id, revision: latest.receipt?.score_revision ?? latest.command.expected_revision, locked: false });
         setMessage(`Restored ${latest.state} score from this device.`);
       }
       if (!navigator.onLine && latest) return;
-      const token = await user!.getIdTokenResult();
-      const chapter = token.claims.chapterId;
-      if (typeof chapter !== "string") throw new Error("Your chapter assignment is missing. Contact your organizer.");
+      if (!navigator.onLine) throw new Error("No saved scorecard is available offline. Open and save it while online before disconnecting.");
+      if (!session || session.uid !== user!.uid || session.chapter_id !== chapterScope) throw new Error("Confirm your active chapter access, then reload this scorecard.");
+      const chapter = session.chapter_id;
       const root = `/v1/chapters/${segment(chapter)}/events/${segment(eventId)}`;
-      const detail = await connectedRequest<{crew_id: string; division_id: string}>(`${root}/entries/${segment(entryId)}/scorecard`);
-      const state = await connectedRequest<State>(`${root}/divisions/${segment(detail.division_id)}/score-state?crew_id=${segment(detail.crew_id)}`);
+      const detail = await connectedRequest<{crew_id: string; division_id: string}>(`${root}/entries/${segment(entryId)}/scorecard`, undefined, "GET", user!.uid);
+      const state = await connectedRequest<State>(`${root}/divisions/${segment(detail.division_id)}/score-state?crew_id=${segment(detail.crew_id)}`, undefined, "GET", user!.uid);
       if (!alive) return;
       setContext({ chapter, crew: detail.crew_id, revision: state.revision, locked: state.locked });
       if (!latest) {
@@ -76,7 +100,7 @@ export function ConnectedScorecard({ eventId, entryId }: { eventId: string; entr
     }
     load().catch(reason => { if (alive) setError(reason instanceof Error ? reason.message : "Could not open this scorecard."); }).finally(() => { if (alive) setBusy(false); });
     return () => { alive = false; };
-  }, [user, trusted, eventId, entryId]);
+  }, [user, session, chapterScope, trusted, eventId, entryId]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -90,6 +114,7 @@ export function ConnectedScorecard({ eventId, entryId }: { eventId: string; entr
   const canEdit = trusted && belongsToCurrentUser && !!context && !context.locked && !frozen && !busy;
   async function save(queue: boolean) {
     if (!user || !context || !operation || !canEdit) return;
+    const generation = scopeGeneration.current;
     setBusy(true); setError("");
     try {
       const draft = { ...operation, command: { ...operation.command, criteria: { ...values } } };
@@ -100,33 +125,37 @@ export function ConnectedScorecard({ eventId, entryId }: { eventId: string; entr
         await scoreStore.put(draft);
         return queue ? queueOperation(scoreStore, draft) : draft;
       });
+      if (generation !== scopeGeneration.current) return;
       setOperation(saved); setDirty(false); setReview(false);
       setMessage(queue ? "Queued on this device. Waiting for a server receipt." : "Draft saved on this device. It has not been submitted.");
       await refreshQueue();
       if (queue) await sync();
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not save your score."); }
-    finally { setBusy(false); }
+    } catch (reason) { if (generation === scopeGeneration.current) setError(reason instanceof Error ? reason.message : "Could not save your score."); }
+    finally { if (generation === scopeGeneration.current) setBusy(false); }
   }
 
   async function startRevision() {
     if (!user || !operation || !context || !current?.receipt) return;
+    const generation = scopeGeneration.current;
     setBusy(true); setError("");
     try {
-      const state = await connectedRequest<State>(`/v1/chapters/${segment(context.chapter)}/events/${segment(eventId)}/divisions/${segment(operation.command.division_id)}/score-state?crew_id=${segment(context.crew)}`);
+      if (!session || session.uid !== user.uid || session.chapter_id !== context.chapter) throw new Error("Your active chapter changed. Reload this scorecard before revising it.");
+      const state = await connectedRequest<State>(`/v1/chapters/${segment(context.chapter)}/events/${segment(eventId)}/divisions/${segment(operation.command.division_id)}/score-state?crew_id=${segment(context.crew)}`, undefined, "GET", user.uid);
+      if (generation !== scopeGeneration.current) return;
       if (state.locked) throw new Error("This division is locked. Ask the head judge to review any correction.");
       const draft = newOperation(user.uid, context.chapter, eventId, { ...operation.command, operation_id: crypto.randomUUID(), expected_revision: state.revision, criteria: state.criteria ?? values });
       draft.entryId = entryId; setOperation(draft); setValues(draft.command.criteria); setContext({ ...context, revision: state.revision });
       setMessage("New revision. Save or queue it when ready.");
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not refresh the score."); }
-    finally { setBusy(false); }
+    } catch (reason) { if (generation === scopeGeneration.current) setError(reason instanceof Error ? reason.message : "Could not refresh the score."); }
+    finally { if (generation === scopeGeneration.current) setBusy(false); }
   }
 
   return <div className="judge-shell judge-connected"><header className="judge-header"><Brand /><div className="judge-event"><strong>Assigned scorecard</strong><span>{eventId}</span></div><Link className="text-link" href={`/console/${segment(eventId)}/sync`}>Saved scores</Link></header>
     <main id="main-content" className="judge-main"><div className="judge-performance"><div className="judge-crew"><h1>Score performance</h1><p>Entry: {entryId}</p></div><p className="sync-state" aria-live="polite">{online ? "Online" : "Offline"} · {current?.state || "draft"}</p></div>
-      {loading ? <p role="status">Loading your account…</p> : !user ? <p><Link className="button button-volt" href="/sign-in">Sign in to open your assigned scorecard</Link></p> : <>
-      <label className="trust-device"><input type="checkbox" checked={trusted} onChange={e => setTrusted(e.target.checked)} />This is my trusted judging device. Save my drafts and commands here until I remove them.</label>
+      {loading && online ? <p role="status">Loading your account…</p> : !user ? <p><Link className="button button-volt" href="/sign-in">Sign in to open your assigned scorecard</Link></p> : <>
+      <label className="trust-device"><input type="checkbox" checked={trusted} onChange={e => { trustedRef.current = e.target.checked; setTrusted(e.target.checked); }} />This is my trusted judging device. Save my drafts and commands here until I remove them.</label>
       <p className="info-note">Pilot scoring configuration: five criteria, up to 20 points each. Official rulebook approval is still required.</p>
-      {(error || accountError) && <p className="form-error" role="alert">{error || accountError}</p>}
+      {(error || (online && accountError)) && <p className="form-error" role="alert">{error || accountError}</p>}
       <div className="judge-workspace"><section className="criteria-panel" aria-label="Score criteria">{criteria.map(([key, label]) => <div key={key} className="criterion"><div className="criterion-title"><label htmlFor={`numeric-${key}`}>{label}</label><div className="criterion-numeric"><input id={`numeric-${key}`} disabled={!canEdit} type="number" min={0} max={20} step={0.25} value={belongsToCurrentUser ? values[key] : 0} onChange={e => { setValues({ ...values, [key]: Math.min(20, Math.max(0, Number(e.target.value) || 0)) }); setDirty(true); setMessage("Unsaved changes on screen."); }} /><span>/ 20</span></div></div><div className="criterion-track"><input aria-label={`${label} slider`} disabled={!canEdit} type="range" min={0} max={20} step={0.25} value={belongsToCurrentUser ? values[key] : 0} onChange={e => { setValues({ ...values, [key]: Number(e.target.value) }); setDirty(true); setMessage("Unsaved changes on screen."); }} /></div></div>)}</section>
       <aside className="judge-score-summary"><span>{current?.receipt ? "Your accepted total" : "Your draft total"}</span><div className="judge-total mono">{belongsToCurrentUser ? Object.values(values).reduce((a, b) => a + b, 0).toFixed(2) : "0.00"}<span>/ 100</span></div><p className="sync-state" aria-live="polite">{current?.state === "acknowledged" ? "Accepted by server." : current?.state === "conflict" || current?.state === "rejected" ? "This score needs review. Keep the saved command on this device." : message}</p>
       {current?.receipt && <p className="sync-state">Accepted by server · Receipt {current.receipt.receipt_id} · Revision {current.receipt.score_revision}</p>}

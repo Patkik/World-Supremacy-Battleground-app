@@ -6,6 +6,7 @@ import { useWorkspaceSession } from "@/lib/account";
 import { connectedRequest, segment } from "@/lib/connected-api";
 import type { PaymentQuote } from "@/lib/api";
 import { PageHeading } from "@/components/ui";
+import { formatMinorCurrency } from "@/lib/money";
 
 function PaymentReturnContent() {
   const searchParams = useSearchParams();
@@ -14,7 +15,7 @@ function PaymentReturnContent() {
   const eventId = searchParams.get("event") || searchParams.get("event_id") || "";
   const chapter = searchParams.get("chapter") || "";
 
-  const { session, loading: sessionLoading } = useWorkspaceSession();
+  const { session, loading: sessionLoading } = useWorkspaceSession(chapter || undefined);
   const [quote, setQuote] = useState<PaymentQuote | null>(null);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
@@ -91,28 +92,19 @@ function PaymentReturnContent() {
                 <p>
                   Total entry fee:{" "}
                   <strong className="mono">
-                    {new Intl.NumberFormat(undefined, {
-                      style: "currency",
-                      currency: quote.currency,
-                    }).format(quote.total_amount_minor / 100)}
+                    {formatMinorCurrency(quote.total_amount_minor, quote.currency)}
                   </strong>
                 </p>
                 <p>
                   Settled amount:{" "}
                   <strong className="mono">
-                    {new Intl.NumberFormat(undefined, {
-                      style: "currency",
-                      currency: quote.currency,
-                    }).format(paidMinor / 100)}
+                    {formatMinorCurrency(paidMinor, quote.currency)}
                   </strong>
                 </p>
                 <p>
                   Pending reconciliation:{" "}
                   <strong className="mono">
-                    {new Intl.NumberFormat(undefined, {
-                      style: "currency",
-                      currency: quote.currency,
-                    }).format(pendingMinor / 100)}
+                    {formatMinorCurrency(pendingMinor, quote.currency)}
                   </strong>
                 </p>
                 {paidMinor >= quote.total_amount_minor ? (
@@ -125,8 +117,8 @@ function PaymentReturnContent() {
                 ) : pendingMinor > 0 ? (
                   <div role="status" className="notice-pending">
                     <p>
-                      <strong>Payment awaiting webhook delivery.</strong> Your payment was submitted
-                      and will be confirmed once the signed PayMongo webhook is received by our server.
+                      <strong>Payment is still pending.</strong> The WSB ledger changes to settled
+                      only after its authoritative provider callback or finance review is recorded.
                     </p>
                   </div>
                 ) : (
@@ -134,10 +126,7 @@ function PaymentReturnContent() {
                     <p>
                       Outstanding balance:{" "}
                       <strong className="mono">
-                        {new Intl.NumberFormat(undefined, {
-                          style: "currency",
-                          currency: quote.currency,
-                        }).format(availableMinor / 100)}
+                        {formatMinorCurrency(availableMinor, quote.currency)}
                       </strong>
                     </p>
                   </div>

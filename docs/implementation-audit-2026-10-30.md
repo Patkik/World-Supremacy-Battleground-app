@@ -201,8 +201,11 @@ replay), web typecheck, and signed browser upload/open/review/reload at 1365px a
 race was fixed; case history now follows all result pages and preserves a new
 local submission through refresh.
 
-This slice does not establish image/PDF byte validity, malware safety, age or
-residency policy, guardian relationship or signer authority, event waiver
+This slice checks PDF header/EOF markers and decodes bounded JPEG/PNG raster
+content before scanning bytes and marking a case submitted. PDFs are not
+structurally parsed, and image decoding does not establish full file validity
+or guarantee safety.
+It does not establish age or residency policy, guardian relationship or signer authority, event waiver
 consent, reviewer escalation, retention/deletion, readiness transitions or
 production membership/storage. `verification-media` remains in progress until
 those policies and the related music workflow are implemented and verified.
@@ -227,6 +230,17 @@ affiliation approval. The global HQ queue, HQ membership provisioning, formal
 decision rubric/states and application-data retention policy remain unfinished;
 `native-system-forms` stays in progress.
 
+## Private chapter content drafting — 2026-11-01
+
+Chapter directors can now create and revise private plain-text chapter content
+drafts through the Firestore API. Expected revisions, immutable history,
+payload-bound replay receipts, and audit records commit atomically. The page
+contains no review, publication, public projection, or delivery action. This
+preparation slice does not resolve the editor/publisher role matrix, rights,
+audience, correction/removal, notification, or retention policy; those gates
+remain open, and Global HQ content remains unavailable. See
+`docs/chapter-content-drafts.md`.
+
 ## Review of pasted milestone summary — 2026-10-31
 
 The reported `tests/e2e_tiers` suite uses its own JavaScript `SystemHarness`
@@ -241,3 +255,112 @@ readiness calculation uses the configured maximum without an invented grace.
 No official consent, file inspection or audio-grace policy is inferred. The
 existing isolated store tests are not evidence of real consent or file inspection.
 
+## PayMongo checkout recovery follow-up — 2026-11-01
+
+Provider checkout now sends a deterministic idempotency key, persists the exact
+returned URL and provider mode, validates the session against the reservation,
+and durably marks the request before dispatch. Unknown outcomes older than 23
+hours are held for manual reconciliation before PayMongo's documented 24-hour
+idempotency-key expiry. Compile checks passed for no-default and local-testing
+builds and the checkout page preserves an operation ID across request failures
+and reloads until the provider result is received. No live PayMongo call or
+workflow test was run. Production Firestore
+checkout, provider cancellation/refund reconciliation and controlled provider
+validation remain unfinished; see `memory/status.md` and
+`docs/open-questions.md`.
+
+## Demo PayMongo refund event reconciliation — 2026-11-01
+
+The local Firestore adapter now reads PayMongo's payment and refund resource
+shapes, links the verified `pay_` ID to the WSB payment when the checkout-paid
+event settles, and applies only successful refunds. Each refund ID has its own
+receipt; repeated event IDs require the same raw-body digest. The transaction
+updates refund totals, entry paid balance, readiness counters, payment status,
+and audit together. Partial refunds remain settled until successful refund
+amounts total the original payment. Durable settlement is hard-limited to
+demo-wsb/local-testing/test mode; the production Firestore handler still returns
+503, provider-initiated refunds are not wired, and no real provider calls or
+workflow tests were run. Locked Rust local-testing/no-default checks, web
+typecheck, scoped rustfmt, seed syntax check and diff check passed. The official PayMongo docs describe partial and
+multiple refunds and provide the payment/refund webhook resource shapes; WSB
+refund eligibility and terms still require local policy approval.
+
+## Local demo DJ export follow-up — 2026-11-01
+
+The former synthetic DJ desk now requests a role-checked event export. In
+demo-wsb/local-testing, the Rust API builds one streamed ZIP across every current
+stage lineup, includes only manually reviewed, scanner-clean tracks matching
+saved inspection receipts, and adds a CSV with divisions, lineup revisions,
+hashes and omitted-track states. `audio_operator` is now an
+assignable chapter role and the synthetic local rehearsal account receives an
+event assignment through an additive seed migration. The UI supports streamed
+file saving where available, shows environment limitations and does not equate
+manual review with compliance. Production private-media export is intentionally
+not enabled. Web typecheck and Rust local-testing/no-default compile checks
+passed. No workflow tests or live storage access were run;
+role rehearsal stays deferred. Official format/deadline/approval policies,
+production scanner/storage access and event-ops recovery verification remain
+open.
+
+## Global HQ historical application-index backfill — 2026-11-01
+
+Added an offline paginated migration that scans chapter-local inquiries and
+transactionally inserts or refreshes metadata-only Global HQ indexes for
+chapter, studio and partner applications. It verifies source identity and
+chapter scope per record, preserves matching rows, repairs stale revisions and
+fails closed on collisions. The CLI requires explicit `demo-wsb` confirmation
+and a local emulator, and reports aggregate counts without requester or proposal
+data. The migration is available but has not been run; no tests were run.
+Production HQ provisioning and formal affiliation, privacy and retention
+policies remain open.
+
+## Durable chapter event draft creation — 2026-11-01
+
+Replaced the sample-only event list and delayed-success create form with a
+director-authorized Firestore event draft workflow. Creation checks current
+chapter membership and recent authentication; the event, global identifier
+reservation, replay receipt and audit commit in one transaction. The chapter
+event list uses bounded persistent reads. The form captures a date, server-
+validated IANA timezone, venue and user-supplied rules source/version reference and always creates
+a private draft. It does not imply the reference is official, open registration
+or configure divisions, fees, stages, publication, cancellation or editing.
+Rust compile checks with `firestore`, `local-testing` and no default features,
+web typecheck, task metadata parsing and `git diff --check` passed; no tests or
+database writes were run.
+
+
+## Firebase Auth lifecycle verification continuation — 2026-11-01
+
+Added a non-demo Firestore verifier path using ADC and Identity Platform
+`projects.accounts.lookup` to reject missing, disabled and revoked users by
+checking `localId`, `disabled` and `validSince` against the signed token. The
+scope/IAM requirement is documented in `docs/persistent-membership.md`. This is
+not active: main still refuses non-demo projects and FirestoreRepository still
+requires the demo emulator. At this checkpoint, staff UID grants did not yet
+check Firebase Auth; no invitations or user-disable commands existed.
+Local-testing Rust and
+no-default Rust compile checks passed; web TypeScript passed. No live Auth request
+or workflow test was run. Production identity remains in progress.
+
+## Membership target-account preflight — 2026-11-01
+
+Chapter-director and HQ grant handlers now check a non-demo target UID with
+Identity Platform before opening the Firestore transaction. Missing or disabled
+accounts return 422; Auth/IAM/network failures fail closed with 503. The demo
+path skips this external lookup, and the non-demo path is not active because the
+runtime and repository connector remain demo-only. No invitation or account
+disable operation was added. Rust Firestore compilation and web typecheck passed;
+no Auth call or workflow test was run.
+
+## Production Firestore runtime configuration follow-up — 2026-11-01
+
+A non-demo Firestore process can now be intentionally configured with ADC behind
+`WSB_ENABLE_PRODUCTION_STORAGE=true`, `WSB_STORAGE=firestore`, a valid project ID
+matching `FIREBASE_PROJECT_ID`, and no emulator. The repository repeats these
+checks so an arbitrary project argument cannot activate ADC. Demo-wsb still
+requires an explicit emulator; the opt-in is rejected for demo-wsb. The
+production template defaults the opt-in to false. `/readyz` remains unavailable
+for release until the incomplete repository migration, IAM setup, provider and
+policy gates, and workflow rehearsal are completed. This supersedes the earlier
+statement in this audit that startup categorically refuses non-demo projects.
+No production Firebase project was contacted.

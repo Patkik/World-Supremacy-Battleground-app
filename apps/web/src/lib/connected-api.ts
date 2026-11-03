@@ -2,14 +2,16 @@
 import { firebaseClient } from "./firebase/client";
 import { apiToken } from "./firebase/api-session";
 
+import { resolveApiBase } from "./api";
+
 export class ApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
-export const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8088";
+export const apiBase = resolveApiBase();
 export const segment = encodeURIComponent;
 export type ApiPage<T> = { items: T[]; next_page: string | null };
-export async function connectedPage<T>(path: string, cursor?: string | null): Promise<ApiPage<T>> {
-  const result = await connectedRequest<ApiPage<T> | T[]>(`${path}${cursor ? `?cursor=${segment(cursor)}` : ""}`);
+export async function connectedPage<T>(path: string, cursor?: string | null, expectedUid?: string): Promise<ApiPage<T>> {
+  const result = await connectedRequest<ApiPage<T> | T[]>(`${path}${cursor ? `?cursor=${segment(cursor)}` : ""}`, undefined, "GET", expectedUid);
   return Array.isArray(result) ? { items: result, next_page: null } : result;
 }
 

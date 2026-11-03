@@ -45,17 +45,24 @@ impl FirestoreRepository {
             return Err(invalid("Invalid page request"));
         }
         self.stage_detail(claims, chapter, event, stage_id).await?;
-        self.page::<crate::repository::lineup::StageLineup>(
-            &format!(
-                "{}/stages/{}",
-                event_path(chapter, event)?,
-                segment(stage_id)?
-            ),
-            "lineupRevisions",
-            cursor,
-            limit,
-        )
-        .await
+        let page = self
+            .page::<StageLineup>(
+                &format!(
+                    "{}/stages/{}",
+                    event_path(chapter, event)?,
+                    segment(stage_id)?
+                ),
+                "lineupRevisions",
+                cursor,
+                limit,
+            )
+            .await?;
+        if page.items.iter().any(|record| {
+            record.chapter_id != chapter || record.event_id != event || record.stage_id != stage_id
+        }) {
+            return Err(forbidden());
+        }
+        Ok(page)
     }
 
     pub async fn stage_lineup(

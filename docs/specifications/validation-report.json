@@ -1,0 +1,20 @@
+{
+  "source_cases": 826,
+  "story_groups": 208,
+  "unique_test_ids": 826,
+  "orphan_cases": [],
+  "duplicate_story_ids": [],
+  "execution_statuses": {
+    "Not Run": 826
+  },
+  "review_issues": 295,
+  "inventory_counts": {
+    "sources": 375,
+    "web_routes": 133,
+    "rust_routes": 137,
+    "models": 179,
+    "test_symbols": 733
+  },
+  "application_tests_run": false,
+  "approval": "Withheld; semantic review and approved SRS mapping unresolved"
+}

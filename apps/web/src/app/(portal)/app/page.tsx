@@ -1,2 +1,5 @@
-import {CrewDashboard} from "@/components/crew-dashboard";
-export default function Page(){return <CrewDashboard/>}
+import { ConnectedCrews } from "@/components/connected-crews";
+
+export default function Page() {
+  return <ConnectedCrews overview />;
+}

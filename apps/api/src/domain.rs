@@ -12,11 +12,27 @@ pub struct Chapter {
 pub struct Event {
     #[serde(default)]
     pub registration_closes_at: Option<u64>,
+    #[serde(default)]
+    pub registration_opens_at: Option<u64>,
     pub id: String,
     pub chapter_id: String,
     pub name: String,
     pub status: String,
     pub rules_version: String,
+    #[serde(default)]
+    pub event_date: Option<String>,
+    #[serde(default)]
+    pub timezone: Option<String>,
+    #[serde(default)]
+    pub venue: Option<String>,
+    #[serde(default)]
+    pub created_by: Option<String>,
+    #[serde(default)]
+    pub created_at: u64,
+    #[serde(default)]
+    pub updated_at: u64,
+    #[serde(default)]
+    pub revision: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -28,6 +44,33 @@ pub struct Division {
     pub max_duration_secs: u32,
     pub max_age: Option<u8>,
     pub fee_minor: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DivisionPolicyDraft {
+    pub chapter_id: String,
+    pub event_id: String,
+    pub division_id: String,
+    pub currency: String,
+    pub version: u64,
+    pub revision: u64,
+    pub status: String,
+    pub policy: Division,
+    pub rules_source: String,
+    pub rules_version: String,
+    pub effective_date: String,
+    pub created_by: String,
+    pub created_at: u64,
+    pub updated_at: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DivisionPolicyDraftVersion {
+    pub version: u64,
+    pub actor_uid: String,
+    pub operation_id_digest: String,
+    pub saved_at: u64,
+    pub snapshot: DivisionPolicyDraft,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -218,6 +261,12 @@ pub struct PaymentRecord {
     pub settled_at: Option<u64>,
 }
 
+// Provider-created checkout/payment identifiers cannot safely use the manual
+// refund transition. A durable provider refund workflow must reconcile them.
+pub fn is_provider_payment_reference(reference: &str) -> bool {
+    reference.starts_with("pay_") || reference.starts_with("cs_")
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SyntheticWebhookPayload {
     pub payment_id: String,
@@ -265,6 +314,10 @@ pub struct VerificationCase {
     pub reviewed_at: Option<u64>,
     pub reviewer_uid: Option<String>,
     pub reviewer_note: Option<String>,
+    #[serde(default)]
+    pub malware_scan_status: Option<String>,
+    #[serde(default)]
+    pub file_sha256: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -285,6 +338,26 @@ pub struct CheckInRecord {
     pub dancer_uid: String,
     pub checked_in_at: u64,
     pub scanner_uid: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CheckInDancerCandidate {
+    pub uid: String,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CheckInCandidate {
+    pub entry_id: String,
+    pub crew_id: String,
+    pub division_id: String,
+    pub dancers: Vec<CheckInDancerCandidate>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CheckInCandidatePage {
+    pub items: Vec<CheckInCandidate>,
+    pub next_page: Option<String>,
 }
 
 /// Operational progression for an entry on a stage. Exceptional outcomes
@@ -379,6 +452,8 @@ pub struct Membership {
     pub role: String,
     pub active: bool,
     pub valid_after: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -389,6 +464,10 @@ pub struct AuditRecord {
     pub action: String,
     pub resource_id: String,
     pub recorded_at: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reason: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub correlation_id: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

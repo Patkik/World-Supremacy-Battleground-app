@@ -60,6 +60,7 @@ async fn stage_commands_are_authorized_replay_safe_and_serialize_performers() ->
                         role: "chapter_director".into(),
                         active: true,
                         valid_after: 0,
+                        expires_at: None,
                     },
                 )?;
                 put(
@@ -72,6 +73,7 @@ async fn stage_commands_are_authorized_replay_safe_and_serialize_performers() ->
                         role: "marshal".into(),
                         active: true,
                         valid_after: 0,
+                        expires_at: None,
                     },
                 )?;
                 put(
@@ -93,6 +95,7 @@ async fn stage_commands_are_authorized_replay_safe_and_serialize_performers() ->
                         chapter_id: chapter.clone(),
                         event_id: event.clone(),
                         active: true,
+                        public_display: false,
                         single_performer: true,
                         performing_entry: None,
                         held: false,
@@ -112,6 +115,7 @@ async fn stage_commands_are_authorized_replay_safe_and_serialize_performers() ->
                         chapter_id: chapter.clone(),
                         event_id: event.clone(),
                         active: true,
+                        public_display: false,
                         single_performer: true,
                         performing_entry: None,
                         held: false,
@@ -131,6 +135,7 @@ async fn stage_commands_are_authorized_replay_safe_and_serialize_performers() ->
                         chapter_id: chapter.clone(),
                         event_id: event.clone(),
                         active: true,
+                        public_display: false,
                         single_performer: true,
                         performing_entry: None,
                         held: false,
@@ -152,6 +157,7 @@ async fn stage_commands_are_authorized_replay_safe_and_serialize_performers() ->
                         chapter_id: chapter.clone(),
                         event_id: event.clone(),
                         active: true,
+                        public_display: false,
                         single_performer: true,
                         performing_entry: None,
                         held: false,
@@ -236,12 +242,14 @@ async fn stage_commands_are_authorized_replay_safe_and_serialize_performers() ->
         stage_id: "main".into(),
         expected_revision: revision,
         marshal_uids: uids,
+        reason: "Synthetic access change for rehearsal".into(),
     };
     let director = actor(&chapter, "director", "chapter_director");
     let create = StageCreateCommand {
         operation_id: "create-stage".into(),
         stage_id: "provisioned".into(),
         single_performer: true,
+        reason: "Synthetic stage provisioning for rehearsal".into(),
     };
     assert!(matches!(
         a.stage_create(&marshal, &chapter, &event, create.clone())
@@ -391,7 +399,9 @@ async fn stage_commands_are_authorized_replay_safe_and_serialize_performers() ->
         stage_id: "provisioned".into(),
         expected_revision: 0,
         active: false,
+        public_display: false,
         single_performer: true,
+        reason: "Synthetic stage lifecycle update".into(),
     };
     assert!(matches!(
         a.stage_configure(&marshal, &chapter, &event, configure.clone())

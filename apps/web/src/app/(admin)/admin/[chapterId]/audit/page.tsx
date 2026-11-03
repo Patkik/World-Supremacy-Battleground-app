@@ -1,141 +1,210 @@
 "use client";
 
-import { use, useState } from "react";
-import Link from "next/link";
-import { Arrow, PageHeading, Status, Button, Select, Input, StatCard } from "@/components/ui";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Arrow, PageHeading, Status } from "@/components/ui";
+import { useWorkspaceSession } from "@/lib/account";
+import { ApiError, connectedRequest, segment } from "@/lib/connected-api";
 
-export default function AdminAuditExplorerPage({
-  params,
-}: {
-  params: Promise<{ chapterId: string }>;
-}) {
+type AuditRecord = {
+  id: string;
+  actor_uid: string;
+  chapter_id: string;
+  action: string;
+  resource_id: string;
+  recorded_at: number;
+  reason: string | null;
+  correlation_id: string | null;
+};
+type AuditPage = { items: AuditRecord[]; next_page: string | null };
+
+function isAuditRecord(value: unknown, chapterId: string): value is AuditRecord {
+  if (!value || typeof value !== "object") return false;
+  const row = value as Partial<AuditRecord>;
+  return typeof row.id === "string" && row.id.length > 0 && row.id.length <= 200
+    && typeof row.actor_uid === "string" && row.actor_uid.length > 0 && row.actor_uid.length <= 200
+    && row.chapter_id === chapterId
+    && typeof row.action === "string" && row.action.length > 0 && row.action.length <= 200
+    && typeof row.resource_id === "string" && row.resource_id.length <= 200
+    && Number.isSafeInteger(row.recorded_at) && (row.recorded_at ?? 0) > 0
+    && (row.reason == null || (typeof row.reason === "string" && row.reason.length <= 1000))
+    && (row.correlation_id == null || (typeof row.correlation_id === "string" && row.correlation_id.length <= 200));
+}
+
+function isAuditPage(value: unknown, chapterId: string): value is AuditPage {
+  if (!value || typeof value !== "object") return false;
+  const page = value as Partial<AuditPage>;
+  if (!Array.isArray(page.items) || page.items.length > 100
+    || !page.items.every(row => isAuditRecord(row, chapterId))
+    || !(page.next_page == null || (typeof page.next_page === "string" && page.next_page.length > 0 && page.next_page.length <= 4096))) return false;
+  return new Set(page.items.map(row => row.id)).size === page.items.length;
+}
+
+function dateLabel(seconds: number) {
+  const date = new Date(seconds * 1000);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString() : "Invalid saved timestamp";
+}
+
+function auditError(error: unknown) {
+  if (error instanceof ApiError && error.status === 401) return "Your session expired. Sign in again to view the audit history.";
+  if (error instanceof ApiError && error.status === 403) return "Audit history is available to active chapter directors and auditors for this chapter.";
+  if (error instanceof ApiError && error.status === 501) return "Durable audit storage is not enabled in this environment.";
+  if (error instanceof ApiError && error.status === 503) return "Audit storage is unavailable. Retry when the service is available.";
+  return error instanceof Error ? error.message : "Unable to load chapter audit records.";
+}
+
+export default function ChapterAuditPage({ params }: { params: Promise<{ chapterId: string }> }) {
   const { chapterId } = use(params);
+  const { session, loading: sessionLoading, error: sessionError } = useWorkspaceSession(chapterId);
+  const [records, setRecords] = useState<AuditRecord[]>([]);
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [actionFilter, setActionFilter] = useState("all");
+  const [actorFilter, setActorFilter] = useState("");
+  const [resourceFilter, setResourceFilter] = useState("");
+  const generation = useRef(0);
+  const consumedCursors = useRef(new Set<string>());
+  const allowed = !!session && session.chapter_id === chapterId && ["chapter_director", "auditor"].includes(session.role);
+  const uid = session?.uid;
 
-  const [filterAction, setFilterAction] = useState("all");
+  const load = useCallback(async (next?: string | null) => {
+    if (!uid || !allowed) return;
+    const requestGeneration = ++generation.current;
+    setLoading(true);
+    setError("");
+    try {
+      const suffix = next ? `?cursor=${segment(next)}&limit=30` : "?limit=30";
+      const response = await connectedRequest<unknown>(
+        `/v1/chapters/${segment(chapterId)}/audit${suffix}`,
+        undefined,
+        "GET",
+        uid,
+      );
+      if (!isAuditPage(response, chapterId)) throw new Error("The audit service returned a malformed or out-of-chapter page. Refresh before continuing.");
+      const page = response;
+      if (requestGeneration === generation.current) {
+        if (next && (consumedCursors.current.has(next) || page.next_page === next || (page.next_page && consumedCursors.current.has(page.next_page)))) throw new Error("The audit continuation repeated. Refresh before continuing.");
+        if (next) consumedCursors.current.add(next); else consumedCursors.current.clear();
+        setRecords(current => {
+          if (!next) return page.items;
+          const seen = new Set(current.map(record => record.id));
+          const additions = page.items.filter(record => {
+            if (seen.has(record.id)) return false;
+            seen.add(record.id);
+            return true;
+          });
+          return [...current, ...additions];
+        });
+        setCursor(page.next_page);
+      }
+    } catch (cause) {
+      if (requestGeneration === generation.current) {
+        if (cause instanceof ApiError && (cause.status === 401 || cause.status === 403)) {
+          setRecords([]);
+          setCursor(null);
+        }
+        setError(auditError(cause));
+      }
+    } finally {
+      if (requestGeneration === generation.current) setLoading(false);
+    }
+  }, [allowed, chapterId, uid]);
 
-  const auditEvents = [
-    {
-      id: "AUD-99120",
-      timestamp: "2026-10-30 15:10:42 PHT",
-      actor: "director.ph@wsb.com (Marcus V)",
-      action: "RESULTS_PUBLISHED",
-      target: "Event #event-manila-session-2027 / Division: Open Crew",
-      details: "Official results published to Public and Arena HUD. Digest: 0x8F91...22A",
-      tone: "volt" as const,
-    },
-    {
-      id: "AUD-99119",
-      timestamp: "2026-10-30 15:02:11 PHT",
-      actor: "headjudge.swift@wsb.com (Ken S)",
-      action: "DIVISION_LOCKED",
-      target: "Division: Open Crew (18 entries scored)",
-      details: "Head judge cryptographic lock engaged. Olympic trimmed mean computed.",
-      tone: "volt" as const,
-    },
-    {
-      id: "AUD-99118",
-      timestamp: "2026-10-30 14:26:05 PHT",
-      actor: "techjudge.wilkins@wsb.com (Lando W)",
-      action: "PENALTY_ASSESSED",
-      target: "Entry #012 (Legion X)",
-      details: "Deduction of -0.5 pts applied for audio overtime exceeding 2m30s.",
-      tone: "amber" as const,
-    },
-    {
-      id: "AUD-99117",
-      timestamp: "2026-10-30 12:44:30 PHT",
-      actor: "finance.ph@wsb.com (Elena R)",
-      action: "REFUND_EXECUTED",
-      target: "Payment #pay-sample-002",
-      details: "Approved withdrawal refund of ₱ 3,000.00 minor units to Afterhours Collective.",
-      tone: "neutral" as const,
-    },
-    {
-      id: "AUD-99116",
-      timestamp: "2026-10-30 09:15:00 PHT",
-      actor: "admin.ph@wsb.com (Root)",
-      action: "ROLE_GRANTED",
-      target: "User #usr-judge-03 (Yuki)",
-      details: "Assigned Judge Panel role for Manila Session 2027.",
-      tone: "neutral" as const,
-    },
-  ];
+  // Scan a bounded batch using the same authorized page API, including legacy records.
+  const scanMore = async () => {
+    if (!uid || !allowed || !cursor || loading) return;
+    const requestGeneration = ++generation.current;
+    let next: string | null = cursor;
+    setLoading(true); setError("");
+    try {
+      for (let pageNumber = 0; pageNumber < 10 && next; pageNumber++) {
+        if (consumedCursors.current.has(next)) throw new Error("The audit continuation repeated. Refresh before continuing.");
+        const response: unknown = await connectedRequest(`/v1/chapters/${segment(chapterId)}/audit?cursor=${segment(next)}&limit=30`, undefined, "GET", uid);
+        if (!isAuditPage(response, chapterId)) throw new Error("The audit service returned a malformed or out-of-chapter page. Refresh before continuing.");
+        if (requestGeneration !== generation.current) return;
+        if (response.next_page === next || (response.next_page && consumedCursors.current.has(response.next_page))) throw new Error("The audit continuation repeated. Refresh before continuing.");
+        consumedCursors.current.add(next);
+        setRecords(current => {
+          const seen = new Set(current.map(record => record.id));
+          return [...current, ...response.items.filter(record => !seen.has(record.id) && !!seen.add(record.id))];
+        });
+        next = response.next_page;
+        setCursor(next);
+      }
+    } catch (cause) {
+      if (requestGeneration === generation.current) {
+        if (cause instanceof ApiError && (cause.status === 401 || cause.status === 403)) { setRecords([]); setCursor(null); }
+        setError(auditError(cause));
+      }
+    } finally { if (requestGeneration === generation.current) setLoading(false); }
+  };
 
-  const filtered = filterAction === "all"
-    ? auditEvents
-    : auditEvents.filter((e) => e.action === filterAction);
+  useEffect(() => {
+    setRecords([]);
+    setCursor(null);
+    consumedCursors.current.clear();
+    setActionFilter("all");
+    setActorFilter("");
+    setResourceFilter("");
+    if (allowed) void load();
+    return () => { generation.current += 1; };
+  }, [allowed, load]);
 
-  return (
-    <div className="space-y-8">
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-        <PageHeading
-          eyebrow={`Chapter / ${chapterId.toUpperCase()} / Compliance`}
-          title="System Audit Log & Immutable Ledger"
-          description="Every authoritative mutation—score submission, division lock, penalty, refund, or permission elevation—is cryptographically hashed and recorded."
-        />
-        <Button
-          variant="secondary"
-          onClick={() => alert("Exporting tamper-evident audit ledger JSON...")}
-          style={{ minHeight: "48px" }}
-        >
-          Export Audit Ledger
-        </Button>
-      </div>
+  const actions = useMemo(() => [...new Set(records.map(record => record.action))].sort(), [records]);
+  const visibleRecords = records.filter(record =>
+    (actionFilter === "all" || record.action === actionFilter)
+    && record.actor_uid.toLocaleLowerCase().includes(actorFilter.trim().toLocaleLowerCase())
+    && record.resource_id.toLocaleLowerCase().includes(resourceFilter.trim().toLocaleLowerCase()));
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <StatCard label="Total Audit Events" value="1,842" meta="Chapter lifetime" />
-        <StatCard label="Hash Chain" value="Verified" meta="Zero discrepancies" tone="volt" />
-        <StatCard label="Last Action" value="RESULTS_PUBLISHED" meta="15:10 PHT" tone="volt" />
-        <StatCard label="Operator Identity" value="MFA Enforced" meta="Signed webauthn keys" />
-      </div>
+  const exportLoaded = () => {
+    const content = JSON.stringify({ chapter_id: chapterId, scope: "currently_loaded_records", records: visibleRecords }, null, 2);
+    const url = URL.createObjectURL(new Blob([content], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `chapter-${chapterId}-audit-loaded.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
 
-      <div className="panel p-4 bg-carbon border border-subtle flex flex-col md:flex-row justify-between items-center gap-4">
-        <div className="flex items-center gap-3 w-full md:w-auto">
-          <label className="text-xs text-titanium mono">FILTER BY ACTION:</label>
-          <Select
-            value={filterAction}
-            onChange={(e: React.ChangeEvent<HTMLSelectElement>) => setFilterAction(e.target.value)}
-            style={{ minHeight: "40px" }}
-          >
-            <option value="all">All Actions</option>
-            <option value="RESULTS_PUBLISHED">Results Published</option>
-            <option value="DIVISION_LOCKED">Division Locked</option>
-            <option value="PENALTY_ASSESSED">Penalty Assessed</option>
-            <option value="REFUND_EXECUTED">Refund Executed</option>
-            <option value="ROLE_GRANTED">Role Granted</option>
-          </Select>
-        </div>
-        <span className="mono text-xs text-titanium">Showing {filtered.length} entries</span>
-      </div>
-
-      <div className="panel bg-carbon border border-subtle overflow-x-auto">
-        <table className="w-full text-left border-collapse">
-          <thead>
-            <tr className="border-b border-subtle text-xs mono text-titanium">
-              <th className="p-4">Event ID</th>
-              <th className="p-4">Timestamp</th>
-              <th className="p-4">Action</th>
-              <th className="p-4">Actor</th>
-              <th className="p-4">Target Entity</th>
-              <th className="p-4">Audit Details</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-subtle">
-            {filtered.map((ev) => (
-              <tr key={ev.id} className="hover:bg-subtle/30 transition-colors">
-                <td className="p-4 mono text-xs text-white">{ev.id}</td>
-                <td className="p-4 mono text-xs text-titanium">{ev.timestamp}</td>
-                <td className="p-4">
-                  <Status tone={ev.tone}>{ev.action}</Status>
-                </td>
-                <td className="p-4 mono text-xs text-chrome">{ev.actor}</td>
-                <td className="p-4 text-xs text-titanium font-medium">{ev.target}</td>
-                <td className="p-4 text-xs text-titanium max-w-xs">{ev.details}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  return <main id="main-content" className="workspace-main">
+    <PageHeading
+      eyebrow={`Chapter records / ${chapterId}`}
+      title="Audit history"
+      description="Read durable chapter audit records. Newest recorded activity appears first."
+      action={<a href={`/admin/${segment(chapterId)}`} className="button button-outline">Chapter workspace <Arrow /></a>}
+    />
+    {sessionLoading ? <p role="status">Checking chapter access…</p>
+      : !session ? <p role="alert" className="form-error">{sessionError || "Sign in with your chapter account to continue."}</p>
+        : !allowed ? <p role="alert" className="form-error">Audit history is available to the active chapter director or auditor for this chapter.</p>
+          : <>
+            <section className="panel" aria-label="Audit history controls">
+              <div className="panel-heading"><div><h2>Saved records</h2><p>Showing {visibleRecords.length} of {records.length} loaded records. More records may be available on later pages.</p></div><Status tone="neutral">Read only</Status></div>
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="form-field"><span>Filter loaded records by action</span><select className="input" value={actionFilter} onChange={event => setActionFilter(event.target.value)}><option value="all">All actions</option>{actions.map(action => <option key={action} value={action}>{action}</option>)}</select></label>
+                <label className="form-field"><span>Actor account ID</span><input className="input" value={actorFilter} maxLength={200} onChange={event => setActorFilter(event.target.value)} /></label>
+                <label className="form-field"><span>Resource ID</span><input className="input" value={resourceFilter} maxLength={200} onChange={event => setResourceFilter(event.target.value)} /></label>
+                <button type="button" className="button button-outline" disabled={loading} onClick={() => void load()}>Refresh</button>
+                <button type="button" className="button button-outline" disabled={!visibleRecords.length} onClick={exportLoaded}>Export loaded records</button>
+              </div>
+              <p className="mt-3 text-sm text-[var(--ink-muted)]">Export includes only records currently loaded on this page set and matching the selected filters.</p>
+            </section>
+            {error && <section className="panel" role="alert"><p className="form-error">{error}</p><button type="button" className="button button-outline" onClick={() => void load(error.includes("continuation repeated") ? null : cursor)}>Retry</button></section>}
+            {loading && <div role="status"><p>Loading chapter audit records…</p><button type="button" className="button button-outline" onClick={() => { generation.current += 1; setLoading(false); }}>Stop loading</button></div>}
+            {!loading && !error && visibleRecords.length === 0 && <section className="panel"><h2>{records.length ? "No matching records" : "No audit records"}</h2><p>{records.length ? "No loaded records match these filters. Change or clear them to see more loaded records." : "Durable audit records for this chapter will appear here when available."}</p></section>}
+            <div className="connected-stack" aria-live="polite">
+              {visibleRecords.map(record => <article key={record.id} className="panel">
+                <div className="panel-heading"><div><h2>{record.action}</h2><p>{dateLabel(record.recorded_at)}</p></div><Status>{record.resource_id ? "Resource recorded" : "Resource not recorded"}</Status></div>
+                <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <div><dt className="eyebrow">Actor UID</dt><dd className="break-all font-mono">{record.actor_uid}</dd></div>
+                  <div><dt className="eyebrow">Resource ID</dt><dd className="break-all font-mono">{record.resource_id || "Not recorded"}</dd></div>
+                  <div><dt className="eyebrow">Record ID</dt><dd className="break-all font-mono">{record.id}</dd></div>
+                  <div><dt className="eyebrow">Reason</dt><dd>{record.reason || "Not recorded"}</dd></div>
+                  <div><dt className="eyebrow">Correlation ID</dt><dd className="break-all font-mono">{record.correlation_id || "Not recorded"}</dd></div>
+                </dl>
+              </article>)}
+            </div>
+            {cursor && !loading && !error && <div className="connected-actions"><button type="button" className="button button-outline" onClick={() => void load(cursor)}>Load more records</button><button type="button" className="button button-outline" onClick={() => void scanMore()}>Search next 10 pages</button></div>}
+            <p className="fineprint">Filters search the loaded records. Search next 10 pages adds up to 300 records per request batch. Continue until no more pages remain to search the available archive; exports contain only loaded matching records.</p>
+          </>}
+  </main>;
 }

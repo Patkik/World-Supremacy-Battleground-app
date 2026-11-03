@@ -156,6 +156,24 @@ async function login(email) {
       }
     }
   };
+  const invalidCases = [
+    value => { value.data.attributes.data.attributes.payments.push(structuredClone(value.data.attributes.data.attributes.payments[0])); },
+    value => { delete value.data.attributes.data.attributes.payments[0].attributes.currency; },
+    value => { value.data.attributes.data.attributes.payments[0].attributes.livemode = true; },
+    value => { value.data.attributes.data.type = 'payment'; },
+    value => { delete value.data.attributes.data.attributes.payments[0].id; },
+    value => { delete value.data.attributes.livemode; },
+  ];
+  for (const mutate of invalidCases) {
+    const invalid = structuredClone(paidPayload); mutate(invalid);
+    const raw = JSON.stringify(invalid);
+    const rejected = await fetch(`${api}/v1/paymongo/webhook`, {method:'POST', headers:{'content-type':'application/json','paymongo-signature':sign(raw)}, body:raw});
+    assert.equal(rejected.status, 400);
+    assert.equal(rejected.status, 400);
+    const quote = await (await fetch(`${base}/quote`, {headers})).json();
+    assert.equal(quote.pending_amount_minor, 12500);
+    assert.equal(quote.paid_amount_minor, 0);
+  }
   const rawPaid = JSON.stringify(paidPayload);
   const paidSig = sign(rawPaid);
 
@@ -190,76 +208,108 @@ async function login(email) {
     body: rawPaid
   });
   assert.equal(replayRes.status, 200);
+  const localAliasReplay = await fetch(`${api}/v1/local/paymongo/webhook`, {
+    method:'POST', headers:{'content-type':'application/json','paymongo-signature':paidSig}, body:rawPaid
+  });
+  assert.equal(localAliasReplay.status, 200);
+
+  for (const mutate of [
+    value => { value.data.attributes.data.attributes.payments[0].id = `pay_changed_${crypto.randomUUID()}`; },
+    value => { value.data.attributes.created_at += 1; },
+  ]) {
+    const changed = structuredClone(paidPayload); mutate(changed);
+    const raw = JSON.stringify(changed);
+    const response = await fetch(`${api}/v1/paymongo/webhook`, {method:'POST',headers:{'content-type':'application/json','paymongo-signature':sign(raw)},body:raw});
+    assert.equal(response.status, 409);
+  }
 
   const quoteReplay = await fetch(`${base}/quote`, { headers });
   assert.equal(quoteReplay.status, 200);
   const qr = await quoteReplay.json();
   assert.equal(qr.paid_amount_minor, 12500);
 
-  // 9. Deliver signed payment.refunded webhook event to route alias /v1/webhooks/paymongo
-  const refundEventId = `evt_ref_${crypto.randomUUID().replaceAll('-', '')}`;
-  const refundPayload = {
+  // 9. Deliver a signed partial refund event for the settled provider payment
+  const refundEvent = (id, refId, amount, paymentStatus) => ({
     data: {
-      id: refundEventId,
+      id,
       type: 'event',
       attributes: {
         type: 'payment.refunded',
         livemode: false,
         created_at: Math.floor(Date.now() / 1000),
         data: {
-          id: checkoutData.session_id,
+          id: paymentId,
           type: 'payment',
           attributes: {
             amount: 12500,
             currency: 'PHP',
-            status: 'refunded',
+            status: paymentStatus,
             refunds: [
               {
-                id: `ref_${crypto.randomUUID().replaceAll('-', '')}`,
-                amount: 12500,
-                status: 'succeeded'
+                id: refId,
+                type: 'refund',
+                attributes: {
+                  payment_id: paymentId,
+                  amount,
+                  currency: 'PHP',
+                  livemode: false,
+                  status: 'succeeded'
+                }
               }
             ]
           }
         }
       }
     }
-  };
-  const rawRefund = JSON.stringify(refundPayload);
-  const refundSig = sign(rawRefund);
-
-  const deliverRefundRes = await fetch(`${api}/v1/webhooks/paymongo`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'paymongo-signature': refundSig
-    },
-    body: rawRefund
   });
-  if (deliverRefundRes.status !== 200) {
-    console.error('DELIVER REFUND ERROR:', deliverRefundRes.status, await deliverRefundRes.text());
-  }
-  assert.equal(deliverRefundRes.status, 200);
-  assert.deepEqual(await deliverRefundRes.json(), { received: true });
+  const partialPayload = refundEvent(`evt_ref_${crypto.randomUUID().replaceAll('-', '')}`, `ref_${crypto.randomUUID().replaceAll('-', '')}`, 100, 'paid');
+  const partialRaw = JSON.stringify(partialPayload);
+  const partialResponse = await fetch(`${api}/v1/webhooks/paymongo`, {
+    method: 'POST', headers: { 'content-type':'application/json', 'paymongo-signature':sign(partialRaw) }, body:partialRaw
+  });
+  assert.equal(partialResponse.status, 200);
+  assert.equal((await (await fetch(`${base}/quote`, { headers })).json()).paid_amount_minor, 12400);
 
-  // Verify paid balance refunded
-  const quoteRefunded = await fetch(`${base}/quote`, { headers });
-  assert.equal(quoteRefunded.status, 200);
-  const qref = await quoteRefunded.json();
-  assert.equal(qref.paid_amount_minor, 0);
-
-  // 10. Replay refund event is idempotent
+  // 10. Replaying the same refund event does not refund twice
   const replayRefundRes = await fetch(`${api}/v1/webhooks/paymongo`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'paymongo-signature': refundSig
+      'paymongo-signature': sign(partialRaw)
     },
-    body: rawRefund
+    body: partialRaw
   });
   assert.equal(replayRefundRes.status, 200);
+  assert.equal((await (await fetch(`${base}/quote`, { headers })).json()).paid_amount_minor, 12400);
 
-  console.log('PASS: PayMongo webhook security matrix, checkout session settlement, refund reconciliation, and idempotency verified.');
+  // 11. A refund event for the remaining balance completes the refund
+  const fullPayload = refundEvent(`evt_ref_${crypto.randomUUID().replaceAll('-', '')}`, `ref_${crypto.randomUUID().replaceAll('-', '')}`, 12400, 'refunded');
+  const fullRaw = JSON.stringify(fullPayload);
+  const fullResponse = await fetch(`${api}/v1/webhooks/paymongo`, {
+    method: 'POST', headers: { 'content-type':'application/json', 'paymongo-signature':sign(fullRaw) }, body:fullRaw
+  });
+  assert.equal(fullResponse.status, 200);
+  assert.equal((await (await fetch(`${base}/quote`, { headers })).json()).paid_amount_minor, 0);
+
+  // 12. Any further refund exceeds the settled payment
+  const overPayload = refundEvent(`evt_ref_${crypto.randomUUID().replaceAll('-', '')}`, `ref_${crypto.randomUUID().replaceAll('-', '')}`, 1, 'refunded');
+  const overRaw = JSON.stringify(overPayload);
+  const overResponse = await fetch(`${api}/v1/webhooks/paymongo`, {
+    method: 'POST', headers: { 'content-type':'application/json', 'paymongo-signature':sign(overRaw) }, body:overRaw
+  });
+  assert.equal(overResponse.status, 409);
+  assert.equal((await (await fetch(`${base}/quote`, { headers })).json()).paid_amount_minor, 0);
+
+  const wrongMode = structuredClone(fullPayload);
+  wrongMode.data.id = `evt_ref_${crypto.randomUUID().replaceAll('-', '')}`;
+  wrongMode.data.attributes.livemode = true;
+  const wrongModeRaw = JSON.stringify(wrongMode);
+  const wrongModeResponse = await fetch(`${api}/v1/webhooks/paymongo`, {
+    method:'POST', headers:{ 'content-type':'application/json', 'paymongo-signature':sign(wrongModeRaw) }, body:wrongModeRaw
+  });
+  assert.equal(wrongModeResponse.status, 400);
+
+  console.log('PASS: PayMongo webhook security, settlement replay, and refund reconciliation.');
 })().catch(e => {
   console.error(e);
   process.exitCode = 1;

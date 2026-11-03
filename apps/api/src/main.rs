@@ -1,18 +1,29 @@
 pub mod access;
+pub mod audio_inspection;
 pub mod auth;
+pub mod chapter_content;
 pub mod domain;
 pub mod event_ops;
 pub mod finance;
+pub mod guardian;
+#[cfg(feature = "firestore")]
+pub mod hq;
 pub mod inquiries;
 pub mod judging;
 #[cfg(feature = "local-testing")]
 pub mod local_identity;
+pub mod malware_scan;
+pub mod notifications;
 pub mod paymongo;
 pub mod registration;
 #[cfg(feature = "firestore")]
 pub mod repository;
+#[cfg(feature = "firestore")]
+pub mod staff;
 pub mod store;
 pub mod verification;
+#[cfg(feature = "local-testing")]
+pub mod waivers;
 
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -38,6 +49,104 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
     let router = Router::new();
     #[cfg(feature = "firestore")]
     let router = router
+        .route(
+            "/v1/chapters/{chapter_id}/content/drafts",
+            get(chapter_content::list_drafts).post(chapter_content::create_draft),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/content/drafts/{draft_id}",
+            put(chapter_content::update_draft),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/content/drafts/{draft_id}/versions",
+            get(chapter_content::list_versions),
+        );
+    #[cfg(feature = "local-testing")]
+    let router = router
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/waiver-draft",
+            get(waivers::read).post(waivers::save),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/waiver-draft/versions/{revision}",
+            get(waivers::version),
+        );
+    let router = router
+        .route(
+            "/v1/chapters/{chapter_id}/guardian-requests",
+            get(guardian::list).post(guardian::create),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/guardian-requests/{request_id}",
+            get(guardian::read),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/guardian-requests/{request_id}/respond",
+            post(guardian::respond),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/guardian-requests/{request_id}/withdraw",
+            post(guardian::withdraw),
+        );
+    #[cfg(feature = "firestore")]
+    let router = router
+        .route("/v1/hq/session", get(hq::session))
+        .route("/v1/hq/overview", get(hq::overview))
+        .route("/v1/hq/integrations", get(hq::integrations))
+        .route(
+            "/v1/hq/notification-queue",
+            get(hq::notification_queue_health),
+        )
+        .route("/v1/hq/chapters", get(hq::chapters))
+        .route(
+            "/v1/hq/chapters/{chapter_id}/members",
+            get(hq::chapter_members),
+        )
+        .route(
+            "/v1/hq/chapters/{chapter_id}/members/{uid}",
+            put(hq::change_chapter_member),
+        )
+        .route("/v1/hq/applications", get(hq::applications))
+        .route(
+            "/v1/hq/applications/{id}",
+            get(hq::application_thread).post(hq::update_application),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/staff/members",
+            get(staff::list_members),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/staff/members/{uid}",
+            put(staff::change_member),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/staff/invitations",
+            get(staff::list_invitations).post(staff::create_invitation),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/staff/invitations/{invitation_id}/revoke",
+            post(staff::revoke_invitation),
+        )
+        .route(
+            "/v1/account/staff-invitations/accept",
+            post(staff::accept_invitation),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/staff/assignments",
+            get(staff::list_event_assignments),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/staff/eligible-stage-marshals",
+            get(staff::list_stage_marshals),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/staff/assignments/{uid}",
+            put(staff::change_event_assignment),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/judge-panel",
+            get(staff::get_judge_panel).put(staff::change_judge_panel),
+        )
         .route("/v1/contact/chapters", get(inquiries::http::chapters))
         .route(
             "/v1/chapters/{chapter_id}/contact",
@@ -67,13 +176,54 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
             get(|| async { Json(json!({"status":"ok","service":"wsb-api"})) }),
         )
         .route("/v1/chapters", get(registration::list_chapters))
+        .route("/v1/account/chapters", get(registration::list_account_chapters))
+        .route(
+            "/v1/chapters/{chapter_id}/notifications",
+            get(notifications::list),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/notifications/{notification_id}/read",
+            put(notifications::mark_read),
+        )
         .route(
             "/v1/chapters/{chapter_id}/events",
-            get(registration::list_events),
+            get(registration::list_events).post(registration::create_event),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/duty-access",
+            get(registration::duty_event_access),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/staff/duty-events",
+            get(registration::list_duty_events),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/staff/events",
+            get(registration::list_managed_events),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/audit",
+            get(registration::list_audit_records),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/registration-window",
+            put(registration::update_registration_window),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/division-policy-drafts",
+            get(registration::list_division_policy_drafts),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/division-policy-drafts/{division_id}",
+            put(registration::save_division_policy_draft),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/division-policy-drafts/{division_id}/versions",
+            get(registration::list_division_policy_draft_versions),
         )
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}",
-            get(registration::get_event),
+            get(registration::get_event).put(registration::update_event_draft),
         )
         .route("/v1/chapters/{chapter_id}/session", get(session))
         .route(
@@ -90,7 +240,15 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
         )
         .route(
             "/v1/chapters/{chapter_id}/crews/{crew_id}/invitations",
-            post(registration::create_invitation),
+            get(registration::list_crew_invitations).post(registration::create_invitation),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/crews/{crew_id}/invitations/revoke",
+            post(registration::revoke_invitation),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/crews/{crew_id}/join/recover",
+            post(registration::recover_crew_invitation),
         )
         .route(
             "/v1/chapters/{chapter_id}/crews/{crew_id}/join",
@@ -113,12 +271,64 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
             put(registration::update_entry_roster),
         )
         .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/stage-status",
+            get(event_ops::participant_stage_positions),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/stage-calls",
+            post(event_ops::participant_stage_calls),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/published-result",
+            get(event_ops::participant_published_result),
+        )
+        .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/audio",
             post(registration::update_entry_audio),
         )
         .route(
-            "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/dj-export",
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/audio-inspect",
+            post(registration::inspect_entry_audio),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/music-intents",
+            post(registration::create_music_intent),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/music-queue",
+            get(registration::music_review_queue),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/music-submission",
+            get(registration::get_music_submission),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/music-submission/audio",
+            get(registration::get_music_for_review),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/music-submission/advisory",
+            get(registration::get_draft_music_advisory),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/music-submission/review",
+            post(registration::review_submitted_music),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/music-intents/{intent_id}/inspect",
+            post(registration::inspect_stored_music),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/music-intents/{intent_id}/submit",
+            post(registration::submit_stored_music),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/dj-export",
             get(registration::export_dj_playlist),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/music-policy",
+            get(registration::get_draft_music_policy).post(registration::save_draft_music_policy),
         )
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/submit",
@@ -167,6 +377,10 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
         .route(
             "/v1/chapters/{chapter_id}/finance/payments",
             get(finance::list_payments),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/finance/payments/{payment_id}",
+            get(finance::get_payment_record),
         )
         .route(
             "/v1/chapters/{chapter_id}/finance/payments/{payment_id}/refund",
@@ -221,8 +435,16 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
             post(event_ops::check_in_dancer),
         )
         .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/check-in/candidates",
+            get(event_ops::list_check_in_candidates),
+        )
+        .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/check-ins",
             get(event_ops::list_check_ins),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/check-in/me",
+            get(event_ops::own_check_in),
         )
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/stage-commands",
@@ -290,12 +512,18 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
         )
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/battles/{match_id}",
-            get(event_ops::get_battle_chapter),
+            get(event_ops::get_battle_chapter).post(event_ops::save_battle_chapter),
+        )
+        .route("/v1/chapters/{chapter_id}/events/{event_id}/battles/{match_id}/activate", post(event_ops::activate_battle_chapter))
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/battles/{match_id}/my-ballot",
+            get(event_ops::own_battle_ballot_chapter),
         )
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/battles/{match_id}/vote",
             post(event_ops::vote_battle_chapter),
         )
+        .route("/v1/chapters/{chapter_id}/events/{event_id}/battles/{match_id}/configuration", get(event_ops::battle_configuration_chapter))
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/publish",
             post(event_ops::publish_results),
@@ -312,6 +540,7 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
             "/v1/events/{event_id}/published",
             get(event_ops::list_published_results),
         )
+        .route("/v1/events/{event_id}/live", get(event_ops::public_stage_display))
         .route(
             "/v1/chapters/{chapter_id}/finance/payments/{payment_id}/reconcile",
             post(finance::reconcile_payment),
@@ -323,6 +552,10 @@ pub fn router(state: AppState, origin: HeaderValue) -> Router {
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/deductions",
             put(judging::set_deductions),
+        )
+        .route(
+            "/v1/chapters/{chapter_id}/events/{event_id}/divisions/{division_id}/review",
+            get(judging::division_review),
         )
         .route(
             "/v1/chapters/{chapter_id}/events/{event_id}/entries/{entry_id}/scorecard",
@@ -385,8 +618,18 @@ async fn readiness(State(state): State<AppState>) -> (StatusCode, Json<Value>) {
     )
 }
 
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    if std::env::args().nth(1).as_deref() == Some("--document-parser") {
+        #[cfg(feature = "firestore")]
+        std::process::exit(verification::document_parser_worker());
+        #[cfg(not(feature = "firestore"))]
+        return Err("Build with --features firestore to run the document parser".into());
+    }
+    run_server()
+}
+
 #[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+async fn run_server() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
@@ -394,6 +637,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .init();
     let project = std::env::var("FIREBASE_PROJECT_ID").unwrap_or_else(|_| "demo-wsb".into());
+    if std::env::args().nth(1).as_deref() == Some("backfill-global-applications") {
+        #[cfg(feature = "firestore")]
+        {
+            if std::env::var("FIREBASE_PROJECT_ID").as_deref() != Ok("demo-wsb")
+                || std::env::var("WSB_MIGRATION_CONFIRM").as_deref() != Ok("demo-wsb")
+            {
+                return Err("This backfill requires explicit demo-wsb project confirmation".into());
+            }
+            let emulator = std::env::var("FIRESTORE_EMULATOR_HOST")?;
+            let (host, port) = emulator
+                .split_once(':')
+                .ok_or("Firestore emulator host must include a port")?;
+            if !matches!(
+                host,
+                "127.0.0.1" | "localhost" | "host.docker.internal" | "firebase"
+            ) || port.parse::<u16>().is_err()
+            {
+                return Err("Backfill accepts only a local demo-wsb Firestore emulator".into());
+            }
+            let repository = repository::FirestoreRepository::connect("demo-wsb").await?;
+            let result = repository.backfill_global_application_indexes().await?;
+            println!(
+                "Application index backfill complete: scanned={}, inserted={}, refreshed={}, unchanged={}",
+                result.scanned, result.inserted, result.refreshed, result.unchanged
+            );
+            return Ok(());
+        }
+        #[cfg(not(feature = "firestore"))]
+        return Err("Build with --features firestore to run this migration".into());
+    }
     let origin = std::env::var("WEB_ORIGIN")
         .unwrap_or_else(|_| "http://localhost:3000".into())
         .parse()?;
@@ -401,15 +674,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .unwrap_or_else(|_| "8088".into())
         .parse()?;
 
-    // The durable migration is incomplete. Keep real projects gated until verified.
-    if project != "demo-wsb" {
-        return Err(
-            "Business persistence is not configured; this build supports demo-wsb only".into(),
-        );
-    }
     let storage_mode = std::env::var("WSB_STORAGE").unwrap_or_else(|_| "memory".into());
     if !matches!(storage_mode.as_str(), "memory" | "firestore") {
         return Err("Unknown WSB_STORAGE mode".into());
+    }
+    let production_storage_enabled =
+        std::env::var("WSB_ENABLE_PRODUCTION_STORAGE").as_deref() == Ok("true");
+    let emulator_configured = std::env::var("FIRESTORE_EMULATOR_HOST")
+        .ok()
+        .is_some_and(|value| !value.trim().is_empty());
+    if project == "demo-wsb" {
+        if production_storage_enabled {
+            return Err("Production storage opt-in cannot be used with demo-wsb".into());
+        }
+    } else if !production_storage_enabled || storage_mode != "firestore" || emulator_configured {
+        return Err("Non-demo projects require explicit production Firestore opt-in and must not use an emulator".into());
     }
     #[cfg(not(feature = "firestore"))]
     if storage_mode == "firestore" {
@@ -452,6 +731,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             RegistrationStore::new()
         })),
     };
+
+    #[cfg(feature = "firestore")]
+    if let Some(repository) = state.durable.clone() {
+        tokio::spawn(async move {
+            let mut interval = tokio::time::interval(std::time::Duration::from_secs(2));
+            let mut cursor = None;
+            let mut publication_cursor = None;
+            loop {
+                interval.tick().await;
+                match repository
+                    .process_publication_notice_page(publication_cursor.take())
+                    .await
+                {
+                    Ok(next) => publication_cursor = next,
+                    Err(error) => {
+                        tracing::warn!(error = %error, "Publication notification queue unavailable; will retry")
+                    }
+                }
+                match repository.process_roster_notice_page(cursor.take()).await {
+                    Ok(next) => cursor = next,
+                    Err(error) => {
+                        tracing::warn!(error = %error, "Roster notification queue unavailable; will retry")
+                    }
+                }
+            }
+        });
+    }
 
     let app = router(state, origin);
     let listener = tokio::net::TcpListener::bind((std::net::Ipv4Addr::UNSPECIFIED, port)).await?;
@@ -510,16 +816,39 @@ async fn durable_route_gate(
             || path.ends_with("/results");
         let parts: Vec<_> = path.trim_matches('/').split('/').collect();
         let public_projection_read = parts.get(1) == Some(&"events")
-            && ((parts.len() == 4 && parts[3] == "published")
+            && ((parts.len() == 4 && matches!(parts[3], "published" | "live"))
                 || (parts.len() == 6 && parts[3] == "divisions" && parts[5] == "published"));
         let chapter_read = parts.get(1) == Some(&"chapters")
-            && ((parts.len() == 4 && parts[3] == "crews")
+            && ((parts.len() == 4 && parts[3] == "audit")
+                || (parts.len() == 5 && parts[3] == "events")
+                || (parts.len() == 5 && parts[3] == "staff" && parts[4] == "members")
+                || (parts.len() == 5 && parts[3] == "staff" && parts[4] == "duty-events")
+                || (parts.len() == 7
+                    && parts[3] == "events"
+                    && parts[5] == "staff"
+                    && matches!(parts[6], "assignments" | "eligible-stage-marshals"))
+                || (parts.len() == 4 && parts[3] == "crews")
                 || (parts.len() == 5 && parts[3] == "crews")
+                || (parts.len() == 6 && parts[3] == "crews" && parts[5] == "invitations")
+                || (parts.len() == 5 && parts[3] == "content" && parts[4] == "drafts")
+                || (parts.len() == 6
+                    && parts[3] == "content"
+                    && parts[4] == "drafts"
+                    && parts[5] != "")
+                || (parts.len() == 7
+                    && parts[3] == "content"
+                    && parts[4] == "drafts"
+                    && parts[6] == "versions")
                 || (parts.len() == 5
                     && parts[3] == "finance"
                     && matches!(parts[4], "payments" | "summary"))
                 || (parts.len() == 4 && parts[3] == "verification")
                 || (parts.len() == 6 && parts[3] == "events" && parts[5] == "judge-lineup")
+                || (parts.len() == 6 && parts[3] == "events" && parts[5] == "duty-access")
+                || (parts.len() == 7
+                    && parts[3] == "events"
+                    && parts[5] == "check-in"
+                    && parts[6] == "candidates")
                 || (parts.len() == 6 && parts[3] == "events" && parts[5] == "division-status")
                 || (parts.len() == 6 && parts[3] == "events" && parts[5] == "stages")
                 || (parts.len() == 7 && parts[3] == "events" && parts[5] == "stages")
@@ -532,36 +861,96 @@ async fn durable_route_gate(
                     ))
                 || (parts.len() == 6
                     && parts[3] == "events"
-                    && matches!(parts[5], "divisions" | "entries"))
+                    && matches!(parts[5], "divisions" | "entries" | "music-queue"))
                 || (parts.len() == 7 && parts[3] == "events" && parts[5] == "entries")
                 || (parts.len() == 8
                     && parts[3] == "events"
                     && parts[5] == "entries"
-                    && parts[7] == "scorecard")
+                    && matches!(
+                        parts[7],
+                        "scorecard" | "music-submission" | "stage-status" | "published-result"
+                    ))
+                || (parts.len() == 9
+                    && parts[3] == "events"
+                    && parts[5] == "entries"
+                    && parts[7] == "music-submission"
+                    && matches!(parts[8], "audio" | "advisory"))
                 || (parts.len() == 8
                     && parts[3] == "events"
                     && parts[5] == "divisions"
-                    && parts[7] == "results"));
+                    && matches!(
+                        parts[7],
+                        "results" | "music-policy" | "judge-panel" | "review"
+                    )));
         let durable_read = request.method() == Method::GET
             && parts.first() == Some(&"v1")
             && (public_projection_read || chapter_read);
+        let hq_read = request.method() == Method::GET
+            && parts.first() == Some(&"v1")
+            && parts.get(1) == Some(&"hq")
+            && ((parts.len() == 5 && parts[2] == "chapters" && parts[4] == "members")
+                || (parts.len() == 3 && parts[2] == "chapters")
+                || (parts.len() == 3 && parts[2] == "overview")
+                || (parts.len() == 3 && parts[2] == "integrations")
+                || (parts.len() == 3 && parts[2] == "notification-queue")
+                || (parts.len() == 3 && parts[2] == "applications")
+                || (parts.len() == 4 && parts[2] == "applications"));
+        let hq_write = (request.method() == Method::PUT
+            && parts.first() == Some(&"v1")
+            && parts.get(1) == Some(&"hq")
+            && parts.len() == 6
+            && parts[2] == "chapters"
+            && parts[4] == "members")
+            || (request.method() == Method::POST
+                && parts.first() == Some(&"v1")
+                && parts.get(1) == Some(&"hq")
+                && parts.len() == 4
+                && parts[2] == "applications");
         let registration_write = matches!(*request.method(), Method::POST | Method::PUT)
             && parts.first() == Some(&"v1")
             && parts.get(1) == Some(&"chapters")
-            && ((parts.len() == 4 && parts[3] == "crews")
+            && ((parts.len() == 4 && matches!(parts[3], "crews" | "events"))
+                || (parts.len() == 5 && parts[3] == "content" && parts[4] == "drafts")
+                || (parts.len() == 6 && parts[3] == "content" && parts[4] == "drafts")
                 || (parts.len() == 5 && parts[3] == "crews")
+                || (parts.len() == 6 && parts[3] == "staff" && parts[4] == "members")
+                || (parts.len() == 8
+                    && parts[3] == "events"
+                    && parts[5] == "staff"
+                    && parts[6] == "assignments")
                 || (parts.len() == 6
                     && parts[3] == "crews"
                     && matches!(parts[5], "invitations" | "join"))
+                || (parts.len() == 7
+                    && parts[3] == "crews"
+                    && parts[5] == "invitations"
+                    && parts[6] == "revoke")
+                || (parts.len() == 7
+                    && parts[3] == "crews"
+                    && parts[5] == "join"
+                    && parts[6] == "recover")
                 || (parts.len() == 6 && parts[3] == "events" && parts[5] == "entries")
                 || (parts.len() == 8
                     && parts[3] == "events"
                     && parts[5] == "entries"
-                    && matches!(parts[7], "roster" | "submit" | "review"))
+                    && matches!(
+                        parts[7],
+                        "roster" | "submit" | "review" | "audio-inspect" | "music-intents"
+                    ))
+                || (parts.len() == 10
+                    && parts[3] == "events"
+                    && parts[5] == "entries"
+                    && parts[7] == "music-intents"
+                    && matches!(parts[9], "inspect" | "submit"))
+                || (parts.len() == 9
+                    && parts[3] == "events"
+                    && parts[5] == "entries"
+                    && parts[7] == "music-submission"
+                    && parts[8] == "review")
                 || (parts.len() == 8
                     && parts[3] == "events"
                     && parts[5] == "divisions"
-                    && parts[7] == "deductions"));
+                    && matches!(parts[7], "deductions" | "music-policy" | "judge-panel")));
         let verification_write = request.method() == Method::POST
             && parts.first() == Some(&"v1")
             && parts.get(1) == Some(&"chapters")
@@ -574,6 +963,19 @@ async fn durable_route_gate(
                 && parts.get(1) == Some(&"chapters")
                 && matches!(parts.len(), 4 | 5)
                 && matches!(parts[3], "contact" | "support"));
+        let guardian_route = cfg!(feature = "local-testing")
+            && parts.first() == Some(&"v1")
+            && parts.get(1) == Some(&"chapters")
+            && ((parts.len() == 4
+                && parts[3] == "guardian-requests"
+                && matches!(*request.method(), Method::GET | Method::POST))
+                || (parts.len() == 5
+                    && parts[3] == "guardian-requests"
+                    && request.method() == Method::GET)
+                || (parts.len() == 6
+                    && parts[3] == "guardian-requests"
+                    && matches!(parts[5], "respond" | "withdraw")
+                    && request.method() == Method::POST));
         let check_in = request.method() == Method::POST
             && parts.len() == 6
             && parts[0] == "v1"
@@ -586,6 +988,13 @@ async fn durable_route_gate(
             && parts[1] == "chapters"
             && parts[3] == "events"
             && parts[5] == "check-ins";
+        let check_in_self = request.method() == Method::GET
+            && parts.len() == 7
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && parts[5] == "check-in"
+            && parts[6] == "me";
         let stage_command = request.method() == Method::POST
             && parts.len() == 6
             && parts[0] == "v1"
@@ -618,13 +1027,122 @@ async fn durable_route_gate(
             && parts[3] == "events"
             && parts[5] == "divisions"
             && parts[7] == "publish";
-        if !core
+        let waiver_route = cfg!(feature = "local-testing")
+            && parts.len() == 6
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && parts[5] == "waiver-draft"
+            && matches!(*request.method(), Method::GET | Method::POST);
+        let waiver_version_route = cfg!(feature = "local-testing")
+            && parts.len() == 8
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && parts[5] == "waiver-draft"
+            && parts[6] == "versions"
+            && request.method() == Method::GET;
+        let battle_route = parts.len() >= 6
+            && parts.len() <= 8
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && parts[5] == "battles"
+            && ((matches!(parts.len(), 6 | 7) && request.method() == Method::GET)
+                || (parts.len() == 8
+                    && parts[7] == "configuration"
+                    && request.method() == Method::GET)
+                || (parts.len() == 7 && request.method() == Method::POST)
+                || (parts.len() == 8
+                    && matches!(parts[7], "vote" | "activate")
+                    && request.method() == Method::POST));
+        let stage_calls_read = request.method() == Method::POST
+            && parts.len() == 6
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && parts[5] == "stage-calls";
+        let local_dj_export = cfg!(feature = "local-testing")
+            && request.method() == Method::GET
+            && parts.len() == 6
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && parts[3] == "events"
+            && parts[5] == "dj-export";
+        let account_notification_route = (path == "/v1/account/chapters"
+            && request.method() == Method::GET)
+            || (parts.len() == 4
+                && parts[0] == "v1"
+                && parts[1] == "chapters"
+                && parts[3] == "notifications"
+                && request.method() == Method::GET)
+            || (parts.len() == 6
+                && parts[0] == "v1"
+                && parts[1] == "chapters"
+                && parts[3] == "notifications"
+                && parts[5] == "read"
+                && request.method() == Method::PUT);
+        let event_setup_route = parts.len() >= 5
+            && parts[0] == "v1"
+            && parts[1] == "chapters"
+            && ((parts.len() == 5 && parts[3] == "events" && request.method() == Method::PUT)
+                || (parts.len() == 6
+                    && parts[3] == "events"
+                    && parts[5] == "registration-window"
+                    && request.method() == Method::PUT)
+                || (parts.len() == 6
+                    && parts[3] == "events"
+                    && parts[5] == "division-policy-drafts"
+                    && request.method() == Method::GET)
+                || (parts.len() == 7
+                    && parts[3] == "events"
+                    && parts[5] == "division-policy-drafts"
+                    && request.method() == Method::PUT)
+                || (parts.len() == 8
+                    && parts[3] == "events"
+                    && parts[5] == "division-policy-drafts"
+                    && parts[7] == "versions"
+                    && request.method() == Method::GET)
+                || (parts.len() == 5
+                    && parts[3] == "staff"
+                    && matches!(parts[4], "events" | "invitations")
+                    && request.method() == Method::GET));
+        let staff_invitation_write = request.method() == Method::POST
+            && ((parts.len() == 5
+                && parts[0] == "v1"
+                && parts[1] == "chapters"
+                && parts[3] == "staff"
+                && parts[4] == "invitations")
+                || (parts.len() == 7
+                    && parts[0] == "v1"
+                    && parts[1] == "chapters"
+                    && parts[3] == "staff"
+                    && parts[4] == "invitations"
+                    && parts[6] == "revoke")
+                || (parts.len() == 4
+                    && parts[0] == "v1"
+                    && parts[1] == "account"
+                    && parts[2] == "staff-invitations"
+                    && parts[3] == "accept"));
+        if !battle_route
+            && !waiver_version_route
+            && !waiver_route
+            && !core
             && !durable_read
+            && !hq_read
+            && !hq_write
             && !registration_write
             && !verification_write
             && !inquiry_route
+            && !guardian_route
+            && !stage_calls_read
+            && !local_dj_export
+            && !account_notification_route
+            && !event_setup_route
+            && !staff_invitation_write
             && !check_in
             && !check_in_list
+            && !check_in_self
             && !stage_command
             && !local_checkout
             && !publication_write

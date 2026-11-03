@@ -32,8 +32,11 @@ export function HeroHighlights(){
   const stage=mount.current;const node=document.createElement("div");stage.appendChild(node);
   sitePaused.current=document.querySelector(".marketing-motion")?.getAttribute("data-motion")==="paused";
   setUnavailable(false);
+  const pausePlayback=()=>{
+   if(alive&&initialized)player.current?.pauseVideo?.();
+  };
   const attemptPlayback=()=>{
-   if(!autoplayBlocked&&inView.current&&!document.hidden&&!sitePaused.current)player.current?.playVideo();
+   if(alive&&initialized&&!autoplayBlocked&&inView.current&&!document.hidden&&!sitePaused.current)player.current?.playVideo?.();
   };
   const deadline=window.setTimeout(()=>{if(alive&&!initialized)setUnavailable(true);},18000);
   loadYouTubeAPI().then(api=>{
@@ -43,12 +46,12 @@ export function HeroHighlights(){
     playerVars:{autoplay:1,mute:1,controls:0,playsinline:1,disablekb:1,fs:0,rel:0,cc_load_policy:0,enablejsapi:1,origin:location.origin,start:WSB_HIGHLIGHTS[index.current].start,end:WSB_HIGHLIGHTS[index.current].end},
     events:{
      onReady:({target})=>{
-      if(!alive)return;initialized=true;window.clearTimeout(deadline);
+      if(!alive)return;player.current=target;initialized=true;window.clearTimeout(deadline);
       const frame=stage.querySelector("iframe");frame?.setAttribute("tabindex","-1");frame?.setAttribute("aria-hidden","true");
-      target.mute();attemptPlayback();
+      target.mute?.();attemptPlayback();
      },
      onStateChange:({target,data})=>{
-      if(!alive)return;
+      if(!alive||!initialized)return;
       if(data===1){
        target.mute();
        if(sitePaused.current||document.hidden||!inView.current){target.pauseVideo();setPlaying(false);}
@@ -65,19 +68,19 @@ export function HeroHighlights(){
     },
    });
   }).catch(()=>{if(alive){setUnavailable(true);setPlaying(false);}});
-  const visibility=()=>{if(document.hidden)player.current?.pauseVideo();else attemptPlayback();};
+  const visibility=()=>{if(document.hidden)pausePlayback();else attemptPlayback();};
   const motion=(event:Event)=>{
    sitePaused.current=!!(event as CustomEvent<{paused:boolean}>).detail.paused;
-   if(sitePaused.current)player.current?.pauseVideo();else attemptPlayback();
+   if(sitePaused.current)pausePlayback();else attemptPlayback();
   };
   const observer=new IntersectionObserver(([entry])=>{
-   inView.current=entry.isIntersecting;if(!entry.isIntersecting)player.current?.pauseVideo();else attemptPlayback();
+   inView.current=entry.isIntersecting;if(!entry.isIntersecting)pausePlayback();else attemptPlayback();
   },{threshold:.1});
   observer.observe(stage);document.addEventListener("visibilitychange",visibility);document.addEventListener("wsb:motion-change",motion);
   return()=>{
-   alive=false;window.clearTimeout(deadline);observer.disconnect();
+   alive=false;initialized=false;window.clearTimeout(deadline);observer.disconnect();
    document.removeEventListener("visibilitychange",visibility);document.removeEventListener("wsb:motion-change",motion);
-   player.current?.destroy();player.current=null;stage.replaceChildren();
+   player.current?.destroy?.();player.current=null;stage.replaceChildren();
   };
  },[enabled]);
 
