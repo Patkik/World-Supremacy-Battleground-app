@@ -4255,3 +4255,17 @@ existing authorization without weakening it. Fifteen focused web tests, all-feat
 all-target strict Clippy, formatting and Compose configuration checks passed.
 Local integration execution remains unavailable without the demo-wsb emulator;
 Docker daemon is not running. Hosted verification required after push.
+
+## Story walkthrough document — 2026-11-03
+Created a local Word rehearsal guide with 16 narrative scenes, 20 seeded-account references and 123 exact scene test IDs from the saved 826-case catalog. Credential-bearing output stays in ignored local deliverables and is excluded from retrieval. Document links resolve to catalog IDs; 21 pages rendered via installed Word after packaged LibreOffice was unavailable. No application workflows or account logins executed for this document; catalog statuses remain Not Run. Pending policy and unavailable workflows are explicitly separated from the seeded operational path.
+
+## Street poster hero entrance — 2026-11-04
+Replaced the generic hero entrance with scoped GSAP headline masks (100ms stagger),
+a separate skewed lime wipe, 1.4x sticker snaps and a 1.1x frame drop with an
+orange backing kick 80ms after impact. Removed perpetual sticker floating.
+Existing muted archive video/poster behavior remains; no new media or WebGL.
+Typecheck, accessibility contract and public-motion browser suite passed.
+Desktop 1440px and mobile 320px previews have no horizontal overflow; reduced
+motion restores static transforms and no-JavaScript headline remains readable.
+Final production build passed. Existing metadataBase fallback warning remains.
+No deployment performed.

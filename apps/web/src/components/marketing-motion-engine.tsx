@@ -19,37 +19,60 @@ export default function MarketingMotionEngine({
       "(prefers-reduced-motion: no-preference)",
       () => {
         const intro = gsap.timeline({ defaults: { ease: "power3.out" } });
+        // The white lines land at .52s; the slash follows before EVENT appears.
         intro
           .from("[data-hero-line]", {
-            yPercent: 108,
-            rotate: 2,
-            duration: 1.05,
-            stagger: 0.12,
-            clearProps: "all",
-          }, 0)
-          .from("[data-hero-reveal]", {
-            y: 24,
-            opacity: 0.25,
-            duration: 0.9,
+            yPercent: 115,
+            duration: 0.42,
             stagger: 0.1,
-            clearProps: "all",
-          }, 0.15);
-
-        const stamp = gsap.to(".hero-stamp", {
-          y: -9,
-          rotation: 3,
-          duration: 2.7,
-          repeat: -1,
-          yoyo: true,
-          ease: "sine.inOut",
-          paused: true,
-        });
-        ScrollTrigger.create({
-          trigger: ".hero",
-          start: "top bottom",
-          end: "bottom top",
-          onToggle: self => (self.isActive ? stamp.play() : stamp.pause()),
-        });
+            ease: "power4.out",
+            clearProps: "transform",
+          }, 0)
+          .from("[data-hero-highlight]", {
+            scaleX: 0,
+            transformOrigin: "left center",
+            duration: 0.22,
+            ease: "power2.inOut",
+            clearProps: "transform,transformOrigin",
+          }, 0.52)
+          .from("[data-hero-event]", {
+            yPercent: 115,
+            opacity: 0,
+            duration: 0.3,
+            clearProps: "transform,opacity",
+          }, 0.62)
+          .from("[data-hero-sticker]", {
+            scale: 1.4,
+            rotation: -9,
+            opacity: 0,
+            duration: 0.32,
+            stagger: 0.1,
+            ease: "back.out(1.8)",
+            clearProps: "transform,opacity",
+          }, 0.72)
+          .from("[data-hero-frame]", {
+            y: -42,
+            scale: 1.1,
+            opacity: 0,
+            duration: 0.5,
+            ease: "power4.out",
+            clearProps: "transform,opacity",
+          }, 0.2)
+          // Frame lands at .70s; its orange backing kicks out 80ms later.
+          .from("[data-hero-frame-offset]", {
+            x: 0,
+            y: 0,
+            duration: 0.18,
+            ease: "back.out(1.6)",
+            clearProps: "transform",
+          }, 0.78)
+          .from("[data-hero-reveal]", {
+            y: 12,
+            opacity: 0,
+            duration: 0.35,
+            stagger: 0.06,
+            clearProps: "transform,opacity",
+          }, 0.85);
 
         const sections = root.current?.querySelectorAll<HTMLElement>("[data-motion-section]") ?? [];
         const tape = root.current?.querySelector<HTMLElement>(".motion-tape-track");
@@ -82,14 +105,16 @@ export default function MarketingMotionEngine({
           }
         });
 
-        gsap.fromTo(
-          ".movement-number",
+        const movement = root.current?.querySelector(".movement-number");
+        const movementSection = root.current?.querySelector(".movement-section");
+        if (movement && movementSection) gsap.fromTo(
+          movement,
           { xPercent: -6, rotation: -12 },
           {
             xPercent: 5,
             rotation: -5,
             ease: "none",
-            scrollTrigger: { trigger: ".movement-section", start: "top bottom", end: "bottom top", scrub: 0.7 },
+            scrollTrigger: { trigger: movementSection, start: "top bottom", end: "bottom top", scrub: 0.7 },
           },
         );
 

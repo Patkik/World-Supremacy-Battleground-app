@@ -22,10 +22,10 @@
 .street-landing .hero-copy {width:auto;position:relative;padding:0;z-index:4;min-width:0}
 .street-landing .hero-copy>.eyebrow {display:inline-block;background:var(--text-chrome);color:var(--bg-obsidian);padding:8px 12px;transform:rotate(-2deg);margin-bottom:26px;font-size:10px}
 .street-landing .hero h1 {font-size:clamp(56px,7.8vw,118px);line-height:1.05;letter-spacing:0}
-.street-landing .hero h1>.hero-line {overflow:visible;padding:0;margin:0}
+.street-landing .hero h1>.hero-line {overflow:hidden;overflow:clip;padding:0 .06em .06em;margin:0 -.06em -.06em}
 .street-landing .hero h1>.hero-line-volt {color:var(--bg-obsidian);margin-top:8px}
 .street-landing .hero-line-volt>span {position:relative;padding:0 .12em;isolation:isolate}
-.street-landing .hero-line-volt>span:before {content:"";position:absolute;inset:3% -2% -2%;background:var(--accent-volt);transform:skew(-5deg);z-index:-1;pointer-events:none}
+.street-landing .hero-highlight {display:block;position:absolute;inset:3% -2% -2%;background:var(--accent-volt);transform:skew(-5deg);z-index:-1;pointer-events:none}
 .street-landing .hero-line:first-child>span {text-shadow:3px 0 var(--bg-obsidian)}
 .street-landing .hero-description {font-size:16px;line-height:1.8;max-width:44ch;background:var(--bg-obsidian);margin-top:30px}
 .street-landing .hero-actions {margin-top:26px;gap:26px}
@@ -34,7 +34,7 @@
 .street-landing .button-volt:hover {transform:translate(-3px,-3px);background:var(--accent-volt)}
 .street-landing .hero-secondary {font-size:13px;min-height:44px}
 .street-landing .hero .landing-reassurance {font-size:12px;margin-top:22px}
-.street-landing .hero-highlights {position:relative;inset:auto;width:100%;height:520px;min-width:0;transform:rotate(2deg);border:2px solid var(--text-chrome);box-shadow:10px 10px 0 var(--accent-crimson);background:var(--bg-carbon);overflow:hidden}
+.street-landing .hero-highlights {position:relative;inset:auto;width:100%;height:520px;min-width:0;transform:rotate(2deg);border:2px solid var(--text-chrome);box-shadow:none;background:var(--bg-carbon);overflow:visible;isolation:isolate}
 .street-landing .hero-highlights:after {background:linear-gradient(0deg,var(--bg-obsidian),transparent 28%)}
 .street-landing .hero-highlights:before {content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 90% 10%,var(--accent-cobalt),transparent 60%);opacity:.12;pointer-events:none}
 .street-landing .hero-stamp {top:20px;right:14px;bottom:auto;z-index:5;transform:rotate(3deg);font-family:var(--font-mono);font-weight:700;font-size:11px}
@@ -137,3 +137,9 @@ body:has(.street-landing) .public-header .header-cta {background:var(--street-li
 .street-landing .event-date{width:72px;flex-shrink:0}
 .street-landing .event-date>strong{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:48px;letter-spacing:-.06em;line-height:1.1}
 @media(max-width:767px){.street-landing .event-date{width:44px}.street-landing .event-date>strong{font-size:32px}}
+
+/* Separate moving ink, text masks and frame backing keep the layout stable. */
+.street-landing .hero-word {display:inline-block;position:relative}
+.street-landing [data-hero-line],.street-landing [data-hero-event] {display:inline-block}
+.street-landing .hero-frame-offset {position:absolute;inset:-2px;background:var(--accent-crimson);transform:translate(10px,10px);z-index:-2;pointer-events:none}
+.street-landing .hero-media-clip {position:absolute;inset:0;overflow:hidden;background:var(--bg-carbon)}
