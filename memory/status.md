@@ -4283,3 +4283,12 @@ motion, saved motion off and no-JavaScript access. Existing accessibility contra
 and public-motion browser checks passed. No low-end hardware frame-rate guarantee
 or production deployment is claimed. New loader uses no added package or remote
 media; screenshots are in ignored local entrance-checks evidence.
+
+## Loader two-step — 2026-11-04
+Fixed the marketing pause rule freezing the loader by separating the loader
+from the paused wrapper. The SVG now performs a 1.6-second two-step with
+alternating foot lifts and coordinated arm hits. The phrase ends against its
+animation clock before the hero starts. No new dependency. Production build,
+accessibility contract and production-preview browser checks passed. The browser
+check verifies both legs change pose at 1440px and 320px and covers handoff,
+skip, timeout, reduced motion and no-JavaScript access.

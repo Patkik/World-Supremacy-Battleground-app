@@ -2971,3 +2971,11 @@ optional video never gates entry. A 1.2-second phrase boundary, 120ms settle and
 dance and uses an 80ms fade. Native dialog focus, Escape/Enter site, a 6.5-second
 readiness deadline and a pre-hydration fail-open cover prevent a trapped page.
 Source: current user request; landing-entrance.tsx; marketing-motion.tsx.
+
+## Loader dance isolation — 2026-11-04
+The loader must run independently while the underlying marketing surface is
+paused. The landing entrance now sits beside the paused marketing wrapper so
+its descendant pause rule cannot freeze the dancer. A 1.6-second two-step uses
+coordinated hip, knee, ankle and arm transforms on the existing SVG. The hero
+handoff uses the dancer's CSS animation clock to finish a phrase. No new package
+or media is needed. Source: user request, browser regression, and loader code.

@@ -1,22 +1,29 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 import "../app/landing-entrance.css";
 
 type Check = "waiting" | "ready" | "fallback";
-const BEAT = 1200;
+const DANCE_PHRASE_MS = 1600;
 
 /** Original filled silhouette: overlapping anatomical shapes, not stroked limbs. */
 function DancerSilhouette() {
-  return <svg className="entrance-dancer" viewBox="0 0 280 360" aria-hidden="true" focusable="false">
+  return <svg className="entrance-dancer" viewBox="0 0 280 360" aria-hidden="true" focusable="false"
+    style={{ "--dance-phrase": `${DANCE_PHRASE_MS}ms` } as CSSProperties}>
     <g className="dancer-body" fill="currentColor">
       <g className="dancer-leg-back">
         <path d="M133 193C143 188 157 192 160 204L164 249C164 260 154 268 143 264L130 224Z"/>
-        <g className="dancer-calf-back"><path d="M146 246C154 243 164 248 164 256L162 303 174 316C178 322 174 328 168 328H144C138 327 136 323 139 315L136 261C135 253 139 249 146 246Z"/></g>
+        <g className="dancer-calf-back">
+          <path d="M146 246C154 243 164 248 164 256L162 303 158 317H141L136 261C135 253 139 249 146 246Z"/>
+          <g className="dancer-foot-back"><path d="M141 307H161L174 316C178 322 174 328 168 328H144C138 327 136 323 139 315Z"/></g>
+        </g>
       </g>
       <g className="dancer-leg-front">
         <path d="M108 192C117 187 137 194 137 205L126 255C123 267 104 268 101 256L103 214Z"/>
-        <g className="dancer-calf-front"><path d="M108 247C116 244 126 250 125 260L118 311 124 324C126 330 123 334 117 334H87C82 333 81 328 87 325L100 316 99 261C99 253 102 249 108 247Z"/></g>
+        <g className="dancer-calf-front">
+          <path d="M108 247C116 244 126 250 125 260L118 311 116 321H101L99 261C99 253 102 249 108 247Z"/>
+          <g className="dancer-foot-front"><path d="M101 310H118L124 324C126 330 123 334 117 334H87C82 333 81 328 87 325L100 316Z"/></g>
+        </g>
       </g>
       <g className="dancer-upper">
         <path d="M118 99L118 88 140 87 143 99 157 107C166 113 164 130 159 147L153 170 157 199C143 212 114 211 100 198L105 166 98 131C95 117 103 105 118 99Z"/>
@@ -41,7 +48,6 @@ export function LandingEntrance({ root, motionReady, quiet, onComplete }: {
   onComplete: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
-  const started = useRef(0);
   const [checks, setChecks] = useState<Check[]>(["ready", "waiting", "waiting"]);
   const [phase, setPhase] = useState("loading");
   const [expired, setExpired] = useState(false);
@@ -53,7 +59,6 @@ export function LandingEntrance({ root, motionReady, quiet, onComplete }: {
   const fallback = expired || checks.includes("fallback");
 
   useLayoutEffect(() => {
-    started.current = performance.now();
     const element = dialog.current;
     const overflow = document.documentElement.style.overflow;
     document.documentElement.style.overflow = "hidden";
@@ -91,13 +96,14 @@ export function LandingEntrance({ root, motionReady, quiet, onComplete }: {
   }, [root]);
 
   useEffect(() => {
-    if (!ready && !expired && !skipped) return;
-    // Finish at the phrase boundary even with a warm cache; never invent loading progress.
-    const elapsed = performance.now() - started.current;
-    const phraseEnd = Math.max(BEAT, Math.ceil(elapsed / BEAT) * BEAT);
+    if (!managed || (!ready && !expired && !skipped)) return;
+    // Use the actual CSS animation clock so hydration time does not cut a step short.
+    const dancer = dialog.current?.querySelector(".dancer-body");
+    const elapsed = Number(dancer?.getAnimations()[0]?.currentTime ?? 0);
+    const phraseEnd = Math.max(DANCE_PHRASE_MS, Math.ceil(elapsed / DANCE_PHRASE_MS) * DANCE_PHRASE_MS);
     const timer = window.setTimeout(() => setPhase("settling"), quiet || skipped ? 0 : phraseEnd - elapsed);
     return () => window.clearTimeout(timer);
-  }, [ready, expired, skipped, quiet]);
+  }, [managed, ready, expired, skipped, quiet]);
 
   useEffect(() => {
     if (phase !== "settling") return;

@@ -65,10 +65,12 @@ export function MarketingMotion({ children }: { children: React.ReactNode }) {
   }, [paused, entered]);
 
   return (
-    <div ref={root} className="marketing-motion" data-motion={paused || !entered ? "paused" : "active"} data-entrance={entered ? "complete" : "preparing"}>
-      {children}
+    <>
+      <div ref={root} className="marketing-motion" data-motion={paused || !entered ? "paused" : "active"} data-entrance={entered ? "complete" : "preparing"}>
+        {children}
+        {engineEnabled && !paused && <MotionEngine root={root} onIntroReady={onIntroReady} />}
+      </div>
       {!entered && <LandingEntrance root={root} motionReady={motionReady} quiet={paused || reduced} onComplete={enter} />}
-      {engineEnabled && !paused && <MotionEngine root={root} onIntroReady={onIntroReady} />}
-    </div>
+    </>
   );
 }

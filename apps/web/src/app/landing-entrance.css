@@ -27,22 +27,131 @@
 .entrance-bottom button{font:12px var(--font-sans);color:var(--text-chrome);background:none;border:1px solid var(--text-titanium);min-height:44px;padding:0 18px;white-space:nowrap;cursor:pointer}
 .entrance-bottom button span{margin-left:16px;color:var(--accent-volt)}
 .entrance-bottom button:focus-visible{outline:2px solid var(--accent-volt);outline-offset:5px}
-.dancer-body{transform-origin:132px 325px;animation:dancer-groove 1.2s ease-in-out infinite}
-.dancer-upper{transform-origin:130px 200px;animation:dancer-pop 1.2s ease-in-out infinite}
-.dancer-head{transform-origin:132px 94px;animation:dancer-head 1.2s ease-in-out infinite}
-.dancer-arm-left{transform-origin:103px 119px;animation:dancer-left 1.2s ease-in-out infinite}
-.dancer-arm-right{transform-origin:155px 119px;animation:dancer-right 1.2s ease-in-out infinite}
-.dancer-forearm-left{transform-origin:79px 158px;animation:dancer-wrist 1.2s ease-in-out infinite}
-.dancer-forearm-right{transform-origin:178px 155px;animation:dancer-wrist-right 1.2s ease-in-out infinite}
-.dancer-leg-back{transform-origin:146px 202px;animation:dancer-step 1.2s ease-in-out infinite}
-@keyframes dancer-groove{0%,100%{transform:translateY(0) rotate(-3deg)}25%{transform:translateY(5px) rotate(1deg)}50%{transform:translateY(-2px) rotate(3deg)}75%{transform:translateY(4px) rotate(-1deg)}}
-@keyframes dancer-pop{0%,100%{transform:rotate(-6deg)}25%{transform:rotate(3deg)}50%{transform:rotate(7deg)}75%{transform:rotate(-3deg)}}
-@keyframes dancer-head{0%,100%{transform:rotate(8deg)}45%,60%{transform:rotate(-10deg)}}
-@keyframes dancer-left{0%,100%{transform:rotate(18deg)}30%,45%{transform:rotate(65deg)}70%{transform:rotate(35deg)}}
-@keyframes dancer-right{0%,100%{transform:rotate(-35deg)}25%,40%{transform:rotate(-75deg)}65%,80%{transform:rotate(-15deg)}}
-@keyframes dancer-wrist{0%,100%{transform:rotate(-60deg)}35%,50%{transform:rotate(-105deg)}75%{transform:rotate(-30deg)}}
-@keyframes dancer-wrist-right{0%,100%{transform:rotate(65deg)}30%{transform:rotate(100deg)}65%,80%{transform:rotate(30deg)}}
-@keyframes dancer-step{0%,100%{transform:rotate(-5deg)}45%,60%{transform:rotate(-13deg)}}
+.entrance-dancer g {
+ transform-box:view-box;
+ animation-duration:var(--dance-phrase);
+ animation-timing-function:cubic-bezier(.42,0,.32,1);
+ animation-iteration-count:infinite;
+}
+.dancer-body{animation-name:dancer-weight-shift}
+.dancer-upper{transform-origin:130px 200px;animation-name:dancer-shoulders}
+.dancer-head{transform-origin:132px 94px;animation-name:dancer-head}
+.dancer-arm-left{transform-origin:103px 119px;animation-name:dancer-left}
+.dancer-arm-right{transform-origin:155px 119px;animation-name:dancer-right}
+.dancer-forearm-left{transform-origin:79px 158px;animation-name:dancer-elbow-left}
+.dancer-forearm-right{transform-origin:178px 155px;animation-name:dancer-elbow-right}
+.dancer-leg-front{transform-origin:117px 202px;animation-name:dancer-thigh-front}
+.dancer-calf-front{transform-origin:112px 256px;animation-name:dancer-shin-front}
+.dancer-foot-front{transform-origin:109px 319px;animation-name:dancer-shoe-front}
+.dancer-leg-back{transform-origin:146px 202px;animation-name:dancer-thigh-back}
+.dancer-calf-back{transform-origin:151px 256px;animation-name:dancer-shin-back}
+.dancer-foot-back{transform-origin:151px 315px;animation-name:dancer-shoe-back}
+
+/* Pick up at 12.5% and 62.5%, land on the quarter beats, and return to the same stance. */
+@keyframes dancer-weight-shift {
+ 0%,50%,100%{transform:translate(0,4px)}
+ 12.5%{transform:translate(-8px,3px)}
+ 25%{transform:translate(-23px,12px)}
+ 37.5%{transform:translate(-16px,7px)}
+ 62.5%{transform:translate(9px,5px)}
+ 75%{transform:translate(24px,13px)}
+ 87.5%{transform:translate(13px,7px)}
+}
+@keyframes dancer-shoulders {
+ 0%,100%{transform:rotate(-5deg)}
+ 12.5%{transform:rotate(8deg)}
+ 25%{transform:rotate(-16deg)}
+ 37.5%{transform:rotate(-10deg)}
+ 50%{transform:rotate(5deg)}
+ 62.5%{transform:rotate(-7deg)}
+ 75%{transform:rotate(15deg)}
+ 87.5%{transform:rotate(8deg)}
+}
+@keyframes dancer-head {
+ 0%,100%{transform:rotate(7deg)}
+ 25%{transform:rotate(12deg)}
+ 50%{transform:rotate(0)}
+ 75%{transform:rotate(-12deg)}
+}
+@keyframes dancer-left {
+ 0%,100%{transform:rotate(24deg)}
+ 12.5%{transform:rotate(6deg)}
+ 25%,31%{transform:rotate(63deg)}
+ 50%{transform:rotate(20deg)}
+ 62.5%{transform:rotate(34deg)}
+ 75%,81%{transform:rotate(111deg)}
+}
+@keyframes dancer-right {
+ 0%,100%{transform:rotate(-37deg)}
+ 12.5%{transform:rotate(-27deg)}
+ 25%,31%{transform:rotate(-101deg)}
+ 50%{transform:rotate(-23deg)}
+ 62.5%{transform:rotate(-8deg)}
+ 75%,81%{transform:rotate(-64deg)}
+}
+@keyframes dancer-elbow-left {
+ 0%,100%{transform:rotate(-72deg)}
+ 25%,31%{transform:rotate(-135deg)}
+ 50%{transform:rotate(-102deg)}
+ 75%,81%{transform:rotate(-22deg)}
+}
+@keyframes dancer-elbow-right {
+ 0%,100%{transform:rotate(76deg)}
+ 25%,31%{transform:rotate(21deg)}
+ 50%{transform:rotate(109deg)}
+ 75%,81%{transform:rotate(139deg)}
+}
+
+/* Knee and ankle angles counter the hip rotation to keep the support foot level. */
+@keyframes dancer-thigh-front {
+ 0%,50%,100%{transform:rotate(17deg)}
+ 12.5%{transform:rotate(44deg)}
+ 25%{transform:rotate(32deg)}
+ 37.5%,87.5%{transform:rotate(25deg)}
+ 62.5%{transform:rotate(20deg)}
+ 75%{transform:rotate(35deg)}
+}
+@keyframes dancer-shin-front {
+ 0%,50%,100%{transform:rotate(-23deg)}
+ 12.5%{transform:rotate(-58deg)}
+ 25%{transform:rotate(-46deg)}
+ 37.5%{transform:rotate(-27deg)}
+ 62.5%{transform:rotate(-19deg)}
+ 75%{transform:rotate(-32deg)}
+ 87.5%{transform:rotate(-24deg)}
+}
+@keyframes dancer-shoe-front {
+ 0%,50%,100%{transform:rotate(5deg)}
+ 12.5%{transform:rotate(28deg)}
+ 25%{transform:rotate(14deg)}
+ 37.5%{transform:rotate(2deg)}
+ 62.5%,87.5%{transform:rotate(-1deg)}
+ 75%{transform:rotate(-4deg)}
+}
+@keyframes dancer-thigh-back {
+ 0%,50%,100%{transform:rotate(-4deg)}
+ 12.5%{transform:rotate(-8deg)}
+ 25%{transform:rotate(-16deg)}
+ 37.5%{transform:rotate(-12deg)}
+ 62.5%{transform:rotate(-46deg)}
+ 75%{transform:rotate(-25deg)}
+ 87.5%{transform:rotate(-36deg)}
+}
+@keyframes dancer-shin-back {
+ 0%,50%,100%,12.5%,25%,37.5%{transform:rotate(-5deg)}
+ 62.5%{transform:rotate(49deg)}
+ 75%{transform:rotate(24deg)}
+ 87.5%{transform:rotate(46deg)}
+}
+@keyframes dancer-shoe-back {
+ 0%,50%,100%{transform:rotate(9deg)}
+ 12.5%{transform:rotate(13deg)}
+ 25%{transform:rotate(21deg)}
+ 37.5%{transform:rotate(17deg)}
+ 62.5%{transform:rotate(-18deg)}
+ 75%{transform:rotate(1deg)}
+ 87.5%{transform:rotate(-19deg)}
+}
 .landing-entrance[data-managed=false] .entrance-dancer *,.landing-entrance[data-phase=settling] .entrance-dancer *,.landing-entrance[data-phase=leaving] .entrance-dancer *{animation-play-state:paused}
 .landing-entrance[data-phase=leaving]{animation:entrance-lift .5s cubic-bezier(.76,0,.24,1) both;will-change:transform}
 @keyframes entrance-lift{to{transform:translateY(-100%)}}

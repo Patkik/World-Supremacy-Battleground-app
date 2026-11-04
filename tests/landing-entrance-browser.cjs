@@ -23,7 +23,12 @@ const poster = '<svg xmlns="http://www.w3.org/2000/svg" width="480" height="360"
       await page.waitForFunction(() => document.querySelector('.entrance-progress').getAttribute('aria-valuenow') === '3');
       const line = page.locator('[data-hero-line]').first();
       const position = await line.evaluate(el => getComputedStyle(el).transform);
+      const legs = page.locator('.dancer-leg-front, .dancer-leg-back');
+      const legPose = await legs.evaluateAll(elements => elements.map(el => getComputedStyle(el).transform));
       await page.waitForTimeout(250);
+      const nextLegPose = await legs.evaluateAll(elements => elements.map(el => getComputedStyle(el).transform));
+      assert.notEqual(nextLegPose[0], legPose[0], 'first leg moves while the page loads');
+      assert.notEqual(nextLegPose[1], legPose[1], 'second leg moves while the page loads');
       assert.equal(await line.evaluate(el => getComputedStyle(el).transform), position, 'hero remains held behind loader');
       assert.notEqual(position, 'none');
       assert.equal(await page.locator('.entrance-progress').getAttribute('aria-valuenow'), '3', 'pending image never claims completed loading');
