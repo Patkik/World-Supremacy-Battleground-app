@@ -2979,3 +2979,14 @@ its descendant pause rule cannot freeze the dancer. A 1.6-second two-step uses
 coordinated hip, knee, ankle and arm transforms on the existing SVG. The hero
 handoff uses the dancer's CSS animation clock to finish a phrase. No new package
 or media is needed. Source: user request, browser regression, and loader code.
+
+## Motion capture for the landing dancer — 2026-11-04
+
+The user requested fluid, real human dance after reviewing the CSS two-step.
+Replace the synthetic joint choreography with an offline silhouette render of
+CMU Graphics Lab breakdance take 85_03. Serve a short, silent 60 fps MP4 and
+matching still. This preserves recorded timing, footwork, and weight shifts
+while using the browser's native decoder. Source, reuse terms and regeneration
+steps are in `docs/entrance-dancer.md`. Respect reduced motion, saved motion
+preferences, and data saving. A playable clip can finish its phrase before
+the hero reveal, with bounded waits and an explicit skip.

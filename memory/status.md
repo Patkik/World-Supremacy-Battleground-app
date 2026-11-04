@@ -4292,3 +4292,15 @@ animation clock before the hero starts. No new dependency. Production build,
 accessibility contract and production-preview browser checks passed. The browser
 check verifies both legs change pose at 1440px and 320px and covers handoff,
 skip, timeout, reduced motion and no-JavaScript access.
+
+## Motion-captured breakdance loader — 2026-11-04
+
+Replaced the CSS two-step with a custom silhouette rendered from a real
+breakdancer's captured performance. The local 2.73-second silent MP4 is
+68,198 bytes, 320×320 and 60 fps. The first frame doubles as the still
+fallback. Source credits and regeneration commands are in `docs/entrance-dancer.md`.
+Typecheck and production build passed. Production-preview browser checks passed
+at 1440px and 320px for changing decoded frames, phrase completion, hero
+handoff, accurate progress and cleanup. Escape, the readiness timeout, stalled
+and failed video, reduced and disabled motion, data saving, and JavaScript-off
+behavior also passed. Encoding at 60 fps does not measure device playback rates.

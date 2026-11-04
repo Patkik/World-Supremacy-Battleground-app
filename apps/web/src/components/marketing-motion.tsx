@@ -18,6 +18,7 @@ export function MarketingMotion({ children }: { children: React.ReactNode }) {
   const [preferenceReady, setPreferenceReady] = useState(false);
   const [engineEnabled, setEngineEnabled] = useState(false);
   const [reduced, setReduced] = useState(false);
+  const [saveData, setSaveData] = useState(false);
   const [entered, setEntered] = useState(false);
   const [motionReady, setMotionReady] = useState(false);
   const enteredRef = useRef(false);
@@ -38,6 +39,11 @@ export function MarketingMotion({ children }: { children: React.ReactNode }) {
     try {
       setPaused(sessionStorage.getItem(MOTION_PREFERENCE_KEY) === "true");
     } catch {}
+    setReduced(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+    const { connection } = navigator as Navigator & {
+      connection?: { saveData?: boolean; effectiveType?: string };
+    };
+    setSaveData(!!connection?.saveData || ["slow-2g", "2g"].includes(connection?.effectiveType ?? ""));
     const preference = (event: Event) =>
       setPaused(!!(event as CustomEvent<{ paused: boolean }>).detail.paused);
     document.addEventListener("wsb:motion-preference", preference);
@@ -70,7 +76,15 @@ export function MarketingMotion({ children }: { children: React.ReactNode }) {
         {children}
         {engineEnabled && !paused && <MotionEngine root={root} onIntroReady={onIntroReady} />}
       </div>
-      {!entered && <LandingEntrance root={root} motionReady={motionReady} quiet={paused || reduced} onComplete={enter} />}
+      {!entered && (
+        <LandingEntrance
+          root={root}
+          motionReady={motionReady}
+          danceAllowed={preferenceReady && !paused && !reduced && !saveData}
+          quiet={paused || reduced}
+          onComplete={enter}
+        />
+      )}
     </>
   );
 }
