@@ -2958,3 +2958,16 @@ them to invented TC-* IDs or promote PAGE/ROLE/F coverage references into approv
 SRS requirements. New REQ-DER IDs require governance approval. Preserve Not Run
 status and distinguish structural link completeness from semantic/functional
 coverage. Source: supplied Google Sheet and docs/specifications baseline.
+
+## Landing entrance readiness and motion — 2026-11-04
+User requested a minimal street-themed loading screen with an accurately shaped
+human silhouette, truthful progress, a full dance phrase on fast loads and a
+smooth handoff to the hero, optimized to avoid lag. Use an original filled inline
+SVG with CSS transform choreography; no new dependencies or external media.
+Show four actual completed checks (page, display fonts, poster and motion setup),
+not an invented byte percentage. Failed assets are identified as fallbacks;
+optional video never gates entry. A 1.2-second phrase boundary, 120ms settle and
+500ms lift precede the paused hero timeline. Reduced/saved-off motion skips the
+dance and uses an 80ms fade. Native dialog focus, Escape/Enter site, a 6.5-second
+readiness deadline and a pre-hydration fail-open cover prevent a trapped page.
+Source: current user request; landing-entrance.tsx; marketing-motion.tsx.

@@ -1,0 +1,54 @@
+/* Landing-only, no external assets or per-frame JavaScript. */
+.landing-entrance {
+ --bg-obsidian:#0d0d0f;--text-chrome:#f4f4f0;--text-titanium:#c1c1bb;--accent-volt:#ccff00;
+ position:fixed;inset:0;max-width:none;max-height:none;width:100%;height:100%;height:100dvh;
+ margin:0;padding:clamp(24px,4vw,56px);border:0;background:var(--bg-obsidian);color:var(--text-chrome);
+ overflow:hidden;font-family:var(--font-sans);box-sizing:border-box;z-index:10000;
+}
+.landing-entrance[data-managed=false]{animation:entrance-fail-open 9s step-end forwards}
+/* If hydration never arrives, this nonmodal cover must still release the page. */
+@keyframes entrance-fail-open{to{visibility:hidden;pointer-events:none}}
+.landing-entrance[open]{display:flex;flex-direction:column;justify-content:space-between}
+.landing-entrance::backdrop{background:transparent}
+.entrance-top,.entrance-bottom{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.entrance-top>span:first-child{font:400 36px/1 "Anton",Impact,sans-serif;letter-spacing:-.03em}
+.entrance-top>span:last-child{font:10px/1.5 var(--font-mono);text-align:right;letter-spacing:.1em}
+.entrance-center{width:min(100%,360px);margin:auto;text-align:center}
+.entrance-stage{height:clamp(180px,36vh,340px);position:relative;margin-bottom:24px}
+.entrance-dancer{height:100%;width:100%;overflow:visible;color:var(--text-chrome);position:relative;z-index:1}
+.entrance-floor{position:absolute;bottom:5%;left:22%;right:22%;height:10px;transform:skew(-20deg);background:var(--accent-volt)}
+.entrance-center h2{font:400 clamp(23px,5vw,32px)/1.15 "Anton",Impact,sans-serif;letter-spacing:.02em;margin:0 0 14px}
+.entrance-center p{font:13px/1.5 var(--font-sans);color:var(--text-titanium);min-height:20px;margin:0 0 26px}
+.entrance-progress{display:flex;gap:5px;height:3px}
+.entrance-progress>span{flex:1;background:var(--text-chrome);opacity:.17;transition:opacity .18s}
+.entrance-progress>span[data-complete=true]{background:var(--accent-volt);opacity:1}
+.entrance-checks{display:flex;justify-content:space-between;gap:8px;margin-top:12px;font:9px/1.4 var(--font-mono);letter-spacing:.05em;color:var(--text-titanium);font-variant-numeric:tabular-nums}
+.entrance-bottom>span{font:9px/1.5 var(--font-mono);letter-spacing:.08em;color:var(--text-titanium)}
+.entrance-bottom button{font:12px var(--font-sans);color:var(--text-chrome);background:none;border:1px solid var(--text-titanium);min-height:44px;padding:0 18px;white-space:nowrap;cursor:pointer}
+.entrance-bottom button span{margin-left:16px;color:var(--accent-volt)}
+.entrance-bottom button:focus-visible{outline:2px solid var(--accent-volt);outline-offset:5px}
+.dancer-body{transform-origin:132px 325px;animation:dancer-groove 1.2s ease-in-out infinite}
+.dancer-upper{transform-origin:130px 200px;animation:dancer-pop 1.2s ease-in-out infinite}
+.dancer-head{transform-origin:132px 94px;animation:dancer-head 1.2s ease-in-out infinite}
+.dancer-arm-left{transform-origin:103px 119px;animation:dancer-left 1.2s ease-in-out infinite}
+.dancer-arm-right{transform-origin:155px 119px;animation:dancer-right 1.2s ease-in-out infinite}
+.dancer-forearm-left{transform-origin:79px 158px;animation:dancer-wrist 1.2s ease-in-out infinite}
+.dancer-forearm-right{transform-origin:178px 155px;animation:dancer-wrist-right 1.2s ease-in-out infinite}
+.dancer-leg-back{transform-origin:146px 202px;animation:dancer-step 1.2s ease-in-out infinite}
+@keyframes dancer-groove{0%,100%{transform:translateY(0) rotate(-3deg)}25%{transform:translateY(5px) rotate(1deg)}50%{transform:translateY(-2px) rotate(3deg)}75%{transform:translateY(4px) rotate(-1deg)}}
+@keyframes dancer-pop{0%,100%{transform:rotate(-6deg)}25%{transform:rotate(3deg)}50%{transform:rotate(7deg)}75%{transform:rotate(-3deg)}}
+@keyframes dancer-head{0%,100%{transform:rotate(8deg)}45%,60%{transform:rotate(-10deg)}}
+@keyframes dancer-left{0%,100%{transform:rotate(18deg)}30%,45%{transform:rotate(65deg)}70%{transform:rotate(35deg)}}
+@keyframes dancer-right{0%,100%{transform:rotate(-35deg)}25%,40%{transform:rotate(-75deg)}65%,80%{transform:rotate(-15deg)}}
+@keyframes dancer-wrist{0%,100%{transform:rotate(-60deg)}35%,50%{transform:rotate(-105deg)}75%{transform:rotate(-30deg)}}
+@keyframes dancer-wrist-right{0%,100%{transform:rotate(65deg)}30%{transform:rotate(100deg)}65%,80%{transform:rotate(30deg)}}
+@keyframes dancer-step{0%,100%{transform:rotate(-5deg)}45%,60%{transform:rotate(-13deg)}}
+.landing-entrance[data-managed=false] .entrance-dancer *,.landing-entrance[data-phase=settling] .entrance-dancer *,.landing-entrance[data-phase=leaving] .entrance-dancer *{animation-play-state:paused}
+.landing-entrance[data-phase=leaving]{animation:entrance-lift .5s cubic-bezier(.76,0,.24,1) both;will-change:transform}
+@keyframes entrance-lift{to{transform:translateY(-100%)}}
+.landing-entrance[data-quiet=true] .entrance-dancer *{animation:none}
+.landing-entrance[data-quiet=true][data-phase=leaving]{animation:entrance-fade .08s linear both}
+@keyframes entrance-fade{to{opacity:0}}
+@media(prefers-reduced-motion:reduce){.landing-entrance .entrance-dancer *{animation:none}.landing-entrance[data-phase=leaving]{animation:entrance-fade .08s linear both}.entrance-progress>span{transition:none}}
+@media(max-width:400px){.entrance-bottom>span{max-width:120px}.entrance-stage{height:240px}}
+@media(max-height:600px){.entrance-stage{height:140px;margin-bottom:10px}.entrance-center p{margin-bottom:12px}.entrance-top>span:first-child{font-size:25px}}

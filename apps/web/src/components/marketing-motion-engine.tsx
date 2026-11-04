@@ -5,20 +5,23 @@ import gsap from "gsap";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Lenis from "lenis";
 import type { RefObject } from "react";
+import type { HeroIntroControls } from "./marketing-motion";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
 export default function MarketingMotionEngine({
   root,
+  onIntroReady,
 }: {
   root: RefObject<HTMLDivElement | null>;
+  onIntroReady: (controls: HeroIntroControls | null) => void;
 }) {
   useGSAP(() => {
     const media = gsap.matchMedia();
     media.add(
       "(prefers-reduced-motion: no-preference)",
       () => {
-        const intro = gsap.timeline({ defaults: { ease: "power3.out" } });
+        const intro = gsap.timeline({ paused: true, defaults: { ease: "power3.out" } });
         // The white lines land at .52s; the slash follows before EVENT appears.
         intro
           .from("[data-hero-line]", {
@@ -73,6 +76,8 @@ export default function MarketingMotionEngine({
             stagger: 0.06,
             clearProps: "transform,opacity",
           }, 0.85);
+
+        onIntroReady({ play: () => { intro.play(); }, finish: () => { intro.progress(1); } });
 
         const sections = root.current?.querySelectorAll<HTMLElement>("[data-motion-section]") ?? [];
         const tape = root.current?.querySelector<HTMLElement>(".motion-tape-track");
@@ -134,7 +139,7 @@ export default function MarketingMotionEngine({
       },
       root,
     );
-    return () => media.revert();
+    return () => { media.revert(); onIntroReady(null); };
   }, { scope: root, revertOnUpdate: true });
 
   return null;

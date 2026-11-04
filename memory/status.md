@@ -4269,3 +4269,17 @@ Desktop 1440px and mobile 320px previews have no horizontal overflow; reduced
 motion restores static transforms and no-JavaScript headline remains readable.
 Final production build passed. Existing metadataBase fallback warning remains.
 No deployment performed.
+
+## Landing loading entrance — 2026-11-04
+Implemented an original human silhouette loader with CSS-only dance transforms,
+actual page/font/poster/motion completion checks, fallback messaging and a paused
+hero handoff. Fast readiness completes a dance phrase before the screen lifts.
+Server-rendered cover, native modal focus, explicit skip/Escape, readiness timeout,
+no-JavaScript access and reduced/saved-off motion fallbacks are included.
+Typecheck and production build passed; existing metadataBase warning remains.
+Dedicated browser checks passed at 1440px and 320px for pending-image honesty,
+held hero, minimum phrase, handoff, navigation cleanup, Escape, timeout, reduced
+motion, saved motion off and no-JavaScript access. Existing accessibility contract
+and public-motion browser checks passed. No low-end hardware frame-rate guarantee
+or production deployment is claimed. New loader uses no added package or remote
+media; screenshots are in ignored local entrance-checks evidence.
