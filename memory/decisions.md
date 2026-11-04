@@ -2990,3 +2990,11 @@ while using the browser's native decoder. Source, reuse terms and regeneration
 steps are in `docs/entrance-dancer.md`. Respect reduced motion, saved motion
 preferences, and data saving. A playable clip can finish its phrase before
 the hero reveal, with bounded waits and an explicit skip.
+
+## Battle poster art direction for the loader — 2026-11-04
+
+The user asked for more personality in the loading screen and its background.
+Carry the public landing page's street poster palette into the loader using a
+torn halftone wall, lime marker typography, vinyl grooves and an orange sticker.
+Use static CSS for the artwork and keep the recorded dancer as the only
+continuous motion. Keep the four readiness checks and the existing entry controls.

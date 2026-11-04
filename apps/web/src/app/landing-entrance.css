@@ -1,42 +1,265 @@
-/* Landing-only. Native playback uses a self-hosted motion capture render. */
+/* Landing only. The artwork uses static CSS and the existing dance media. */
 .landing-entrance {
- --bg-obsidian:#0d0d0f;--text-chrome:#f4f4f0;--text-titanium:#c1c1bb;--accent-volt:#ccff00;
- position:fixed;inset:0;max-width:none;max-height:none;width:100%;height:100%;height:100dvh;
- margin:0;padding:clamp(24px,4vw,56px);border:0;background:var(--bg-obsidian);color:var(--text-chrome);
- overflow:hidden;font-family:var(--font-sans);box-sizing:border-box;z-index:10000;
+  --bg-obsidian: #0d0d0f;
+  --bg-carbon: #16161a;
+  --text-chrome: #f4f4f0;
+  --text-titanium: #c1c1bb;
+  --accent-volt: #ccff00;
+  --accent-crimson: #ff4d00;
+  --entrance-ink: color-mix(in srgb, var(--text-chrome) 18%, transparent);
+  --entrance-display: "Anton", Impact, sans-serif;
+
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  isolation: isolate;
+  width: 100%;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: clamp(18px, 3.4vw, 56px);
+  border: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  box-sizing: border-box;
+  background: var(--bg-obsidian);
+  color: var(--text-chrome);
+  font-family: "Space Grotesk", var(--font-sans), sans-serif;
 }
-.landing-entrance[data-managed=false]{animation:entrance-fail-open 9s step-end forwards}
-/* If hydration never arrives, this nonmodal cover must still release the page. */
-@keyframes entrance-fail-open{to{visibility:hidden;pointer-events:none}}
-.landing-entrance[open]{display:flex;flex-direction:column;justify-content:space-between}
-.landing-entrance::backdrop{background:transparent}
-.entrance-top,.entrance-bottom{display:flex;align-items:center;justify-content:space-between;gap:20px}
-.entrance-top>span:first-child{font:400 36px/1 "Anton",Impact,sans-serif;letter-spacing:-.03em}
-.entrance-top>span:last-child{font:10px/1.5 var(--font-mono);text-align:right;letter-spacing:.1em}
-.entrance-center{width:min(100%,360px);margin:auto;text-align:center}
-.entrance-stage{height:clamp(180px,36vh,340px);position:relative;margin-bottom:24px;background:var(--bg-obsidian);isolation:isolate}
-.entrance-dancer{
- position:relative;z-index:1;margin-inline:auto;width:min(100%,36vh,340px);height:100%;
- background:url("/images/entrance-dancer.webp") center/contain no-repeat;
- mix-blend-mode:screen;pointer-events:none;
+
+.landing-entrance[open] {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(12px, 3vh, 32px);
 }
-.entrance-dancer video{display:block;width:100%;height:100%;object-fit:contain}
-.entrance-floor{position:absolute;bottom:8%;left:22%;right:22%;height:6px;transform:skew(-20deg);background:var(--accent-volt)}
-.entrance-center h2{font:400 clamp(23px,5vw,32px)/1.15 "Anton",Impact,sans-serif;letter-spacing:.02em;margin:0 0 14px}
-.entrance-center p{font:13px/1.5 var(--font-sans);color:var(--text-titanium);min-height:20px;margin:0 0 26px}
-.entrance-progress{display:flex;gap:5px;height:3px}
-.entrance-progress>span{flex:1;background:var(--text-chrome);opacity:.17;transition:opacity .18s}
-.entrance-progress>span[data-complete=true]{background:var(--accent-volt);opacity:1}
-.entrance-checks{display:flex;justify-content:space-between;gap:8px;margin-top:12px;font:9px/1.4 var(--font-mono);letter-spacing:.05em;color:var(--text-titanium);font-variant-numeric:tabular-nums}
-.entrance-bottom>span{font:9px/1.5 var(--font-mono);letter-spacing:.08em;color:var(--text-titanium)}
-.entrance-bottom button{font:12px var(--font-sans);color:var(--text-chrome);background:none;border:1px solid var(--text-titanium);min-height:44px;padding:0 18px;white-space:nowrap;cursor:pointer}
-.entrance-bottom button span{margin-left:16px;color:var(--accent-volt)}
-.entrance-bottom button:focus-visible{outline:2px solid var(--accent-volt);outline-offset:5px}
-.landing-entrance[data-phase=leaving] .entrance-dancer *{animation-play-state:paused}
-.landing-entrance[data-phase=leaving]{animation:entrance-lift .5s cubic-bezier(.76,0,.24,1) both;will-change:transform}
-@keyframes entrance-lift{to{transform:translateY(-100%)}}
-.landing-entrance[data-quiet=true][data-phase=leaving]{animation:entrance-fade .08s linear both}
-@keyframes entrance-fade{to{opacity:0}}
-@media(prefers-reduced-motion:reduce){.landing-entrance .entrance-dancer video{display:none}.landing-entrance[data-phase=leaving]{animation:entrance-fade .08s linear both}.entrance-progress>span{transition:none}}
-@media(max-width:400px){.entrance-bottom>span{max-width:120px}.entrance-stage{height:240px}.entrance-dancer{width:min(100%,240px)}}
-@media(max-height:600px){.entrance-stage{height:140px;margin-bottom:10px}.entrance-dancer{width:min(100%,140px)}.entrance-center p{margin-bottom:12px}.entrance-top>span:first-child{font-size:25px}}
+
+.landing-entrance::backdrop { background: transparent; }
+
+/* Screen print dots and an irregular seam like overlapping street posters. */
+.entrance-wall {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, var(--entrance-ink) .65px, transparent 1px) 0 0 / 7px 7px,
+    var(--bg-carbon);
+  clip-path: polygon(69% 0, 100% 0, 100% 100%, 50% 100%, 53% 83%, 55% 82%, 54% 77%, 59% 57%, 58% 54%, 62% 38%, 61% 35%);
+}
+
+.entrance-top,
+.entrance-bottom {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  color: var(--text-titanium);
+  font: 500 10px/1.45 var(--font-mono);
+  letter-spacing: .08em;
+}
+
+.entrance-top { padding-bottom: 12px; border-bottom: 1px solid var(--entrance-ink); }
+.entrance-top > span:last-child { text-align: right; }
+
+.entrance-wordmark {
+  padding: .12em .23em .18em;
+  background: var(--text-chrome);
+  color: var(--bg-obsidian);
+  font: 400 clamp(25px, 3.3vw, 42px)/1 var(--entrance-display);
+  letter-spacing: -.03em;
+  transform: rotate(-4deg);
+}
+
+.entrance-center {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: "copy stage";
+  align-items: center;
+  gap: clamp(22px, 5vw, 88px);
+  width: min(100%, 1170px);
+  margin: auto;
+}
+
+.entrance-stage {
+  grid-area: stage;
+  position: relative;
+  justify-self: center;
+  width: min(100%, 62vh, 520px);
+  aspect-ratio: 1;
+  pointer-events: none;
+}
+
+.entrance-record {
+  position: absolute;
+  inset: 4%;
+  border: 1px solid var(--entrance-ink);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 57%, var(--accent-volt) 57.3% 57.8%, transparent 58.1%),
+    repeating-radial-gradient(circle, var(--bg-carbon) 0 7px, var(--bg-obsidian) 8px 10px);
+}
+
+.entrance-record::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--accent-volt);
+  clip-path: polygon(0 77%, 100% 49%, 100% 60%, 0 87%);
+  opacity: .16;
+}
+
+.entrance-floor {
+  position: absolute;
+  inset: auto 25% 9%;
+  height: 5px;
+  background: var(--accent-volt);
+  transform: skewX(-22deg);
+}
+
+/* The video is rendered as a white silhouette on black. Screen blending
+   reveals the stage art through the black pixels in both the still and clip. */
+.entrance-dancer {
+  position: absolute;
+  inset: 0;
+  background: url("/images/entrance-dancer.webp") center / contain no-repeat;
+  mix-blend-mode: screen;
+}
+
+.entrance-dancer video { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+.entrance-sticker {
+  position: absolute;
+  right: 1%;
+  bottom: 9%;
+  padding: .38em .5em .42em;
+  background: var(--accent-crimson);
+  color: var(--bg-obsidian);
+  box-shadow: 3px 3px var(--bg-obsidian);
+  font: 400 clamp(13px, 2vw, 25px)/.98 var(--entrance-display);
+  letter-spacing: .035em;
+  transform: rotate(9deg);
+}
+
+.entrance-copy { grid-area: copy; min-width: 0; }
+
+.entrance-copy h2 {
+  margin: 0;
+  font: 400 clamp(46px, 7.4vw, 109px)/1.02 var(--entrance-display);
+  letter-spacing: -.015em;
+}
+
+.entrance-copy h2 span {
+  display: table;
+  margin-top: .08em;
+  padding: 0 .14em .07em;
+  background: var(--accent-volt);
+  color: var(--bg-obsidian);
+  transform: skewX(-5deg);
+}
+
+.entrance-copy p {
+  min-height: 1.5em;
+  margin: 22px 0 14px;
+  color: var(--text-titanium);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.entrance-progress {
+  display: flex;
+  gap: 6px;
+  width: min(100%, 360px);
+  height: 6px;
+}
+
+.entrance-progress > span {
+  flex: 1;
+  background: var(--text-chrome);
+  opacity: .23;
+  transform: skewX(-12deg);
+  transition: opacity .18s;
+}
+
+.entrance-progress > span[data-complete=true] { background: var(--accent-volt); opacity: 1; }
+
+.entrance-checks {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  width: min(100%, 360px);
+  margin-top: 9px;
+  color: var(--text-titanium);
+  font: 500 10px/1.4 var(--font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.entrance-checks > span:last-child { white-space: nowrap; }
+
+.entrance-bottom {
+  padding-top: 12px;
+  border-top: 1px solid var(--entrance-ink);
+}
+
+.entrance-bottom > span { max-width: 25ch; }
+
+.entrance-bottom button {
+  min-height: 44px;
+  padding: 0 15px;
+  border: 1px solid var(--text-chrome);
+  background: var(--bg-obsidian);
+  color: var(--text-chrome);
+  font: 600 13px/1.2 "Space Grotesk", var(--font-sans), sans-serif;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.entrance-bottom button span { margin-left: 12px; color: var(--accent-volt); }
+.entrance-bottom button:hover { border-color: var(--accent-volt); }
+.entrance-bottom button:focus-visible { outline: 2px solid var(--accent-volt); outline-offset: 3px; }
+
+.landing-entrance[data-managed=false] { animation: entrance-fail-open 9s step-end forwards; }
+/* Release the server-rendered cover if hydration never arrives. */
+@keyframes entrance-fail-open { to { visibility: hidden; pointer-events: none; } }
+
+.landing-entrance[data-phase=leaving] {
+  animation: entrance-lift .5s cubic-bezier(.76, 0, .24, 1) both;
+  will-change: transform;
+}
+
+@keyframes entrance-lift { to { transform: translateY(-100%); } }
+@keyframes entrance-fade { to { opacity: 0; } }
+.landing-entrance[data-quiet=true][data-phase=leaving] { animation: entrance-fade .08s linear both; }
+
+@media (max-width: 700px) {
+  .entrance-center {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "stage" "copy";
+    gap: 14px;
+    width: min(100%, 360px);
+  }
+
+  .entrance-stage { width: min(100%, 34dvh, 300px); }
+  .entrance-copy h2 { font-size: clamp(38px, 10vw, 62px); }
+  .entrance-copy p { margin-top: 14px; }
+}
+
+@media (max-height: 500px) and (min-width: 520px) {
+  .landing-entrance[open] { gap: 10px; }
+  .entrance-center {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-areas: "copy stage";
+    width: min(100%, 740px);
+  }
+  .entrance-stage { width: min(100%, 50dvh); }
+  .entrance-copy h2 { font-size: clamp(30px, 11vh, 54px); }
+  .entrance-copy p { margin-block: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .landing-entrance .entrance-dancer video { display: none; }
+  .landing-entrance[data-phase=leaving] { animation: entrance-fade .08s linear both; }
+  .entrance-progress > span { transition: none; }
+}

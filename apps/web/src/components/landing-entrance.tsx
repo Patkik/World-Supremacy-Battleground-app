@@ -86,9 +86,15 @@ export function LandingEntrance({ root, motionReady, danceAllowed, quiet, onComp
   return <><noscript><style>{".landing-entrance{display:none!important}"}</style></noscript><dialog open ref={dialog} className="landing-entrance" data-managed={managed} data-phase={phase} data-quiet={quiet}
     aria-labelledby="entrance-title" aria-describedby="entrance-status"
     onCancel={event => { event.preventDefault(); setSkipped(true); }}>
-    <div className="entrance-top"><span>WSB</span><span>WORLD SUPREMACY<br/>BATTLEGROUNDS</span></div>
+    <div className="entrance-wall" aria-hidden="true" />
+    <div className="entrance-top">
+      <span className="entrance-wordmark" aria-hidden="true">WSB</span>
+      <span>WORLD SUPREMACY<br />BATTLEGROUNDS</span>
+    </div>
     <div className="entrance-center">
       <div className="entrance-stage" aria-hidden="true">
+        <span className="entrance-record" />
+        <span className="entrance-floor" />
         <div className="entrance-dancer">
           {danceAllowed && !skipped && dance !== "unavailable" && (
             <video
@@ -105,14 +111,16 @@ export function LandingEntrance({ root, motionReady, danceAllowed, quiet, onComp
             />
           )}
         </div>
-        <span className="entrance-floor"/>
+        <span className="entrance-sticker">BREAK<br />SESSION</span>
       </div>
-      <h2 id="entrance-title">SETTING THE STAGE.</h2>
-      <p id="entrance-status" role="status">{skipped ? "Entering the site" : expired ? "Opening with available assets" : ready ? fallback ? "Ready with a fallback" : "Ready. Let’s move." : "Preparing your first view"}</p>
-      <div className="entrance-progress" role="progressbar" aria-label="Landing page checks" aria-valuemin={0} aria-valuemax={4} aria-valuenow={count} aria-valuetext={`${count} of 4 checks complete${fallback ? "; using available assets" : ""}`}>
-        {allChecks.map((check, index) => <span key={index} data-complete={check !== "waiting"}/>) }
+      <div className="entrance-copy">
+        <h2 id="entrance-title">SETTING <span>THE STAGE.</span></h2>
+        <p id="entrance-status" role="status">{skipped ? "Entering the site" : expired ? "Opening with available assets" : ready ? fallback ? "Ready with a fallback" : "Ready. Let’s move." : "Preparing your first view"}</p>
+        <div className="entrance-progress" role="progressbar" aria-label="Landing page checks" aria-valuemin={0} aria-valuemax={4} aria-valuenow={count} aria-valuetext={`${count} of 4 checks complete${fallback ? "; using available assets" : ""}`}>
+          {allChecks.map((check, index) => <span key={index} data-complete={check !== "waiting"} />)}
+        </div>
+        <div className="entrance-checks" aria-hidden="true"><span>PAGE / TYPE / IMAGE / ENTRANCE</span><span>{count} / 4</span></div>
       </div>
-      <div className="entrance-checks" aria-hidden="true"><span>PAGE / TYPE / IMAGE / ENTRANCE</span><span>{count} / 4</span></div>
     </div>
     <div className="entrance-bottom"><span>FROM THE STREETS. TO THE WORLD.</span><button type="button" autoFocus onClick={() => setSkipped(true)}>Enter site <span aria-hidden="true">↗</span></button></div>
   </dialog></>;

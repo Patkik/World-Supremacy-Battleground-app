@@ -4304,3 +4304,12 @@ at 1440px and 320px for changing decoded frames, phrase completion, hero
 handoff, accurate progress and cleanup. Escape, the readiness timeout, stalled
 and failed video, reduced and disabled motion, data saving, and JavaScript-off
 behavior also passed. Encoding at 60 fps does not measure device playback rates.
+
+## Street battle poster loader — 2026-11-04
+
+Styled the loader as a battle poster with a split halftone wall, vinyl grooves
+behind the silhouette, a lime title block and an orange Break Session sticker.
+The CSS artwork uses the existing video and poster assets. Readiness, playback
+preferences and entry timing still use the existing logic. Production build
+passed. Local previews at 1440×900, 390×844, 320×568 and 667×375 show the motion
+capture clip playing with the Enter site button inside the viewport.
